@@ -1,0 +1,186 @@
+import { useState } from "preact/hooks";
+import type { DocumentMeta } from "../../shared/types";
+import { TextInput } from "../components/controls";
+import { Prefill } from "../components/Prefill";
+import { pdfText } from "../pdf";
+import { markSaved, save, store, useProfile, useStored } from "../store";
+
+const MAX = 5 * 1024 * 1024;
+const KINDS: [DocumentMeta["kind"], string][] = [
+  ["resume", "Résumé"],
+  ["cover_letter", "Cover letter"],
+  ["transcript", "Transcript"],
+  ["other", "Other"],
+];
+
+const toBase64 = (buf: ArrayBuffer) => {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+export function DocumentUpload() {
+  const docs = useStored("documentsIndex") ?? [];
+  const [, update] = useProfile();
+  const [label, setLabel] = useState("Résumé");
+  const [kind, setKind] = useState<DocumentMeta["kind"]>("resume");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const extract = async (id: string) => {
+    const b64 = await store.getDoc(id);
+    if (!b64) return;
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const text = await pdfText(bytes.buffer);
+    update((p) => void (p.resumeText = text));
+  };
+
+  const upload = async (file: File) => {
+    setErr("");
+    if (file.size > MAX) return setErr("Files must be 5 MB or smaller.");
+    if (!/\.(pdf|docx|txt)$/i.test(file.name)) return setErr("Upload a PDF, DOCX or TXT file.");
+    setBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const isPdf = /\.pdf$/i.test(file.name);
+      const primary = kind === "resume" && isPdf && !docs.some((d) => d.isPrimaryResume);
+      const meta: DocumentMeta = {
+        id: crypto.randomUUID(),
+        label: label.trim() || file.name,
+        kind,
+        fileName: file.name,
+        mimeType: file.type || (isPdf ? "application/pdf" : "application/octet-stream"),
+        size: file.size,
+        isPrimaryResume: primary,
+        uploadedAt: Date.now(),
+      };
+      await store.setDoc(meta.id, toBase64(buf));
+      await save({ documentsIndex: [...docs, meta] });
+      if (primary) await extract(meta.id);
+    } catch (e) {
+      setErr(`Could not read the file: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div class="inline-form">
+      <label>
+        Label
+        <input value={label} onInput={(e) => setLabel(e.currentTarget.value)} />
+      </label>
+      <label>
+        Kind
+        <select value={kind} onChange={(e) => setKind(e.currentTarget.value as DocumentMeta["kind"])}>
+          {KINDS.map(([v, t]) => (
+            <option value={v}>{t}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        File (PDF, DOCX or TXT, max 5 MB)
+        <input
+          type="file"
+          accept=".pdf,.docx,.txt,application/pdf,text/plain"
+          disabled={busy}
+          onChange={(e) => {
+            const f = e.currentTarget.files?.[0];
+            if (f) void upload(f);
+            e.currentTarget.value = "";
+          }}
+        />
+      </label>
+      {busy && <span class="muted">Uploading…</span>}
+      {err && <p class="err">{err}</p>}
+    </div>
+  );
+}
+
+export function Documents() {
+  const docs = useStored("documentsIndex") ?? [];
+  const [profile, update] = useProfile();
+
+  const makePrimary = async (id: string) => {
+    await save({ documentsIndex: docs.map((d) => ({ ...d, isPrimaryResume: d.id === id })) });
+    const b64 = await store.getDoc(id);
+    if (!b64) return;
+    const text = await pdfText(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer);
+    update((p) => void (p.resumeText = text));
+  };
+
+  const remove = async (id: string) => {
+    await store.removeDoc(id);
+    await save({ documentsIndex: docs.filter((d) => d.id !== id) });
+    markSaved();
+  };
+
+  return (
+    <section>
+      <h1>Documents</h1>
+      <p class="intro">
+        Your primary résumé is attached automatically to résumé/CV upload fields, and its text is used as AI context.
+      </p>
+      <div class="panel-box">
+        <h2>Upload</h2>
+        <DocumentUpload />
+      </div>
+      {docs.length > 0 && (
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Kind</th>
+              <th>File</th>
+              <th>Primary résumé</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {docs.map((d) => (
+              <tr>
+                <td>{d.label}</td>
+                <td>{KINDS.find(([k]) => k === d.kind)?.[1]}</td>
+                <td>
+                  {d.fileName} <span class="muted">({Math.round(d.size / 1024)} KB)</span>
+                </td>
+                <td>
+                  {d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName) ? (
+                    <input
+                      type="radio"
+                      name="primary"
+                      aria-label={`Make ${d.label} the primary résumé`}
+                      checked={d.isPrimaryResume}
+                      onChange={() => void makePrimary(d.id)}
+                    />
+                  ) : (
+                    <span class="muted">PDF only</span>
+                  )}
+                </td>
+                <td>
+                  <button type="button" class="btn small danger" onClick={() => void remove(d.id)}>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {profile && (
+        <div class="panel-box">
+          <h2>Résumé text</h2>
+          <TextInput
+            label="Extracted text (editable)"
+            help="Sent to Gemini as context for answers and essays. Edit it if extraction garbled anything."
+            multiline
+            value={profile.resumeText}
+            onInput={(v) => update((p) => void (p.resumeText = v))}
+          />
+          <Prefill />
+        </div>
+      )}
+    </section>
+  );
+}

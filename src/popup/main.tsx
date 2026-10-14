@@ -1,2 +1,5 @@
 import { render } from "preact";
-render(<p>hi</p>, document.getElementById("app")!);
+import { Popup } from "./Popup";
+import "../options/styles.css";
+
+render(<Popup />, document.getElementById("app")!);
