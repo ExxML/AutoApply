@@ -1,0 +1,169 @@
+import { describe, expect, it } from "vitest";
+import { validateDecisions, compactProfile, mapFields } from "../../src/background/services/mapFields";
+import { validateChoices } from "../../src/background/services/chooseOptions";
+import { DecisionCache, CACHE_MAX } from "../../src/background/decisionCache";
+import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
+import { BadOutputError } from "../../src/background/gemini/errors";
+import type { Gemini } from "../../src/background/gemini/client";
+import type { FieldDescriptor } from "../../src/shared/types";
+import { defaultSettings } from "../../src/shared/settings";
+import { emptyProfile } from "../../src/shared/profileSchema";
+
+const field = (id: string, extra: Partial<FieldDescriptor> = {}): FieldDescriptor => ({
+  id,
+  kind: "text",
+  label: id,
+  required: false,
+  optionsKnown: true,
+  ...extra,
+});
+
+describe("response validation (§10.8.1)", () => {
+  const fields = [
+    field("f1"),
+    field("f2", { kind: "radio_group", options: ["Yes", "No"] }),
+    field("f3", { kind: "select", options: ["A", "B", "C"] }),
+    field("f4", { kind: "checkbox_group", options: ["x", "y", "z"] }),
+  ];
+
+  it("drops unknown ids and flags missing ones", () => {
+    const out = validateDecisions(fields, [
+      { fieldId: "nope", action: "fill", text: "x", confidence: "high" },
+      { fieldId: "f1", action: "fill", text: "Ada", confidence: "high" },
+    ]);
+    expect(out.map((d) => d.fieldId)).toEqual(["f1", "f2", "f3", "f4"]);
+    expect(out[0]).toMatchObject({ action: "fill", text: "Ada" });
+    expect(out[1]).toMatchObject({ action: "flag", note: "No AI decision" });
+  });
+
+  it("turns out-of-range or non-integer indexes into flags", () => {
+    const out = validateDecisions(fields, [
+      { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high" },
+      { fieldId: "f3", action: "fill", optionIndexes: [1.5], confidence: "high" },
+    ]);
+    expect(out[1].action).toBe("flag");
+    expect(out[2].action).toBe("flag");
+  });
+
+  it("keeps only the first index for single-choice fields but all for multi", () => {
+    const out = validateDecisions(fields, [
+      { fieldId: "f3", action: "fill", optionIndexes: [2, 0], confidence: "high" },
+      { fieldId: "f4", action: "fill", optionIndexes: [0, 2], confidence: "high" },
+    ]);
+    expect(out[2].optionIndexes).toEqual([2]);
+    expect(out[3].optionIndexes).toEqual([0, 2]);
+  });
+
+  it("low confidence becomes a flag with the suggestion kept", () => {
+    const out = validateDecisions(fields, [{ fieldId: "f2", action: "fill", optionIndexes: [0], confidence: "low" }]);
+    expect(out[1]).toMatchObject({ action: "flag", suggestion: "Yes" });
+  });
+
+  it("chooseOptions validation nulls low-confidence / out-of-range choices", () => {
+    const items = [
+      { fieldId: "a", question: "q", intendedAnswer: "BC", options: ["Alberta", "British Columbia"], multiple: false },
+      { fieldId: "b", question: "q", intendedAnswer: "x", options: ["1"], multiple: false },
+      { fieldId: "c", question: "q", intendedAnswer: "x", options: ["1"], multiple: false },
+    ];
+    const out = validateChoices(items, [
+      { fieldId: "a", optionIndexes: [1, 0], confidence: "high" },
+      { fieldId: "b", optionIndexes: [5], confidence: "high" },
+      { fieldId: "c", optionIndexes: [0], confidence: "low" },
+      { fieldId: "zzz", optionIndexes: [0], confidence: "high" },
+    ]);
+    expect(out).toEqual([
+      { fieldId: "a", optionIndexes: [1], confidence: "high" },
+      { fieldId: "b", optionIndexes: null, confidence: "low" },
+      { fieldId: "c", optionIndexes: null, confidence: "low" },
+    ]);
+  });
+});
+
+describe("mapFields chunking and splitting (§10.7)", () => {
+  it("splits a chunk in half when the output is truncated, then flags a single failing field", async () => {
+    const sizes: number[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields: FieldDescriptor[] } }) => {
+        const fs = s.payload.fields;
+        sizes.push(fs.length);
+        if (fs.some((f) => f.id === "bad")) throw new BadOutputError("MAX_TOKENS", true);
+        return {
+          data: { decisions: fs.map((f) => ({ fieldId: f.id, action: "fill", text: "x", confidence: "high" })) },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const fields = ["a", "b", "bad", "d"].map((id) => field(id));
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(r.decisions.map((d) => d.action)).toEqual(["fill", "fill", "flag", "fill"]);
+    expect(sizes[0]).toBe(4);
+  });
+
+  it("compactProfile drops empty values recursively", () => {
+    expect(compactProfile({ a: "", b: [], c: {}, d: null, e: { f: "", g: "x" }, h: ["", "y"] })).toEqual({
+      e: { g: "x" },
+      h: ["y"],
+    });
+  });
+});
+
+describe("essay limits (§15)", () => {
+  it("parses words and characters from label/hint and maxLength", () => {
+    expect(parseEssayLimits("Why us? (max 200 words)")).toEqual({ maxWords: 200 });
+    expect(parseEssayLimits("Tell us about you", "Up to 500 characters")).toEqual({ maxChars: 500 });
+    expect(parseEssayLimits("Bio", "", 300)).toEqual({ maxChars: 300 });
+    expect(parseEssayLimits("Bio 1000 chars", "", 300)).toEqual({ maxChars: 300 });
+  });
+
+  it("trims at the last sentence boundary within the limit", () => {
+    const text = "One two three. Four five six seven. Eight nine ten eleven twelve.";
+    expect(trimToLimits(text, { maxWords: 8 })).toBe("One two three. Four five six seven.");
+    const t2 = trimToLimits(text, { maxChars: 40 });
+    expect(t2).toBe("One two three. Four five six seven.");
+    expect(t2.length).toBeLessThanOrEqual(40);
+    expect(wordCount(trimToLimits(text, { maxWords: 3 }))).toBeLessThanOrEqual(3);
+    expect(trimToLimits("short", { maxWords: 10, maxChars: 100 })).toBe("short");
+  });
+
+  it("strips markdown", () => {
+    expect(stripMarkdown("## Title\n**Bold** and *it*\n- item\n[link](http://x)")).toBe(
+      "Title\nBold and it\nitem\nlink",
+    );
+  });
+});
+
+describe("decision cache (§13.3)", () => {
+  const d = (text: string) => ({ action: "fill" as const, text, source: "ai" as const, savedAt: 0 });
+
+  it("hits by signature + profileVersion and misses after the profile changes", () => {
+    const c = new DecisionCache({});
+    c.store([{ signature: "sig1", decision: d("A") }], "v1");
+    expect(c.lookup(["sig1", "sig2"], "v1")).toMatchObject({ sig1: { text: "A" } });
+    expect(c.lookup(["sig1"], "v2")).toEqual({});
+  });
+
+  it("evicts the least recently used entries beyond the max", () => {
+    let now = 1;
+    const c = new DecisionCache({}, undefined, () => now);
+    for (let i = 0; i < CACHE_MAX; i++) c.store([{ signature: `s${i}`, decision: d(String(i)) }], "v");
+    now++;
+    c.lookup(["s0"], "v"); // s0 becomes most recently used
+    now++;
+    c.store([{ signature: "new", decision: d("n") }], "v");
+    expect(Object.keys(c.entries)).toHaveLength(CACHE_MAX);
+    expect(c.lookup(["s0"], "v").s0).toBeTruthy();
+    expect(c.lookup(["s1"], "v").s1).toBeUndefined();
+  });
+
+  it("expires entries older than 30 days", () => {
+    let now = 0;
+    const c = new DecisionCache({}, undefined, () => now);
+    c.store([{ signature: "s", decision: d("x") }], "v");
+    now = 31 * 24 * 3600 * 1000;
+    expect(c.lookup(["s"], "v")).toEqual({});
+  });
+});

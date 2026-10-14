@@ -1,0 +1,112 @@
+// Appendix B response schemas (Gemini OpenAPI subset) and their zod mirrors.
+import { z } from "zod";
+import type { Decision } from "../../shared/types";
+
+const nullableStr = { type: "STRING", nullable: true };
+const CONFIDENCE = { type: "STRING", enum: ["high", "medium", "low"] };
+
+export const MAPPING_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    decisions: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          fieldId: { type: "STRING" },
+          action: { type: "STRING", enum: ["fill", "essay", "consent", "skip", "flag"] },
+          text: nullableStr,
+          optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
+          intendedAnswer: nullableStr,
+          searchQuery: nullableStr,
+          checked: { type: "BOOLEAN", nullable: true },
+          documentId: nullableStr,
+          confidence: CONFIDENCE,
+          sources: { type: "ARRAY", items: { type: "STRING" } },
+          note: nullableStr,
+        },
+        required: ["fieldId", "action", "confidence"],
+      },
+    },
+  },
+  required: ["decisions"],
+};
+
+export const CHOOSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    choices: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          fieldId: { type: "STRING" },
+          optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
+          confidence: CONFIDENCE,
+        },
+        required: ["fieldId", "confidence"],
+      },
+    },
+  },
+  required: ["choices"],
+};
+
+export const ESSAYS_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    essays: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { fieldId: { type: "STRING" }, text: { type: "STRING" } },
+        required: ["fieldId", "text"],
+      },
+    },
+  },
+  required: ["essays"],
+};
+
+export const VALIDATION_SCHEMA = {
+  type: "OBJECT",
+  properties: { ok: { type: "BOOLEAN" } },
+  required: ["ok"],
+};
+
+const opt = <T extends z.ZodType>(t: T) => t.nullish().transform((v) => v ?? undefined);
+const Confidence = z.enum(["high", "medium", "low"]);
+
+export const MappingZ = z.object({
+  decisions: z.array(
+    z.object({
+      fieldId: z.string(),
+      action: z.enum(["fill", "essay", "consent", "skip", "flag"]),
+      text: opt(z.string()),
+      optionIndexes: opt(z.array(z.number())),
+      intendedAnswer: opt(z.string()),
+      searchQuery: opt(z.string()),
+      checked: opt(z.boolean()),
+      documentId: opt(z.string()),
+      confidence: Confidence,
+      sources: opt(z.array(z.string())),
+      note: opt(z.string()),
+    }),
+  ),
+});
+export type RawDecision = Omit<Decision, "suggestion">;
+
+export const ChooseZ = z.object({
+  choices: z.array(
+    z.object({
+      fieldId: z.string(),
+      optionIndexes: z
+        .array(z.number())
+        .nullish()
+        .transform((v) => v ?? null),
+      confidence: Confidence,
+    }),
+  ),
+});
+
+export const EssaysZ = z.object({ essays: z.array(z.object({ fieldId: z.string(), text: z.string() })) });
+
+export const ValidationZ = z.object({ ok: z.boolean() });

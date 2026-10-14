@@ -186,6 +186,8 @@ export interface RuntimeConfig {
   profileSnapshotForDeterministic: DeterministicProfile;
   documentsIndex: DocumentMeta[];
   effectiveAutoFill: boolean;
+  /** The tab's host is in settings.excludedHosts. */
+  excluded: boolean;
   selectedModel: string | null;
   hasKeys: boolean;
   overlayTop: number | null;
