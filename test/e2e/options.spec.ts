@@ -1,0 +1,89 @@
+import { chromium } from "@playwright/test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { MockGemini } from "../mockGemini";
+import { expect, test } from "./extension";
+
+const EXT = path.resolve("dist");
+
+async function launch(dir: string) {
+  const mock = new MockGemini();
+  const context = await chromium.launchPersistentContext(dir, {
+    channel: "chromium",
+    headless: true,
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
+  });
+  await mock.install(context);
+  const sw = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+  return { context, sw, mock, id: new URL(sw.url()).host };
+}
+
+test("setup: adding a key fetches models; only text models, newest first; the choice survives a restart", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoapply-"));
+  try {
+    const first = await launch(dir);
+    const { mock } = first;
+    let { context, id } = first;
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${id}/src/options/index.html#/setup/1`);
+    await expect(page.getByText("Rate limits apply per Google Cloud project, not per key.")).toBeVisible();
+    await page.getByLabel("Label").first().fill("Main");
+    await page.getByLabel("API key").fill("AIza-test-key");
+    await page.getByRole("button", { name: "Add key" }).click();
+    await expect(page.getByText("Key added and verified.")).toBeVisible();
+    await expect(page.locator("td.mono")).toHaveText("••••-key");
+    expect(mock.calls.some((c) => c.kind === "list" && c.key === "AIza-test-key")).toBe(true);
+
+    await page.goto(`chrome-extension://${id}/src/options/index.html#/setup/2`);
+    const ids = page.locator(".models .model .mono");
+    await expect(ids).toHaveText([
+      "gemini-2.5-pro",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
+    ]);
+    // Default preselection: first flash-lite.
+    await expect(page.getByRole("radio", { name: /gemini-2\.5-flash-lite/ })).toBeChecked();
+    await expect(page.locator(".model", { hasText: "gemini-flash-latest" }).locator(".badge")).toHaveText("Alias");
+
+    await page.getByRole("radio", { name: /gemini-2\.5-pro/ }).check();
+    await expect(page.getByText("✓ gemini-2.5-pro works")).toBeVisible();
+    await context.close();
+
+    ({ context, id } = await launch(dir));
+    const again = await context.newPage();
+    await again.goto(`chrome-extension://${id}/src/options/index.html#/ai`);
+    await expect(again.getByRole("radio", { name: /gemini-2\.5-pro/ }).first()).toBeChecked();
+    await context.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("invalid keys are rejected with the API's message", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "autoapply-"));
+  const { context, id, mock } = await launch(dir);
+  try {
+    await context.unroute("https://generativelanguage.googleapis.com/**");
+    await context.route("https://generativelanguage.googleapis.com/**", (r) =>
+      r.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { code: 400, status: "INVALID_ARGUMENT", message: "API key not valid. Please pass a valid API key." },
+        }),
+      }),
+    );
+    void mock;
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${id}/src/options/index.html#/ai`);
+    await page.getByLabel("API key").fill("bad");
+    await page.getByRole("button", { name: "Add key" }).click();
+    await expect(page.getByText("API key not valid. Please pass a valid API key.")).toBeVisible();
+    await expect(page.locator("td.mono")).toHaveCount(0);
+  } finally {
+    await context.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

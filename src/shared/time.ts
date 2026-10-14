@@ -18,26 +18,16 @@ function laWall(ts: number): number {
 
 /** Next 00:00 in America/Los_Angeles (DST-safe: offsets come from Intl, not constants). */
 export function nextMidnightPacific(now = Date.now()): number {
+  // laWall has second precision, so offsets are measured against whole seconds.
+  const offset = (ts: number) => laWall(ts) - Math.floor(ts / 1000) * 1000;
   const wall = new Date(laWall(now));
   const target = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate() + 1);
-  let t = target - (laWall(now) - now);
-  t = target - (laWall(t) - t);
-  return t;
+  const guess = target - offset(now);
+  return target - offset(guess);
 }
 
 export function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-export function formatPacific(ts: number): string {
-  return (
-    new Date(ts).toLocaleTimeString("en-US", {
-      timeZone: "America/Los_Angeles",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }) + " PT"
-  );
 }
 
 export function formatDateTime(ts: number): string {

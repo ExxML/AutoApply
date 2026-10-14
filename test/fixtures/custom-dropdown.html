@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Field Engineer</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .row {
+        margin: 14px 0;
+      }
+      .select__control {
+        border: 1px solid #999;
+        padding: 6px;
+        width: 300px;
+        cursor: pointer;
+        min-height: 20px;
+      }
+      .select__placeholder {
+        color: #888;
+      }
+      .select__menu {
+        position: absolute;
+        background: #fff;
+        border: 1px solid #999;
+        width: 312px;
+        height: 200px;
+        overflow-y: auto;
+        z-index: 10;
+      }
+      .select__option {
+        height: 30px;
+        line-height: 30px;
+        padding: 0 6px;
+        box-sizing: border-box;
+      }
+      .select__option:hover {
+        background: #eef;
+      }
+      [role="listbox"]#types {
+        border: 1px solid #999;
+        list-style: none;
+        padding: 0;
+        width: 300px;
+      }
+      [role="listbox"]#types li {
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Field Engineer application</h1>
+    <form onsubmit="return false;">
+      <div class="row"><label for="fn">First name</label> <input id="fn" /></div>
+      <div class="row"><label for="em">Email</label> <input id="em" type="email" /></div>
+      <div class="row">
+        <label id="country-label">Country</label>
+        <div class="select__control" id="country" aria-labelledby="country-label" tabindex="0">
+          <span class="select__placeholder">Select…</span>
+        </div>
+      </div>
+      <div class="row">
+        <span id="type-label">Employment type</span><br />
+        <button
+          type="button"
+          id="type-btn"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="types"
+          aria-labelledby="type-label"
+        >
+          Choose…
+        </button>
+        <ul role="listbox" id="types" hidden>
+          <li role="option" aria-selected="false">Full-time</li>
+          <li role="option" aria-selected="false">Part-time</li>
+          <li role="option" aria-selected="false">Co-op / Internship</li>
+        </ul>
+      </div>
+      <div class="row"><label for="cv">Resume</label> <input id="cv" type="file" /></div>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      // react-select-like: div control, portal menu on <body>, virtualized 250-country list.
+      const names = new Intl.DisplayNames(["en"], { type: "region" });
+      const countries = [];
+      for (let a = 65; a <= 90; a++)
+        for (let b = 65; b <= 90; b++) {
+          const code = String.fromCharCode(a, b);
+          const n = names.of(code);
+          if (n && n !== code && !countries.includes(n)) countries.push(n);
+        }
+      countries.sort();
+      while (countries.length > 250) countries.pop();
+      if (!countries.includes("Canada")) countries[10] = "Canada";
+
+      const control = document.getElementById("country");
+      let menu = null;
+      const ROW = 30;
+      function render() {
+        const start = Math.floor(menu.scrollTop / ROW);
+        const inner = menu.firstChild;
+        inner.replaceChildren();
+        for (let i = start; i < Math.min(countries.length, start + 8); i++) {
+          const o = document.createElement("div");
+          o.className = "select__option";
+          o.setAttribute("role", "option");
+          o.style.position = "absolute";
+          o.style.top = i * ROW + "px";
+          o.style.width = "100%";
+          o.textContent = countries[i];
+          o.addEventListener("click", () => {
+            control.innerHTML = '<span class="select__single-value"></span>';
+            control.firstChild.textContent = countries[i];
+            close();
+          });
+          inner.append(o);
+        }
+      }
+      function open() {
+        if (menu) return;
+        menu = document.createElement("div");
+        menu.className = "select__menu";
+        menu.setAttribute("role", "listbox");
+        const r = control.getBoundingClientRect();
+        menu.style.left = r.left + scrollX + "px";
+        menu.style.top = r.bottom + scrollY + "px";
+        const inner = document.createElement("div");
+        inner.style.position = "relative";
+        inner.style.height = countries.length * ROW + "px";
+        menu.append(inner);
+        document.body.append(menu);
+        menu.addEventListener("scroll", render);
+        render();
+      }
+      function close() {
+        menu?.remove();
+        menu = null;
+      }
+      control.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        menu ? close() : open();
+      });
+      control.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") close();
+      });
+      document.addEventListener("mousedown", (e) => {
+        if (menu && !menu.contains(e.target) && !control.contains(e.target)) close();
+      });
+
+      // ARIA combobox + listbox
+      const btn = document.getElementById("type-btn");
+      const list = document.getElementById("types");
+      btn.addEventListener("click", () => {
+        list.hidden = !list.hidden;
+        btn.setAttribute("aria-expanded", String(!list.hidden));
+      });
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          list.hidden = true;
+          btn.setAttribute("aria-expanded", "false");
+        }
+      });
+      for (const li of list.children)
+        li.addEventListener("click", () => {
+          for (const x of list.children) x.setAttribute("aria-selected", String(x === li));
+          btn.textContent = li.textContent;
+          list.hidden = true;
+          btn.setAttribute("aria-expanded", "false");
+        });
+    </script>
+  </body>
+</html>

@@ -53,6 +53,7 @@ export function setBadge(
   label: string,
   tooltip: string,
   onClick?: () => void,
+  fieldLabel = "",
 ) {
   listen();
   let b = badges.get(id);
@@ -70,7 +71,7 @@ export function setBadge(
   b.tag.dataset.fieldId = b.box.dataset.fieldId = id;
   b.tag.dataset.color = color;
   b.tag.onclick = onClick ?? null;
-  b.tag.setAttribute("aria-label", `${label}: ${tooltip}`);
+  b.tag.setAttribute("aria-label", `${fieldLabel}: ${label}. ${tooltip}`);
   place(b);
 }
 

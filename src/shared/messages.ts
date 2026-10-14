@@ -87,8 +87,6 @@ export interface Responses {
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
 }
 
-export type MessageOf<T extends Message["type"]> = Extract<Message, { type: T }>;
-
 /** Sends to the background and resolves with the typed response. */
 export function send<M extends Message>(msg: M): Promise<Responses[M["type"]]> {
   return chrome.runtime.sendMessage(msg) as Promise<Responses[M["type"]]>;

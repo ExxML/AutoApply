@@ -1,0 +1,198 @@
+// Playwright route handler that fakes the Gemini REST API. Decisions are deterministic, keyed by field label.
+import type { BrowserContext, Route } from "@playwright/test";
+
+type Json = Record<string, unknown>;
+export type CallKind = "list" | "validate" | "map" | "choose" | "essay" | "resume";
+export interface Call {
+  kind: CallKind;
+  key: string;
+  model: string;
+  status: number;
+  payload?: Json;
+}
+interface Field {
+  id: string;
+  kind: string;
+  label: string;
+  options?: string[];
+  optionsKnown?: boolean;
+}
+
+export const MODELS = [
+  "embedding-001",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash-preview-tts",
+  "gemma-3-27b-it",
+  "gemini-flash-latest",
+];
+
+const err = (code: number, status: string, message: string, details: unknown[] = []) => ({
+  error: { code, status, message, details },
+});
+
+/** Canned failure bodies matching the real API's shape. */
+export const FAILURES = {
+  perMinute: {
+    status: 429,
+    body: err(429, "RESOURCE_EXHAUSTED", "You exceeded your current quota.", [
+      {
+        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+        violations: [{ quotaId: "GenerateRequestsPerMinutePerProjectPerModel-FreeTier", quotaValue: "15" }],
+      },
+      { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "30s" },
+    ]),
+  },
+  daily: {
+    status: 429,
+    body: err(429, "RESOURCE_EXHAUSTED", "You exceeded your current quota.", [
+      {
+        "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+        violations: [{ quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier", quotaValue: "1000" }],
+      },
+    ]),
+  },
+  limitZero: {
+    status: 429,
+    body: err(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0"),
+  },
+  unavailable: { status: 503, body: err(503, "UNAVAILABLE", "The model is overloaded. Please try again later.") },
+  invalidKey: {
+    status: 400,
+    body: err(400, "INVALID_ARGUMENT", "API key not valid. Please pass a valid API key.", [
+      { "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "API_KEY_INVALID" },
+    ]),
+  },
+};
+
+type Failure = { status: number; body: unknown };
+
+const pick = (f: Field, re: RegExp) => {
+  const i = (f.options ?? []).findIndex((o) => re.test(o));
+  return i >= 0 ? [i] : null;
+};
+
+/** Label → decision table standing in for the model's semantic judgement. */
+function decide(f: Field): Json {
+  const L = f.label;
+  const fill = (extra: Json) => ({ fieldId: f.id, action: "fill", confidence: "high", sources: ["profile"], ...extra });
+  const choose = (re: RegExp, source: string) => {
+    const idx = pick(f, re);
+    return idx
+      ? fill({ optionIndexes: idx, sources: [source] })
+      : { fieldId: f.id, action: "flag", confidence: "low", note: "No option" };
+  };
+  if (/relocat/i.test(L)) return choose(/^i am willing/i, "preferences.willingToRelocate");
+  if (/sponsor/i.test(L)) return choose(/will not require/i, "workAuthorization.entries.requiresSponsorshipNow");
+  if (/gender/i.test(L)) return choose(/don.t wish|decline|prefer not/i, "demographics.gender");
+  if (/authorized to work/i.test(L)) return choose(/^yes$/i, "workAuthorization.entries.authorized");
+  if (/province/i.test(L)) return choose(/british columbia/i, "personal.address.region");
+  if (/country/i.test(L))
+    return f.options?.length ? choose(/^canada$/i, "personal.address.country") : fill({ intendedAnswer: "Canada" });
+  if (/employment type/i.test(L)) return fill({ intendedAnswer: "Co-op", sources: ["preferences.employmentTypes"] });
+  if (/location/i.test(L)) return fill({ intendedAnswer: "Vancouver, BC, Canada", searchQuery: "Vancouver" });
+  if (/18 years|18 or older/i.test(L)) return choose(/^yes$/i, "workAuthorization.over18");
+  if (/work arrangement/i.test(L)) return choose(/^hybrid$/i, "preferences.workArrangement");
+  if (/remote/i.test(L)) return fill({ checked: true, sources: ["preferences.workArrangement"] });
+  if (/why|tell us|describe|cover letter/i.test(L)) return { fieldId: f.id, action: "essay", confidence: "high" };
+  if (/agree|certify|terms|privacy/i.test(L))
+    return { fieldId: f.id, action: "consent", checked: true, confidence: "high" };
+  return { fieldId: f.id, action: "flag", confidence: "low", note: "Not in profile" };
+}
+
+function essay(item: Json): string {
+  const words = Number(item.maxWords) || Number(item.targetWords) || 60;
+  const sentence = "I build reliable software and enjoy learning from experienced teammates.";
+  const out: string[] = [];
+  while ((out.join(" ") + " " + sentence).split(/\s+/).length <= words) out.push(sentence);
+  return out.join(" ") || sentence.split(" ").slice(0, words).join(" ");
+}
+
+const reply = (obj: unknown) => ({
+  candidates: [{ finishReason: "STOP", content: { parts: [{ text: JSON.stringify(obj) }] } }],
+});
+
+export class MockGemini {
+  calls: Call[] = [];
+  /** Failures to return, keyed by API key; each entry is consumed once. Use "*" for any key. */
+  failures: Record<string, Failure[]> = {};
+  /** Persistent failure for (model, key) pairs, e.g. every call to the primary model. */
+  always: ((key: string, model: string, kind: CallKind) => Failure | null) | null = null;
+  delayMs = 0;
+
+  fail(key: string, ...f: Failure[]) {
+    (this.failures[key] ??= []).push(...f);
+  }
+
+  calls_(kind: CallKind) {
+    return this.calls.filter((c) => c.kind === kind && c.status === 200);
+  }
+
+  async install(ctx: BrowserContext) {
+    await ctx.route("https://generativelanguage.googleapis.com/**", (r) => this.handle(r));
+  }
+
+  private async handle(route: Route) {
+    const req = route.request();
+    const url = new URL(req.url());
+    const key = req.headers()["x-goog-api-key"] ?? "";
+    if (url.searchParams.has("key")) throw new Error("API key must never be sent in the URL");
+    if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
+    const send = (status: number, body: unknown, call: Omit<Call, "status">) => {
+      this.calls.push({ ...call, status });
+      return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    };
+
+    if (req.method() === "GET") {
+      const models = MODELS.map((m) => ({
+        name: `models/${m}`,
+        displayName: m,
+        supportedGenerationMethods: m.startsWith("embedding") ? ["embedContent"] : ["generateContent"],
+      }));
+      return send(200, { models }, { kind: "list", key, model: "" });
+    }
+
+    const model = /models\/([^:]+):generateContent/.exec(url.pathname)?.[1] ?? "";
+    const body = req.postDataJSON() as Json;
+    const system = ((body.systemInstruction as Json)?.parts as Json[])?.[0]?.text as string;
+    const text = (((body.contents as Json[])[0] as Json).parts as Json[])[0].text as string;
+    const kind: CallKind = system.startsWith("Reply with")
+      ? "validate"
+      : system.startsWith("You fill out")
+        ? "map"
+        : system.startsWith("You select options")
+          ? "choose"
+          : system.startsWith("You write answers")
+            ? "essay"
+            : "resume";
+    const payload = kind === "resume" ? { text } : (JSON.parse(text) as Json);
+    const call = { kind, key, model, payload };
+    const gc = body.generationConfig as Json;
+    if ("temperature" in gc || "topP" in gc || "topK" in gc)
+      return send(400, err(400, "INVALID_ARGUMENT", "sampling params sent"), call);
+
+    const queued = this.failures[key]?.shift() ?? this.failures["*"]?.shift();
+    if (queued) return send(queued.status, queued.body, call);
+    const persistent = this.always?.(key, model, kind);
+    if (persistent) return send(persistent.status, persistent.body, call);
+
+    if (kind === "validate") return send(200, reply({ ok: true }), call);
+    if (kind === "map") return send(200, reply({ decisions: (payload.fields as Field[]).map(decide) }), call);
+    if (kind === "choose") {
+      const items = payload.items as { fieldId: string; intendedAnswer: string; options: string[] }[];
+      const choices = items.map((i) => {
+        const idx = i.options.findIndex((o) => o.toLowerCase().includes(i.intendedAnswer.toLowerCase()));
+        return { fieldId: i.fieldId, optionIndexes: idx >= 0 ? [idx] : null, confidence: idx >= 0 ? "high" : "low" };
+      });
+      return send(200, reply({ choices }), call);
+    }
+    if (kind === "essay")
+      return send(
+        200,
+        reply({ essays: (payload.items as Json[]).map((i) => ({ fieldId: i.fieldId, text: essay(i) })) }),
+        call,
+      );
+    return send(200, reply({ personal: { firstName: "Ada", lastName: "Lovelace" } }), call);
+  }
+}

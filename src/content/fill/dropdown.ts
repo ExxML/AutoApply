@@ -85,17 +85,28 @@ export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
   if (c.isConnected && isVisible(c)) realClick(document.body, { x: 1, y: 1 });
 }
 
+// Virtualized lists re-render from scroll events, which fire on the next rendering frame.
+// Background tabs get no animation frames, so never wait on them longer than 100 ms.
+const settleScroll = () =>
+  sleep(50).then(() =>
+    Promise.race([new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))), sleep(100)]),
+  );
+
 function scroller(c: HTMLElement): HTMLElement | null {
   for (const el of [c, ...c.querySelectorAll<HTMLElement>("*")])
     if (el.scrollHeight > el.clientHeight + 4 && getComputedStyle(el).overflowY !== "visible") return el;
   return null;
 }
 
-/** Collect option texts, scrolling virtualized lists until nothing new appears twice (max 500). */
+/**
+ * Collect option texts, scrolling virtualized lists until nothing new appears twice (max 500).
+ * Returns null if `deadline` passes before the list is complete.
+ */
 export async function collectOptions(
   c: HTMLElement,
   stopAt?: (text: string) => boolean,
-): Promise<Map<string, HTMLElement>> {
+  deadline = Infinity,
+): Promise<Map<string, HTMLElement> | null> {
   const seen = new Map<string, HTMLElement>();
   const add = () => {
     let added = 0;
@@ -112,24 +123,27 @@ export async function collectOptions(
   const s = scroller(c);
   if (!s || [...seen.keys()].some((t) => stopAt?.(t))) return seen;
   s.scrollTop = 0;
-  await sleep(50);
+  await settleScroll();
   add();
   let idle = 0;
   while (idle < 2 && seen.size < 500) {
     s.scrollTop += s.clientHeight;
-    await sleep(50);
+    await settleScroll();
     idle = add() ? 0 : idle + 1;
     if ([...seen.keys()].some((t) => stopAt?.(t))) break;
+    if (Date.now() > deadline) return null;
   }
   return seen;
 }
 
-/** Pre-harvest options of a closed dropdown (§14.5.1). */
-export async function harvestOptions(h: FieldHandle): Promise<string[] | null> {
+/** Harvest options of a closed dropdown (§14.5.1); null if it cannot open or exceeds `budgetMs`. */
+export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promise<string[] | null> {
+  const deadline = Date.now() + budgetMs;
   const c = await openDropdown(h);
   if (!c) return null;
-  const texts = [...(await collectOptions(c)).keys()];
+  const all = await collectOptions(c, undefined, deadline);
   await closeDropdown(h, c);
+  const texts = all ? [...all.keys()] : [];
   return texts.length ? texts : null;
 }
 
@@ -154,7 +168,7 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
   }
   if (!el) {
     const all = await collectOptions(c, match);
-    const k = [...all.keys()].find(match);
+    const k = all && [...all.keys()].find(match);
     el = k ? all.get(k) : undefined;
   }
   if (!el) {

@@ -57,19 +57,22 @@ const gemini = createGemini({
 });
 
 const ready = (async () => {
-  await migrate();
-  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities", "decisionCache"]);
-  settings = s.settings;
-  pool.setKeys(s.apiKeys, s.keyState);
-  caps = s.modelCapabilities;
-  cache.entries = s.decisionCache;
+  // Listen before reading, and let anything that changes meanwhile win over the initial read.
+  const changed = new Set<string>();
   store.onChange(["settings", "apiKeys", "modelCapabilities", "decisionCache"], (c) => {
+    Object.keys(c).forEach((k) => changed.add(k));
     if (c.settings) settings = c.settings;
     if (c.apiKeys) pool.setKeys(c.apiKeys);
-    if (c.modelCapabilities && !Object.keys(c.modelCapabilities).length) caps = {};
+    if (c.modelCapabilities) caps = Object.keys(c.modelCapabilities).length ? { ...caps, ...c.modelCapabilities } : {};
     // Only an external clear (Data → Clear decision cache / Reset) empties the cache; our own writes are no-ops.
     if (c.decisionCache && !Object.keys(c.decisionCache).length) cache.clear();
   });
+  await migrate();
+  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities", "decisionCache"]);
+  if (!changed.has("settings")) settings = s.settings;
+  pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
+  caps = { ...s.modelCapabilities, ...caps };
+  if (!changed.has("decisionCache")) cache.entries = s.decisionCache;
 })();
 
 // ---------- helpers ----------

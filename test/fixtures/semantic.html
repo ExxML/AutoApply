@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Junior Developer | Northwind</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .row {
+        margin: 14px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Junior Developer application</h1>
+    <form onsubmit="return false;">
+      <div class="row"><label for="fn">First name</label> <input id="fn" /></div>
+      <div class="row"><label for="em">Email</label> <input id="em" type="email" /></div>
+      <fieldset class="row">
+        <legend>Are you willing to relocate for this position?</legend>
+        <label><input type="radio" name="reloc" value="1" /> I am willing to relocate</label>
+        <label><input type="radio" name="reloc" value="0" /> I am not willing to relocate</label>
+      </fieldset>
+      <div class="row">
+        <label for="spons">Will you now or in the future require visa sponsorship to work in Canada?</label>
+        <select id="spons">
+          <option value="">Please select</option>
+          <option>I will require sponsorship</option>
+          <option>I will not require sponsorship</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="gender">Gender</label>
+        <select id="gender">
+          <option value="">Select…</option>
+          <option>Male</option>
+          <option>Female</option>
+          <option>Non-binary</option>
+          <option>I don't wish to answer</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="lang">What is your favourite programming language?</label>
+        <input id="lang" name="favorite_language" />
+      </div>
+      <div class="row"><label for="cv">Resume</label> <input id="cv" type="file" /></div>
+      <button type="submit">Submit application</button>
+    </form>
+  </body>
+</html>

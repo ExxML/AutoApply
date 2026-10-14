@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Marketing Coordinator</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .dropzone {
+        border: 2px dashed #999;
+        padding: 24px;
+        text-align: center;
+      }
+      .dropzone input {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Marketing Coordinator application</h1>
+    <form onsubmit="return false;">
+      <p><label for="fn">First name</label> <input id="fn" /></p>
+      <p><label for="ln">Last name</label> <input id="ln" /></p>
+      <p><label for="em">Email</label> <input id="em" type="email" /></p>
+      <div class="dropzone" id="zone">
+        <p>Résumé</p>
+        <p>Drag and drop your résumé here, or click to upload</p>
+        <input type="file" id="file" accept=".pdf" />
+        <p id="status"></p>
+      </div>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      const input = document.getElementById("file");
+      const status = document.getElementById("status");
+      input.addEventListener("change", () => {
+        if (input.files[0]) status.textContent = `${input.files[0].name} uploaded ✓`;
+      });
+      const zone = document.getElementById("zone");
+      zone.addEventListener("dragover", (e) => e.preventDefault());
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files[0]) status.textContent = `${e.dataTransfer.files[0].name} uploaded ✓`;
+      });
+    </script>
+  </body>
+</html>

@@ -79,6 +79,9 @@ describe("nextMidnightPacific", () => {
     // DST ends 2026-11-01 02:00 PDT → next midnight is 2026-11-02 00:00 PST = 08:00Z
     expect(nextMidnightPacific(Date.UTC(2026, 10, 1, 12, 0))).toBe(Date.UTC(2026, 10, 2, 8, 0));
   });
+  it("returns an exact midnight regardless of the current milliseconds", () => {
+    expect(nextMidnightPacific(Date.UTC(2026, 6, 15, 18, 0, 0, 942))).toBe(Date.UTC(2026, 6, 16, 7, 0));
+  });
   it("just after midnight returns the following midnight", () => {
     expect(nextMidnightPacific(Date.UTC(2026, 6, 16, 7, 0, 1))).toBe(Date.UTC(2026, 6, 17, 7, 0));
   });

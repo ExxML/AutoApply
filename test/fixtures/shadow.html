@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – QA Engineer</title>
+    <script src="common.js"></script>
+  </head>
+  <body>
+    <h1>QA Engineer application</h1>
+    <apply-form></apply-form>
+    <script>
+      customElements.define(
+        "apply-form",
+        class extends HTMLElement {
+          connectedCallback() {
+            const root = this.attachShadow({ mode: "open" });
+            root.innerHTML = `
+              <style>.row { margin: 12px 0 } label { display:block; font-weight:600 }</style>
+              <form onsubmit="return false">
+                <div class="row"><label for="fn">First name</label><input id="fn"></div>
+                <div class="row"><label for="ln">Last name</label><input id="ln"></div>
+                <div class="row"><label for="em">Email address</label><input id="em" type="email"></div>
+                <div class="row"><label for="li">LinkedIn profile</label><input id="li" type="url"></div>
+                <div class="row"><label for="cv">Resume</label><input id="cv" type="file"></div>
+                <button type="submit">Submit application</button>
+              </form>`;
+          }
+        },
+      );
+    </script>
+  </body>
+</html>

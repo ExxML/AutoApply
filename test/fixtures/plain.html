@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta property="og:site_name" content="Acme Robotics" />
+    <title>Apply – Software Developer Co-op | Acme Robotics</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .row {
+        margin: 12px 0;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Software Developer Co-op</h1>
+    <section class="job">
+      <h2>About the role</h2>
+      <p>Join the platform team building robot fleet software in Vancouver.</p>
+      <h3>Responsibilities</h3>
+      <p>Build TypeScript services, write tests, and ship features weekly.</p>
+      <h3>Qualifications</h3>
+      <p>Enrolled in a CS program; experience with TypeScript or Python.</p>
+    </section>
+    <form id="apply">
+      <div class="row"><label for="fn">First name *</label><input id="fn" name="first_name" required /></div>
+      <div class="row"><label for="ln">Last name *</label><input id="ln" name="last_name" required /></div>
+      <div class="row"><label for="em">Email *</label><input id="em" name="email" type="email" required /></div>
+      <div class="row"><label for="ph">Phone</label><input id="ph" name="phone" type="tel" /></div>
+      <div class="row">
+        <label for="prov">Province</label>
+        <select id="prov" name="province">
+          <option value="">Select…</option>
+          <option value="AB">Alberta</option>
+          <option value="BC">British Columbia</option>
+          <option value="ON">Ontario</option>
+        </select>
+      </div>
+      <fieldset class="row">
+        <legend>Are you legally authorized to work in Canada?</legend>
+        <label><input type="radio" name="auth" value="yes" /> Yes</label>
+        <label><input type="radio" name="auth" value="no" /> No</label>
+      </fieldset>
+      <div class="row">
+        <label for="why">Why do you want to work at Acme Robotics? (max 120 words)</label>
+        <textarea id="why" name="why" rows="5"></textarea>
+      </div>
+      <div class="row">
+        <label for="cv">Resume/CV *</label><input id="cv" name="resume" type="file" accept=".pdf,.docx" />
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="privacy" name="privacy" /> I agree to the privacy policy</label>
+      </div>
+      <button type="submit">Submit application</button>
+    </form>
+  </body>
+</html>

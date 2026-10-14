@@ -87,6 +87,7 @@ let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
 let usedModel: string | null = null;
+let detectMs = 0;
 let company = "";
 let overlay: Overlay | null = null;
 const childFrames = new Map<number, FrameStatus>();
@@ -188,7 +189,7 @@ function setStatus(h: FieldHandle, status: Status, note?: string, tooltip?: stri
   const b = BADGE[status];
   if (b && config.settings.showBadges) {
     const onClick = status === "draft" ? () => offerLearn(h, "Save as reusable answer?") : undefined;
-    setBadge(h.id, h.container, b[0], b[1], [note, tooltip].filter(Boolean).join(" — ") || b[1], onClick);
+    setBadge(h.id, h.container, b[0], b[1], [note, tooltip].filter(Boolean).join(" — ") || b[1], onClick, h.desc.label);
   } else removeBadge(h.id);
   report();
 }
@@ -354,7 +355,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
   const groupId = crypto.randomUUID();
   current = { groupId, ctrl };
   const t0 = performance.now();
-  timings = [];
+  timings = detectMs ? [["detect", detectMs]] : [];
   const mark = (k: string) => timings.push([k, Math.round(performance.now() - t0)]);
   sessionUntil = Date.now() + SESSION_MS;
   const jobs: Promise<void>[] = [];
@@ -447,7 +448,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
       for (const h of toHarvest)
         void serial(async () => {
           if (ctrl.signal.aborted || harvested.has(h.id)) return;
-          const opts = await Promise.race([harvestOptions(h), sleep(1500).then(() => null)]);
+          const opts = await harvestOptions(h, 400);
           if (opts) harvested.set(h.id, opts);
         });
       const res = await mapped;
@@ -603,8 +604,10 @@ function onUserCommit(e: Event) {
 // ---------- SPA / multi-step (§11.8) ----------
 let detected = false;
 
-function maybeAuto(all: FieldHandle[]) {
+/** `t0`: when the bootstrap scan started, to log scan + detection time (§19). */
+function maybeAuto(all: FieldHandle[], t0?: number) {
   const d = detect(all);
+  if (t0 !== undefined) detectMs = Math.round(performance.now() - t0);
   const fillable = all.length;
   if (config.settings.debugLogging) console.log("[AutoApply] detection", d.score, d.signals);
   if (d.score >= config.settings.detectionThreshold && config.effectiveAutoFill && fillable >= 3) {
@@ -741,9 +744,10 @@ async function main() {
     if (!appeared) return;
   }
   await settle();
+  const t0 = performance.now();
   const all = scan(scanState).handles;
   all.forEach((h) => knownSignatures.add(h.signature));
-  maybeAuto(all);
+  maybeAuto(all, t0);
   observe();
 }
 

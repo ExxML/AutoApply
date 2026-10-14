@@ -16,7 +16,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ["test/fixtures/**/*.js", "test/fixtures/**/*.html"],
+    // Playwright fixtures must destructure their dependencies, even when there are none.
+    files: ["test/e2e/**/*.ts"],
+    rules: { "no-empty-pattern": "off" },
+  },
+  {
+    files: ["test/fixtures/**/*.js"],
     languageOptions: { globals: { React: "readonly", ReactDOM: "readonly" } },
   },
 );

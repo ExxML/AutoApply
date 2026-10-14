@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Product Designer (Step 1 of 2)</title>
+    <script src="common.js"></script>
+  </head>
+  <body>
+    <h1>Product Designer application</h1>
+    <div id="app"></div>
+    <script>
+      const app = document.getElementById("app");
+      const step1 = `
+        <p><label for="fn">First name</label> <input id="fn"></p>
+        <p><label for="ln">Last name</label> <input id="ln"></p>
+        <p><label for="em">Email</label> <input id="em" type="email"></p>
+        <p><label for="cv">Resume</label> <input id="cv" type="file"></p>
+        <button type="button" id="next">Next</button>`;
+      const step2 = `
+        <h2>Step 2: Contact details</h2>
+        <p><label for="ph">Phone number</label> <input id="ph" type="tel"></p>
+        <p><label for="city">City</label> <input id="city"></p>
+        <p><label for="li">LinkedIn</label> <input id="li" type="url"></p>
+        <button type="submit" id="submit">Submit application</button>`;
+      function show(step) {
+        app.innerHTML = `<form onsubmit="return false">${step === 2 ? step2 : step1}</form>`;
+        document.title = `Apply – Product Designer (Step ${step} of 2)`;
+        document.getElementById("next")?.addEventListener("click", () => {
+          history.pushState({ step: 2 }, "", "?step=2");
+          show(2);
+        });
+      }
+      show(new URLSearchParams(location.search).get("step") === "2" ? 2 : 1);
+    </script>
+  </body>
+</html>

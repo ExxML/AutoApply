@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Support Analyst</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .row {
+        margin: 14px 0;
+        position: relative;
+      }
+      #sugg {
+        position: absolute;
+        background: #fff;
+        border: 1px solid #999;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        width: 300px;
+      }
+      #sugg li {
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Support Analyst application</h1>
+    <form onsubmit="return false;">
+      <div class="row"><label for="fn">First name</label> <input id="fn" /></div>
+      <div class="row"><label for="ln">Last name</label> <input id="ln" /></div>
+      <div class="row"><label for="em">Email</label> <input id="em" type="email" /></div>
+      <div class="row">
+        <label for="loc">Location</label>
+        <input
+          id="loc"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="sugg"
+          aria-expanded="false"
+          autocomplete="off"
+        />
+        <ul id="sugg" role="listbox" hidden></ul>
+      </div>
+      <div class="row"><label for="cv">CV</label> <input id="cv" type="file" /></div>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      const places = ["Vancouver, BC, Canada", "Vancouver, WA, USA", "Victoria, BC, Canada", "Toronto, ON, Canada"];
+      const input = document.getElementById("loc");
+      const list = document.getElementById("sugg");
+      let t;
+      input.addEventListener("input", () => {
+        clearTimeout(t);
+        list.hidden = true;
+        t = setTimeout(() => {
+          const q = input.value.toLowerCase();
+          const hits = q ? places.filter((p) => p.toLowerCase().includes(q)) : [];
+          list.replaceChildren(
+            ...hits.map((p) => {
+              const li = document.createElement("li");
+              li.setAttribute("role", "option");
+              li.textContent = p;
+              li.addEventListener("mousedown", (e) => e.preventDefault());
+              li.addEventListener("click", () => {
+                input.value = p;
+                list.hidden = true;
+                input.setAttribute("aria-expanded", "false");
+              });
+              return li;
+            }),
+          );
+          list.hidden = !hits.length;
+          input.setAttribute("aria-expanded", String(!!hits.length));
+        }, 300);
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") list.hidden = true;
+      });
+    </script>
+  </body>
+</html>

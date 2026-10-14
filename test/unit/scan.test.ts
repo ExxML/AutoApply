@@ -217,3 +217,28 @@ describe("detection scoring (§11.2)", () => {
     expect(detect(fields(), loc("https://example.com/jobs")).score).toBeLessThan(30);
   });
 });
+
+describe("detection on fixture pages (§11.2)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const load = (file: string) => {
+    const doc = new DOMParser().parseFromString(readFileSync(`test/fixtures/${file}`, "utf8"), "text/html");
+    document.title = doc.title;
+    document.body.innerHTML = doc.body.innerHTML; // scripts do not run: static markup only
+    return detect(fields(), loc(`http://localhost:5501/jobs/${file}`)).score;
+  };
+  it.each([
+    "plain.html",
+    "custom-dropdown.html",
+    "typeahead.html",
+    "buttons-group.html",
+    "semantic.html",
+    "iframe-form.html",
+    "dropzone.html",
+    "consent.html",
+  ])("%s scores at or above the auto-fill threshold", (file) => {
+    expect(load(file)).toBeGreaterThanOrEqual(50);
+  });
+  it("login.html scores below the maybe threshold", () => {
+    expect(load("login.html")).toBeLessThan(30);
+  });
+});

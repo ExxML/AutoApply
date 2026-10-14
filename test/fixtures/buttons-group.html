@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Warehouse Associate</title>
+    <script src="common.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        max-width: 720px;
+        margin: 24px auto;
+      }
+      .row {
+        margin: 14px 0;
+      }
+      .pill {
+        border: 1px solid #888;
+        border-radius: 999px;
+        padding: 4px 14px;
+        background: #fff;
+        cursor: pointer;
+      }
+      .pill[aria-pressed="true"],
+      [role="radio"][aria-checked="true"] {
+        background: #4f46e5;
+        color: #fff;
+      }
+      [role="radio"] {
+        display: inline-block;
+        border: 1px solid #888;
+        padding: 4px 12px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Warehouse Associate application</h1>
+    <form onsubmit="return false;">
+      <div class="row"><label for="fn">First name</label> <input id="fn" /></div>
+      <div class="row"><label for="em">Email</label> <input id="em" type="email" /></div>
+      <div class="row">
+        <p>Are you 18 years of age or older?</p>
+        <div class="pills">
+          <button type="button" class="pill" aria-pressed="false">Yes</button>
+          <button type="button" class="pill" aria-pressed="false">No</button>
+        </div>
+      </div>
+      <div class="row">
+        <p id="arr">Preferred work arrangement</p>
+        <div role="radiogroup" aria-labelledby="arr">
+          <div role="radio" tabindex="0" aria-checked="false">On-site</div>
+          <div role="radio" tabindex="-1" aria-checked="false">Hybrid</div>
+          <div role="radio" tabindex="-1" aria-checked="false">Remote</div>
+        </div>
+      </div>
+      <div class="row"><label for="cv">Resume</label> <input id="cv" type="file" /></div>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      for (const b of document.querySelectorAll(".pill"))
+        b.addEventListener("click", () => {
+          for (const x of document.querySelectorAll(".pill")) x.setAttribute("aria-pressed", String(x === b));
+        });
+      for (const r of document.querySelectorAll("[role=radio]"))
+        r.addEventListener("click", () => {
+          for (const x of document.querySelectorAll("[role=radio]")) x.setAttribute("aria-checked", String(x === r));
+        });
+    </script>
+  </body>
+</html>

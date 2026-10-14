@@ -1,0 +1,171 @@
+import { BASE, badge, expect, forbidden, seed, test, waitDone } from "./extension";
+
+test("react-controlled: React state follows the filled values", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "react-controlled.html");
+  await waitDone(page);
+  await expect(page.locator("#echo")).toHaveText(
+    JSON.stringify({
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: "ada@example.com",
+      phone: "+1 6045551234",
+      country: "CA",
+      remote: true,
+    }),
+  );
+  await expect(badge(page, "Country of residence")).toHaveAttribute("data-color", "blue");
+  await expect(badge(page, "Open to remote work")).toHaveAttribute("data-color", "blue");
+  expect(await forbidden(page)).toEqual([]);
+});
+
+test("custom-dropdown: portal + virtualized list and ARIA combobox are operated and verified", async ({
+  page,
+  sw,
+  mock,
+}) => {
+  await seed(sw);
+  await page.goto(BASE + "custom-dropdown.html");
+  await waitDone(page);
+  await expect(page.locator("#country .select__single-value")).toHaveText("Canada");
+  await expect(page.locator("#type-btn")).toHaveText("Co-op / Internship");
+  await expect(page.locator(".select__menu")).toHaveCount(0);
+  await expect(page.locator("#types")).toBeHidden();
+  await expect(badge(page, "Country")).toHaveAttribute("data-color", "blue");
+  await expect(badge(page, "Employment type")).toHaveAttribute("data-color", "blue");
+  // "Co-op" is not an exact option, so the harvested options went to chooseOptions.
+  expect(mock.calls_("choose")).toHaveLength(1);
+  expect(await forbidden(page)).toEqual([]);
+});
+
+test("typeahead: types a query, waits for suggestions and picks the matching one", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "typeahead.html");
+  await waitDone(page);
+  await expect(page.locator("#loc")).toHaveValue("Vancouver, BC, Canada");
+  await expect(badge(page, "Location")).toHaveAttribute("data-color", "blue");
+});
+
+test("buttons-group: aria-pressed pills and a role=radiogroup are selected", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "buttons-group.html");
+  await waitDone(page);
+  await expect(page.locator(".pill", { hasText: "Yes" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".pill", { hasText: "No" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("[role=radio]", { hasText: "Hybrid" })).toHaveAttribute("aria-checked", "true");
+  await expect(badge(page, "Are you 18 years of age or older?")).toHaveAttribute("data-color", "blue");
+  expect(await forbidden(page)).toEqual([]);
+});
+
+test("semantic: relocation, negatively phrased sponsorship and EEO decline are chosen by meaning", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw);
+  await page.goto(BASE + "semantic.html");
+  await waitDone(page);
+  await expect(page.getByLabel("I am willing to relocate", { exact: true })).toBeChecked();
+  await expect(page.getByLabel("I am not willing to relocate")).not.toBeChecked();
+  await expect(page.locator("#spons")).toHaveValue("I will not require sponsorship");
+  await expect(page.locator("#gender")).toHaveValue("I don't wish to answer");
+  await expect(badge(page, "What is your favourite programming language?")).toHaveAttribute("data-color", "yellow");
+  await expect(page.locator("autoapply-root .panel .status")).toHaveText("Done · 6 filled · 0 AI drafts · 1 need you");
+});
+
+test("shadow: fields inside an open shadow root are filled", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "shadow.html");
+  await waitDone(page);
+  await expect(page.locator("#fn")).toHaveValue("Ada");
+  await expect(page.locator("#em")).toHaveValue("ada@example.com");
+  await expect(page.locator("#li")).toHaveValue("https://linkedin.com/in/ada");
+  await expect(badge(page, "LinkedIn profile")).toHaveAttribute("data-color", "green");
+});
+
+test("iframe: a cross-origin child frame fills itself and the top-frame overlay aggregates it", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw);
+  await page.goto(BASE + "iframe-host.html");
+  const frame = page.frameLocator("#frame");
+  await expect(frame.locator("#fn")).toHaveValue("Ada");
+  await expect(frame.locator("#ph")).toHaveValue("+1 6045551234");
+  await expect(frame.locator("#city")).toHaveValue("Vancouver");
+  expect(await frame.locator("#cv").evaluate((i: HTMLInputElement) => i.files?.[0]?.name)).toBe("ada-resume.pdf");
+  await waitDone(page);
+  await expect(page.locator("autoapply-root .panel .status")).toHaveText("Done · 6 filled · 0 AI drafts · 0 need you");
+});
+
+test("multistep: step 2 after Next (pushState) fills automatically; the extension never clicks Next", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw);
+  await page.goto(BASE + "multistep.html");
+  await expect(page.locator("#em")).toHaveValue("ada@example.com");
+  await waitDone(page);
+  expect(await forbidden(page)).toEqual([]);
+  await page.click("#next");
+  await expect(page).toHaveURL(/step=2/);
+  await expect(page.locator("#ph")).toHaveValue("+1 6045551234");
+  await expect(page.locator("#city")).toHaveValue("Vancouver");
+  await expect(page.locator("#li")).toHaveValue("https://linkedin.com/in/ada");
+  await expect(page.locator("autoapply-root .panel .status")).toHaveText(/^Done · 7 filled/);
+  expect(await forbidden(page)).toEqual([]);
+});
+
+test("dropzone: the résumé goes into the hidden input behind the dropzone", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "dropzone.html");
+  await waitDone(page);
+  await expect(page.locator("#status")).toHaveText("ada-resume.pdf uploaded ✓");
+  await expect(badge(page, "Résumé Drag and drop your résumé here, or click to upload")).toHaveAttribute(
+    "data-color",
+    "green",
+  );
+});
+
+test("login: below the detection threshold nothing is filled and no UI appears", async ({ page, sw, mock }) => {
+  await seed(sw);
+  await page.goto(BASE + "login.html");
+  await page.waitForTimeout(3500);
+  await expect(page.locator("#em")).toHaveValue("");
+  await expect(page.locator("autoapply-root .panel")).toHaveCount(0);
+  await expect(page.locator("autoapply-root .pill")).toHaveCount(0);
+  expect(mock.calls.filter((c) => c.kind === "map")).toHaveLength(0);
+});
+
+test("consent: acknowledgements are flagged, not ticked, by default", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "consent.html");
+  await waitDone(page);
+  await expect(page.locator("#c1")).not.toBeChecked();
+  await expect(page.locator("#c2")).not.toBeChecked();
+  await expect(badge(page, "I certify that the information provided is accurate and complete.")).toHaveAttribute(
+    "data-color",
+    "yellow",
+  );
+  await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "yellow");
+  await expect(page.locator("autoapply-root .needs")).toContainText("Needs your confirmation");
+});
+
+test("consent: with autoAcceptAcknowledgements on, boxes are ticked and badged blue", async ({ page, sw }) => {
+  await seed(sw, { settings: { autoAcceptAcknowledgements: true } });
+  await page.goto(BASE + "consent.html");
+  await waitDone(page);
+  await expect(page.locator("#c1")).toBeChecked();
+  await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "blue");
+});
+
+test("maybe band: a score between the thresholds shows the pill instead of auto-running", async ({ page, sw }) => {
+  await seed(sw, { settings: { detectionThreshold: 100, maybeThreshold: 30 } });
+  await page.goto(BASE + "semantic.html");
+  const pill = page.locator("autoapply-root .pill");
+  await expect(pill).toHaveText("Autofill this page");
+  await expect(page.locator("#fn")).toHaveValue("");
+  await pill.click();
+  await waitDone(page);
+  await expect(page.locator("#fn")).toHaveValue("Ada");
+  await expect(pill).toHaveCount(0);
+});

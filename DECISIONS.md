@@ -31,3 +31,56 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - Options page → background: `ADD_KEY`, `TEST_KEY`, `REFRESH_MODELS`, `VALIDATE_MODEL`, `PARSE_RESUME`, so all network calls stay in the background (§4).
 - The popup's **Fill this page** and the Alt+Shift+F command send `TRIGGER_FILL {force:true}` to **all frames** of the tab (not only frame 0), so forms inside iframes are filled too; frames without fields do nothing.
 - `CACHE_LOOKUP` takes `{signatures}` only. The content script appends `@host` to a field's signature when its label contains the company name (§13.3), so the background never needs the label.
+
+## Build
+
+- **Service-worker entry `src/background/sw.ts`** (one line: `import "./index"`). With CRXJS 2.7 on Vite 8 (Rolldown), two emitted entry chunks named `index.ts` (background and content) were resolved to the same file, so the service-worker loader imported the _content_ bundle. Giving the worker entry a different basename fixes it; `src/background/index.ts` still holds all background code as laid out in §3.5. The manifest's `background.service_worker` therefore points at `src/background/sw.ts`.
+- Content-script bundle: ~84 KB minified in total (entry + shared chunks, no Preact/pdf.js/zod), under the 120 KB budget (§19).
+- pdf.js 6 never uses `eval`/`new Function` (the old `isEvalSupported` option no longer exists); its worker is bundled and loaded via `?url`.
+
+## Scanning and detection
+
+- **Field container (§11.5 step 5)**: climb up to 4 ancestors from the control (or a group's common ancestor) for as long as the ancestor contains no other field; the highest such ancestor is the container. This is the "field wrapper" whose preceding text is the label and whose box is badged. Climbing stops at `<form>`/`<body>`.
+- Label regexes use word boundaries for `state|province|region` and `apt|suite|unit|town` so "Personal statement" or "Business unit" do not match.
+- Checkbox `fieldset`/`[role=group]` grouping applies only when the boxes share a `name` (or have none); differently-named boxes in one fieldset stay separate fields (they are submitted as separate values, e.g. several consent boxes).
+- Cookie-banner exclusion (`/cookie|consent-banner|onetrust|gdpr/`) applies only to controls outside any `<form>`, so a form's own GDPR consent section is not dropped.
+- `<header>` fields are skipped only when they are not inside a form; `nav`, `[role=navigation]` and `[role=search]` are always skipped.
+- Password, search and CAPTCHA/honeypot fields are skipped entirely (not listed). Payment and government-ID fields are listed and flagged "Sensitive – fill manually" (§18.2).
+- Radios/checkboxes that are visually hidden count as visible when their `<label>` is visible (custom-styled controls).
+- A visible résumé dropzone counts for the +30 detection signal even when its file input is hidden.
+- Button-style groups made of plain `<button>`s require: 2–8 siblings, none submitting (explicit `type="button"` inside forms), short texts not matching navigation words, and a container label ending in "?".
+- The C.3 heuristic `button[aria-expanded][aria-controls]` is used only when its container's label is a question.
+- A dropdown trigger wrapping more than one native control is not treated as a single dropdown (protects against broad `[data-testid*=select]` matches).
+
+## Pipeline
+
+- Résumé/CV and cover-letter **file** fields are resolved in Phase A without AI (primary résumé / a `cover_letter` document, else flagged). Other file fields go to the AI for a `documentId`.
+- Consent checkboxes matching the §14.8 regex are decided locally before any AI call; the AI's `consent` action is handled the same way.
+- Pre-harvesting dropdown options uses a 400 ms budget per dropdown; a list not fully collected in time (e.g. a long virtualized list) is not stored. Filling such a dropdown first tries to find the intended answer as an exact option directly (scrolling a virtualized list until found), then harvests fully and uses `localMatch` → `chooseOptions`.
+- Waits after scrolling a list also wait for two animation frames (virtualized lists re-render from scroll events) but never more than 100 ms, so background tabs cannot hang a fill.
+- `MAX_TOKENS` throws immediately so the mapping service splits the chunk; invalid JSON / schema mismatches are retried once (on another key via LRU), then on the fallback model, then the chunk is split, and a single failing field is flagged.
+- After a capability error the retry prefers the same key.
+- A user's trusted `input` on a field marks it user-owned (never filled afterwards). `keydown` is not used, so tabbing through fields does not claim them.
+- A follow-up pass for revealed/conditional fields runs at most 3 rounds; the counter resets on any trusted click/keypress or URL change (so real multi-step forms keep working).
+- Active application session: 30 minutes from the last pipeline run, per frame.
+- The popup's **Fill this page** and a top-frame **Re-run** re-process flagged/failed/"check" fields as well as new ones; filled and user-owned fields are left alone.
+- Learned answers' `lastUsedAt` is updated through an extra `LEARNED_USED` message; `profileVersion` ignores it, so cache keys do not change.
+- The decision cache stores choice answers as option texts (dropdowns: the text shown after selection; typeaheads: the picked suggestion).
+
+## UI
+
+- Badge tooltips use the native `title` attribute on the pill. For essays, "Save as reusable answer" is offered by clicking the purple pill (a native tooltip cannot hold a link); it opens the same learning card.
+- The overlay's vertical position is stored per host as a bottom offset (`overlayPos`).
+- Setup-wizard progress lives in the URL (`#/setup/1…4`), so steps can be skipped and resumed; a step shows ✓ when done.
+- "Reset everything" uses an inline three-click confirmation instead of browser dialogs.
+- Only PDFs can be the primary résumé (text extraction is PDF-only); DOCX/TXT files can still be uploaded and attached.
+- The popup shows "Ready" when at least one key and a model are configured, otherwise "Setup needed".
+- Model "New" badge: first seen within 7 days **and** later than the earliest `firstSeenAt` in the catalog (i.e. it appeared in a later fetch).
+
+## Tests
+
+- End-to-end tests run Playwright's bundled Chromium with `channel: "chromium"` and `headless: true` (the new headless mode loads extensions), on Windows without xvfb. `context.route` also intercepts the extension service worker's `fetch`, which is how the Gemini mock is applied.
+- The test fixture closes the install-time setup tab before opening the test page, so the page is in the foreground (background tabs get no animation frames).
+- Fixtures are served under `/jobs/…` on ports 5501/5502; the second port makes `iframe-form.html` cross-origin.
+- The mock decides by field label (a stand-in for the model's semantic judgement); the real semantic behaviour is covered by `npm run test:live`.
+- `chrome://extensions` "no errors or warnings" is checked on the extension card in developer mode after a full fill (Chrome renders the Errors button and warnings only when present).

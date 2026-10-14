@@ -18,7 +18,7 @@ export default defineManifest({
   minimum_chrome_version: "120",
   action: { default_popup: "src/popup/index.html", default_title: "AutoApply" },
   options_page: "src/options/index.html",
-  background: { service_worker: "src/background/index.ts", type: "module" },
+  background: { service_worker: "src/background/sw.ts", type: "module" },
   content_scripts: [contentScript],
   permissions: ["storage", "unlimitedStorage", "scripting", "webNavigation", "tabs"],
   host_permissions: ["<all_urls>"],
