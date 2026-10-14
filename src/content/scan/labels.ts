@@ -1,0 +1,133 @@
+// §11.5 label / hint / section extraction.
+import { computeAccessibleDescription, computeAccessibleName } from "dom-accessibility-api";
+import { RE_HELPER_CLASS } from "../../shared/constants";
+import { cleanLabel, clip, collapse, humanize } from "../../shared/normalize";
+
+const NON_LABEL = "input,select,textarea,option,[role=option],[role=listbox],button,script,style";
+
+/** Text content without nested controls/options. */
+export function textOf(el: Element, exclude = NON_LABEL): string {
+  if (!el.querySelector(exclude)) return collapse(el.textContent ?? "");
+  const clone = el.cloneNode(true) as Element;
+  clone.querySelectorAll(exclude).forEach((n) => n.remove());
+  return collapse(clone.textContent ?? "");
+}
+
+const rootOf = (el: Element) => el.getRootNode() as Document | ShadowRoot;
+const esc = (s: string) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, "\\$&"));
+
+function byIds(el: Element, attr: string): string {
+  const ids = el.getAttribute(attr)?.split(/\s+/).filter(Boolean) ?? [];
+  const root = rootOf(el);
+  return collapse(
+    ids
+      .map((id) => root.getElementById?.(id) ?? document.getElementById(id))
+      .filter((n): n is HTMLElement => !!n)
+      .map((n) => textOf(n))
+      .join(" "),
+  );
+}
+
+/** <label for=id> in the same root, else a wrapping <label>. */
+export function labelElementFor(el: HTMLElement): HTMLLabelElement | null {
+  if (el.id) {
+    const l = rootOf(el).querySelector<HTMLLabelElement>(`label[for="${esc(el.id)}"]`);
+    if (l) return l;
+  }
+  return el.closest("label");
+}
+
+/** Steps 1–3 of §11.5 for a single control. */
+export function controlLabel(el: HTMLElement): string {
+  const lb = byIds(el, "aria-labelledby");
+  if (lb) return lb;
+  const l = labelElementFor(el);
+  if (l) {
+    const t = textOf(l);
+    if (t) return t;
+  }
+  if (/^(checkbox|switch|radio)$/.test(el.getAttribute("role") ?? "")) {
+    const t = el.getAttribute("aria-label") || textOf(el);
+    if (t) return collapse(t);
+  }
+  // Buttons/divs used as dropdown triggers would yield their current value as "name"; only trust explicit names.
+  const nameFromContent = el.tagName === "BUTTON" || !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+  if (nameFromContent && !el.getAttribute("aria-label") && !el.getAttribute("title")) return "";
+  try {
+    return collapse(computeAccessibleName(el));
+  } catch {
+    return "";
+  }
+}
+
+/** Step 4: label of a radio/checkbox/button group. */
+export function groupLabel(groupEl: Element | null): string {
+  if (!groupEl) return "";
+  const lb = byIds(groupEl, "aria-labelledby");
+  if (lb) return lb;
+  const al = groupEl.getAttribute("aria-label");
+  if (al) return collapse(al);
+  const fs = groupEl.tagName === "FIELDSET" ? groupEl : groupEl.closest("fieldset");
+  const legend = fs?.querySelector(":scope > legend");
+  return legend ? textOf(legend) : "";
+}
+
+/** Step 5: visible text in `container` preceding `control`, excluding `skip` subtrees. Last 300 chars. */
+export function precedingText(container: Element, control: Element, skip: Element[] = []): string {
+  const parts: string[] = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (control.contains(n)) break;
+    if (control.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) break;
+    const p = n.parentElement;
+    if (!p || p.closest("option,[role=option],select,textarea,script,style,[hidden]")) continue;
+    if (skip.some((s) => s.contains(n))) continue;
+    const t = n.textContent?.trim();
+    if (t) parts.push(t);
+  }
+  const text = collapse(parts.join(" "));
+  return text.length > 300 ? text.slice(-300).replace(/^\S*\s/, "") : text;
+}
+
+/** Step 6. */
+export function fallbackLabel(el: HTMLElement): string {
+  const ph = el.getAttribute("placeholder") || el.getAttribute("aria-placeholder");
+  if (ph) return collapse(ph);
+  const title = el.getAttribute("title");
+  if (title) return collapse(title);
+  const name = el.getAttribute("name") || el.id;
+  return name ? humanize(name) : "";
+}
+
+export function finishLabel(s: string): string {
+  return clip(cleanLabel(s), 300);
+}
+
+export function hintFor(el: HTMLElement, container: Element): string {
+  const d = byIds(el, "aria-describedby");
+  if (d) return clip(d, 300);
+  try {
+    const desc = collapse(computeAccessibleDescription(el));
+    if (desc) return clip(desc, 300);
+  } catch {
+    // dom-accessibility-api can throw on exotic markup; fall through to helper classes
+  }
+  for (const n of container.querySelectorAll<HTMLElement>("[class]")) {
+    if (!(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) || el.contains(n)) continue;
+    if (!RE_HELPER_CLASS.test(typeof n.className === "string" ? n.className : "")) continue;
+    const t = textOf(n);
+    if (t) return clip(t, 300);
+  }
+  return "";
+}
+
+/** Nearest preceding h1–h4 / legend / [role=heading] in traversal order. */
+export function sectionFor(el: Element, order: Map<Element, number>, headings: HTMLElement[]): string {
+  const pos = order.get(el) ?? 0;
+  let best: HTMLElement | null = null;
+  for (const h of headings) {
+    if ((order.get(h) ?? Infinity) < pos) best = h;
+    else break;
+  }
+  return best ? clip(textOf(best), 120) : "";
+}
