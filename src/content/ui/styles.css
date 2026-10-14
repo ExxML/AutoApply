@@ -1,0 +1,249 @@
+:host {
+  all: initial;
+}
+* {
+  box-sizing: border-box;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+.aa {
+  --bg: #ffffff;
+  --fg: #1f2330;
+  --muted: #667085;
+  --line: #e4e7ec;
+  --accent: #4f46e5;
+  --green: #12a150;
+  --blue: #2563eb;
+  --purple: #8b2cf5;
+  --yellow: #d6a100;
+  --orange: #ea6c00;
+  --red: #dc2626;
+  --shadow: 0 8px 28px rgba(16, 24, 40, 0.18);
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+@media (prefers-color-scheme: dark) {
+  .aa {
+    --bg: #1d2130;
+    --fg: #eef0f6;
+    --muted: #9aa3b8;
+    --line: #333a4d;
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* badges */
+.box {
+  position: fixed;
+  border: 2px solid var(--c);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.tag {
+  position: fixed;
+  transform: translate(-100%, -55%);
+  background: var(--c);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: default;
+  border: 0;
+}
+.green {
+  --c: var(--green);
+}
+.blue {
+  --c: var(--blue);
+}
+.purple {
+  --c: var(--purple);
+}
+.yellow {
+  --c: var(--yellow);
+}
+.orange {
+  --c: var(--orange);
+}
+.red {
+  --c: var(--red);
+}
+
+/* overlay */
+.fab {
+  position: fixed;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.fab .count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--yellow);
+  color: #1f2330;
+  font-size: 11px;
+  line-height: 18px;
+}
+.panel {
+  position: fixed;
+  right: 16px;
+  width: 320px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  overflow: hidden;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: ns-resize;
+  user-select: none;
+}
+.head b {
+  flex: 1;
+}
+.icon {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+}
+.body {
+  padding: 10px 12px;
+  overflow: auto;
+}
+.status {
+  font-weight: 600;
+}
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.error {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--fg);
+}
+.needs {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.needs button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+}
+.needs button span {
+  color: var(--muted);
+  display: block;
+}
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px 12px;
+}
+.btn {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn:focus-visible,
+.fab:focus-visible,
+.needs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+pre.timings {
+  margin: 8px 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+
+/* learning prompt */
+.learn {
+  position: fixed;
+  width: 300px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  pointer-events: auto;
+}
+.learn .qa {
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+/* pill */
+.pill {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  pointer-events: auto;
+}

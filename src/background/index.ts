@@ -183,7 +183,7 @@ const handlers: Handlers = {
       excluded,
       selectedModel: s.selectedModel,
       hasKeys: pool.keys.length > 0,
-      overlayTop: s.overlayPos[host] ?? null,
+      overlayBottom: s.overlayPos[host] ?? null,
     };
   },
 
@@ -293,10 +293,15 @@ const handlers: Handlers = {
     return { ok: true };
   },
 
-  async SET_OVERLAY_POS({ host, top }) {
+  async SET_OVERLAY_POS({ host, bottom }) {
     const overlayPos = await store.get("overlayPos");
-    overlayPos[host] = top;
+    overlayPos[host] = bottom;
     await store.set({ overlayPos });
+    return { ok: true };
+  },
+
+  async OPEN_OPTIONS({ hash }) {
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html#${hash}`) });
     return { ok: true };
   },
 

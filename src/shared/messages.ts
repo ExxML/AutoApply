@@ -33,7 +33,8 @@ export type Message =
   | { type: "ABORT"; groupId: string }
   | { type: "BROADCAST_FILL"; rerun: boolean }
   | { type: "SET_SITE_RULE"; host: string; autoFill: "on" | "off" }
-  | { type: "SET_OVERLAY_POS"; host: string; top: number }
+  | { type: "SET_OVERLAY_POS"; host: string; bottom: number }
+  | { type: "OPEN_OPTIONS"; hash: string }
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
   | { type: "URL_CHANGED"; url: string }
@@ -74,6 +75,7 @@ export interface Responses {
   BROADCAST_FILL: Ok;
   SET_SITE_RULE: Ok;
   SET_OVERLAY_POS: Ok;
+  OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
   URL_CHANGED: Ok;
   FOCUS_FIELD: Ok;

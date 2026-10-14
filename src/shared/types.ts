@@ -190,7 +190,7 @@ export interface RuntimeConfig {
   excluded: boolean;
   selectedModel: string | null;
   hasKeys: boolean;
-  overlayTop: number | null;
+  overlayBottom: number | null;
 }
 
 export type ApiErrorKind = "allKeysExhausted" | "noKey" | "noModel" | "modelGone" | "blocked" | "badOutput" | "other";
