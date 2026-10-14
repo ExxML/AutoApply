@@ -7,7 +7,6 @@ beforeAll(stubLayout);
 beforeEach(() => setBody(""));
 
 const fields = (): FieldHandle[] => scan(newScanState()).handles;
-const byLabel = (hs: FieldHandle[], label: string) => hs.find((h) => h.desc.label === label);
 const loc = (href: string) => new URL(href) as unknown as Location;
 
 describe("label extraction (§11.5)", () => {
