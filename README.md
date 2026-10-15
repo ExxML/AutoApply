@@ -45,7 +45,7 @@ The model list is fetched live with your key and shows only text-in/text-out mod
 3. Everything else goes to Gemini in one batched call. It picks options **by meaning** (e.g. "willing to relocate = yes" → "I am willing to relocate"), and custom dropdowns and typeaheads are operated one at a time.
 4. Open-ended questions ("Why do you want to work here?") are drafted by Gemini from your profile, résumé and the job description, respecting word/character limits, and marked as AI drafts.
 5. Multi-step applications: when the next step appears, click **Fill this page** (or press **Alt+Shift+F**) again. AutoApply does not watch the page between fills.
-6. The panel at the bottom right shows progress, the model used, and a **Needs you** list; click a row to jump to the field. **Re-run** and **Stop** are there too.
+6. The panel at the bottom right shows progress, the model used, and a **Needs you** list; click a row to jump to the field. **Re-run** and **Stop** are there too. Press **Alt+Shift+S** to expand or collapse it.
 7. When you answer a flagged field yourself, AutoApply offers to **save the answer** for future applications (see **Saved answers** in settings).
 
 ## Badge meanings

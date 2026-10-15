@@ -370,9 +370,10 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "fill-page") return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id !== undefined) await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
+  if (tab?.id === undefined) return;
+  if (command === "fill-page") await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
+  else if (command === "toggle-overlay") await sendToTab(tab.id, { type: "TOGGLE_OVERLAY" }, 0); // overlay lives in the top frame
 });
 
 chrome.tabs.onUpdated.addListener((tabId, info) => {

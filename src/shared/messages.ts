@@ -33,6 +33,7 @@ export type Message =
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
+  | { type: "TOGGLE_OVERLAY" }
   // popup → B
   | { type: "TAB_STATUS"; tabId: number }
   // O → B
@@ -68,6 +69,7 @@ export interface Responses {
   OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
   FOCUS_FIELD: Ok;
+  TOGGLE_OVERLAY: Ok;
   TAB_STATUS: TabStatusResponse;
   ADD_KEY: Ok | Err;
   TEST_KEY: Ok | Err;

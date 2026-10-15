@@ -174,6 +174,10 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       wasRunning = v.running;
     },
     expand,
+    toggle() {
+      pinnedUntil = 0;
+      expand(!expanded);
+    },
   };
 }
 

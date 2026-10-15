@@ -28,6 +28,10 @@ export default defineManifest({
       suggested_key: { default: "Alt+Shift+F" },
       description: "Autofill the job application on this page",
     },
+    "toggle-overlay": {
+      suggested_key: { default: "Alt+Shift+S" },
+      description: "Expand or collapse the AutoApply panel",
+    },
   },
   icons: { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
 });

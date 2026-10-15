@@ -560,6 +560,9 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
     case "FOCUS_FIELD":
       focusField(msg.fieldId);
       break;
+    case "TOGGLE_OVERLAY":
+      overlay?.toggle();
+      break;
     case "FRAME_STATUS":
       if (TOP) {
         childFrames.set(msg.status.frameId, msg.status);
