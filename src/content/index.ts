@@ -625,16 +625,17 @@ async function onMutations() {
     dirty = true;
     return;
   }
+  // Skip the full DOM walk when its result can't be used: runPipeline re-records every signature on its next start.
+  if (sessionActive() ? followRounds >= 3 : detected) return;
   const { handles: hs } = scan(scanState);
   const fresh = hs.filter((h) => !knownSignatures.has(h.signature) && !states.has(h.id));
   if (!fresh.length) return;
   if (sessionActive()) {
-    if (followRounds >= 3) return;
     followRounds++;
     void runPipeline();
   } else {
     hs.forEach((h) => knownSignatures.add(h.signature));
-    if (!detected) maybeAuto(hs);
+    maybeAuto(hs);
   }
 }
 
@@ -706,9 +707,8 @@ const settle = () =>
     quiet = setTimeout(done, 300);
   });
 
-const hasControls = () =>
-  !!document.querySelector("input,select,textarea,[contenteditable],[role=combobox]") ||
-  scan(scanState).handles.length > 0;
+const CONTROLS = "input,select,textarea,[contenteditable],[role=combobox]";
+const hasControls = () => !!document.querySelector(CONTROLS) || scan(scanState).handles.length > 0;
 
 async function main() {
   if (!/^https?:$/.test(location.protocol) || !document.body) return;
@@ -729,17 +729,23 @@ async function main() {
 
   if (!hasControls()) {
     const appeared = await new Promise<boolean>((resolve) => {
+      let t: ReturnType<typeof setTimeout> | undefined;
+      const done = (ok: boolean) => {
+        mo.disconnect();
+        clearTimeout(t);
+        resolve(ok);
+      };
+      // Cheap selector check per batch; the full-scan fallback (custom widgets) is throttled like observe().
       const mo = new MutationObserver(() => {
-        if (hasControls()) {
-          mo.disconnect();
-          resolve(true);
-        }
+        if (document.querySelector(CONTROLS)) done(true);
+        else
+          t ??= setTimeout(() => {
+            t = undefined;
+            if (hasControls()) done(true);
+          }, 500);
       });
       mo.observe(document.documentElement, { subtree: true, childList: true });
-      setTimeout(() => {
-        mo.disconnect();
-        resolve(hasControls());
-      }, 3000);
+      setTimeout(() => done(hasControls()), 3000);
     });
     if (!appeared) return;
   }
