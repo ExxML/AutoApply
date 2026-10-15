@@ -673,6 +673,17 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
         maybeAuto(scan(scanState).handles);
       }
       break;
+    case "AUTOFILL_CHANGED":
+      void send({ type: "GET_RUNTIME_CONFIG" }).then((c) => {
+        config = c;
+        if (c.effectiveAutoFill) return;
+        // Turned off: halt the current run and anything that would start another on its own.
+        sessionUntil = 0;
+        queued = null;
+        clearTimeout(retryTimer);
+        stop();
+      });
+      break;
     case "FOCUS_FIELD":
       focusField(msg.fieldId);
       break;

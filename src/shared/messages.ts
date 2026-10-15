@@ -38,6 +38,7 @@ export type Message =
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
   | { type: "URL_CHANGED"; url: string }
+  | { type: "AUTOFILL_CHANGED" }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
   // popup → B
   | { type: "TAB_STATUS"; tabId: number }
@@ -78,6 +79,7 @@ export interface Responses {
   OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
   URL_CHANGED: Ok;
+  AUTOFILL_CHANGED: Ok;
   FOCUS_FIELD: Ok;
   TAB_STATUS: TabStatusResponse;
   ADD_KEY: Ok | Err;

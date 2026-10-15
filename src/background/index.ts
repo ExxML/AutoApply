@@ -411,3 +411,9 @@ chrome.webNavigation.onCommitted.addListener((d) => {
   if (d.frameId === 0) void session.setTabStatus(d.tabId, { frames: {}, updatedAt: Date.now() });
 });
 chrome.tabs.onRemoved.addListener((tabId) => void session.clearTab(tabId));
+
+// Open pages cache effectiveAutoFill from load; tell them to refresh when a toggle changes.
+store.onChange(["settings", "siteRules"], async () => {
+  for (const tab of await chrome.tabs.query({}))
+    if (tab.id !== undefined) void sendToTab(tab.id, { type: "AUTOFILL_CHANGED" });
+});
