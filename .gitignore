@@ -5,3 +5,5 @@ playwright-report/
 test/fixtures/vendor/
 .e2e-profile*/
 *.log
+PROMPT.md
+TODO.md
