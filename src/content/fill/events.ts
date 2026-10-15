@@ -18,6 +18,20 @@ export function dispatching<T>(fn: () => T): T {
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+let scrollHolds = 0;
+/** Stops the page's own scripts from scrolling while fn runs (see scrollLock.ts). */
+export async function holdScroll<T>(fn: () => Promise<T>): Promise<T> {
+  if (scrollHolds++ === 0) document.dispatchEvent(new Event("autoapply-scroll-lock"));
+  try {
+    return await fn();
+  } finally {
+    // widgets often scroll a frame or two after our last event (React effects, menu positioning)
+    setTimeout(() => {
+      if (--scrollHolds === 0) document.dispatchEvent(new Event("autoapply-scroll-unlock"));
+    }, 300);
+  }
+}
+
 /** Resolves with fn()'s first truthy result, re-checking on DOM mutations and animation frames. */
 export function waitFor<T>(fn: () => T | null | undefined | false, timeoutMs: number): Promise<T | null> {
   return new Promise((resolve) => {

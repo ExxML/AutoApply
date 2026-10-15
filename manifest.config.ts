@@ -19,7 +19,10 @@ export default defineManifest({
   action: { default_popup: "src/popup/index.html", default_title: "AutoApply" },
   options_page: "src/options/index.html",
   background: { service_worker: "src/background/sw.ts", type: "module" },
-  content_scripts: [contentScript],
+  content_scripts: [
+    contentScript,
+    { ...contentScript, js: ["src/content/scrollLock.ts"], run_at: "document_start" as const, world: "MAIN" as const },
+  ],
   permissions: ["storage", "unlimitedStorage", "scripting", "tabs"],
   host_permissions: ["<all_urls>"],
   commands: {

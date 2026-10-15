@@ -4,6 +4,7 @@ import type { DocumentMeta } from "../../shared/types";
 import { localMatch, localMatchAll } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
 import { fillDropdown, harvestOptions } from "./dropdown";
+import { holdScroll } from "./events";
 import { compatibleDoc, fillFile } from "./file";
 import {
   fillCheckbox,
@@ -41,12 +42,13 @@ let chain: Promise<unknown> = Promise.resolve();
 export function fill(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<FillResult> {
   const run = () =>
     deps.signal.aborted ? Promise.resolve<FillResult>({ outcome: "flag", note: "Stopped" }) : dispatch(h, op, deps);
-  return SERIAL.has(h.desc.kind) ? serial(run) : run();
+  return SERIAL.has(h.desc.kind) ? serial(run) : holdScroll(run);
 }
 
 /** Runs `fn` after every queued dropdown/typeahead operation (one popup open at a time). */
 export function serial<T>(fn: () => Promise<T>): Promise<T> {
-  const p = chain.then(fn, fn);
+  const held = () => holdScroll(fn);
+  const p = chain.then(held, held);
   chain = p.catch(() => undefined);
   return p;
 }
