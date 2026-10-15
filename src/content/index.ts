@@ -24,7 +24,7 @@ import { readValue } from "./fill/verify";
 import { newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
-import { createOverlay, type Overlay } from "./ui/overlay";
+import { createOverlay, relayClicksToTop, type Overlay } from "./ui/overlay";
 import { claimFrame } from "./ui/root";
 
 type Status =
@@ -575,6 +575,7 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
 
 // ---------- bootstrap (§11.1) ----------
 async function main() {
+  if (!TOP) relayClicksToTop(life.signal); // before the bail-outs: about:blank editor frames are outside clicks too
   if (!/^https?:$/.test(location.protocol) || !document.body) return;
   const g = globalThis as { __autoapply?: boolean };
   if (g.__autoapply) return;

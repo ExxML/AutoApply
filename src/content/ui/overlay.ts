@@ -29,6 +29,14 @@ const pendingOf = (c: StatusCounts) =>
   Math.max(0, c.total - c.filled - c.needsYou - c.failed - c.prefilled - c.skipped);
 
 const DONE_PIN_MS = 3000; // how long the panel stays open after a run finishes
+const FRAME_CLICK = "autoapply:frame-click";
+
+/** Child frames: tell the top frame's overlay about real clicks, which never cross the iframe boundary. */
+export const relayClicksToTop = (signal: AbortSignal) =>
+  addEventListener("pointerdown", (e) => e.isTrusted && window.top?.postMessage(FRAME_CLICK, "*"), {
+    capture: true,
+    signal,
+  });
 
 export function createOverlay(h: OverlayHandlers, initialBottom: number | null) {
   const layer = uiLayer();
@@ -75,21 +83,24 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
     expanded = v;
     render();
   };
-  fab.onclick = () => expand(true);
-  close.onclick = () => {
+  const collapse = () => {
     pinnedUntil = 0;
     expand(false);
   };
-  // Collapse on a real click outside the panel (isTrusted skips the fill engine's synthetic events).
-  document.addEventListener(
+  fab.onclick = () => expand(true);
+  close.onclick = collapse;
+  // Collapse on a real click outside the panel (isTrusted skips the fill engine's synthetic events). Window capture
+  // runs before any page listener can stop it; clicks inside iframes never reach this window, so child frames relay.
+  addEventListener(
     "pointerdown",
     (e) => {
-      if (!expanded || !e.isTrusted || e.composedPath().includes(panel)) return;
-      pinnedUntil = 0;
-      expand(false);
+      if (expanded && e.isTrusted && !e.composedPath().includes(panel)) collapse();
     },
     true,
   );
+  addEventListener("message", (e) => {
+    if (expanded && e.data === FRAME_CLICK) collapse();
+  });
 
   // Drag the header (or the button) vertically along the right edge.
   const drag = (handle: HTMLElement) =>

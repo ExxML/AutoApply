@@ -105,6 +105,13 @@ test("iframe: a cross-origin child frame fills itself and the top-frame overlay 
   expect(await frame.locator("#cv").evaluate((i: HTMLInputElement) => i.files?.[0]?.name)).toBe("ada-resume.pdf");
   await waitDone(page);
   await expect(page.locator("autoapply-root .panel .status")).toHaveText("Done · 6 filled · 0 AI drafts · 0 need you");
+  // A click inside the child frame never reaches the top document; it must still collapse the overlay.
+  const panel = page.locator("autoapply-root .panel");
+  await expect(panel).toBeHidden(); // auto-collapse after the done pin, so it can't race the click below
+  await page.locator("autoapply-root .fab").click();
+  await expect(panel).toBeVisible();
+  await frame.locator("body").click({ position: { x: 5, y: 5 } });
+  await expect(panel).toBeHidden();
 });
 
 test("multistep: step 2 after Next (pushState) waits for another fill; the extension never clicks Next", async ({
