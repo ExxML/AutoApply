@@ -28,6 +28,8 @@ export function statusLine(c: StatusCounts, running: boolean): string {
 const pendingOf = (c: StatusCounts) =>
   Math.max(0, c.total - c.filled - c.needsYou - c.failed - c.prefilled - c.skipped);
 
+const DONE_PIN_MS = 3000; // how long the panel stays open after a run finishes
+
 export function createOverlay(h: OverlayHandlers, initialBottom: number | null) {
   const layer = uiLayer();
   let bottom = initialBottom ?? 16;
@@ -145,18 +147,18 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       );
       timings.textContent = v.debug;
       timings.style.display = v.debug ? "" : "none";
-      // Auto-expand while filling and for 4 s after it ends.
+      // Auto-expand while filling and for DONE_PIN_MS after it ends.
       if (v.running || v.error) {
         panel.classList.remove("done");
         pinnedUntil = Infinity;
         expand(true);
       } else if (wasRunning) {
         panel.classList.add("done"); // plays the finish animation (styles.css)
-        pinnedUntil = Date.now() + 4000;
+        pinnedUntil = Date.now() + DONE_PIN_MS;
         clearTimeout(collapseTimer);
         collapseTimer = setTimeout(() => {
           if (Date.now() >= pinnedUntil) expand(false);
-        }, 4000);
+        }, DONE_PIN_MS);
       }
       wasRunning = v.running;
     },
