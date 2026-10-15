@@ -648,6 +648,8 @@ function observe() {
     if (t) return;
     t = setTimeout(() => {
       t = undefined;
+      // Orphaned by an extension reload before the new instance claimed the frame: chrome.* calls in scan() would throw.
+      if (!chrome.runtime?.id) return mo.disconnect();
       void onMutations();
     }, 500);
   });
