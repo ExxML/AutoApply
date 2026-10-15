@@ -2,12 +2,14 @@
 import { clip } from "../../shared/normalize";
 import { el, uiLayer } from "./root";
 
-let current: { card: HTMLElement; timer: ReturnType<typeof setTimeout> } | null = null;
+let current: { card: HTMLElement; timer: ReturnType<typeof setTimeout>; follow: () => void } | null = null;
 
 export function hideLearnPrompt() {
   if (!current) return;
   clearTimeout(current.timer);
   removeEventListener("pointerdown", onOutside, true);
+  removeEventListener("scroll", current.follow, true);
+  removeEventListener("resize", current.follow);
   current.card.remove();
   current = null;
 }
@@ -30,14 +32,23 @@ export function showLearnPrompt(anchor: Element, label: string, answer: string, 
   );
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "Save answer");
-  card.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 316))}px`;
-  card.style.top = `${Math.min(r.bottom + 6, innerHeight - 120)}px`;
+  // Keep the initial (viewport-clamped) offset from the anchor and re-apply it as the page scrolls.
+  const dx = Math.max(8, Math.min(r.left, innerWidth - 316)) - r.left;
+  const dy = Math.min(r.bottom + 6, innerHeight - 120) - r.top;
+  const follow = () => {
+    const a = anchor.getBoundingClientRect();
+    card.style.left = `${a.left + dx}px`;
+    card.style.top = `${a.top + dy}px`;
+  };
+  follow();
   save.onclick = () => {
     onSave();
     hideLearnPrompt();
   };
   later.onclick = hideLearnPrompt;
   uiLayer().append(card);
-  current = { card, timer: setTimeout(hideLearnPrompt, 12000) };
+  current = { card, timer: setTimeout(hideLearnPrompt, 12000), follow };
   addEventListener("pointerdown", onOutside, true);
+  addEventListener("scroll", follow, { capture: true, passive: true });
+  addEventListener("resize", follow, { passive: true });
 }
