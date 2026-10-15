@@ -14,7 +14,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "AutoApply",
   version: "1.0.0",
-  description: "Fills job applications on any site from your profile using Google Gemini.",
+  description: "Autofills job applications on any site using your profile.",
   minimum_chrome_version: "120",
   action: { default_popup: "src/popup/index.html", default_title: "AutoApply" },
   options_page: "src/options/index.html",
