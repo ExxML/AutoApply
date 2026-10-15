@@ -7,3 +7,5 @@ test/fixtures/vendor/
 *.log
 PROMPT.md
 TODO.md
+AutoApply.zip
+autoapply-export.json
