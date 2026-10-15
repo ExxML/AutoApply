@@ -100,6 +100,14 @@
       while (countries.length > 250) countries.pop();
       if (!countries.includes("Canada")) countries[10] = "Canada";
 
+      // Amazon-style guard shared by both widgets: a mouse open within 250 ms of a mouse close
+      // (or a close within 250 ms of an open) is ignored. Escape works only with a legacy keyCode.
+      const last = { open: 0, close: 0 };
+      const allow = (kind, e) => {
+        last[kind] = e.timeStamp;
+        return e.timeStamp - last[kind === "open" ? "close" : "open"] >= 250;
+      };
+
       const control = document.getElementById("country");
       let menu = null;
       const ROW = 30;
@@ -115,10 +123,10 @@
           o.style.top = i * ROW + "px";
           o.style.width = "100%";
           o.textContent = countries[i];
-          o.addEventListener("click", () => {
+          o.addEventListener("click", (e) => {
             control.innerHTML = '<span class="select__single-value"></span>';
             control.firstChild.textContent = countries[i];
-            close();
+            if (allow("close", e)) close();
           });
           inner.append(o);
         }
@@ -145,32 +153,35 @@
       }
       control.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        menu ? close() : open();
+        if (menu) allow("close", e) && close();
+        else allow("open", e) && open();
       });
       control.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") close();
+        if (e.keyCode === 27) close();
       });
       document.addEventListener("mousedown", (e) => {
-        if (menu && !menu.contains(e.target) && !control.contains(e.target)) close();
+        if (menu && !menu.contains(e.target) && !control.contains(e.target) && allow("close", e)) close();
       });
 
       // ARIA combobox + listbox
       const btn = document.getElementById("type-btn");
       const list = document.getElementById("types");
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        if (!allow(list.hidden ? "open" : "close", e)) return;
         list.hidden = !list.hidden;
         btn.setAttribute("aria-expanded", String(!list.hidden));
       });
       btn.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
+        if (e.keyCode === 27) {
           list.hidden = true;
           btn.setAttribute("aria-expanded", "false");
         }
       });
       for (const li of list.children)
-        li.addEventListener("click", () => {
+        li.addEventListener("click", (e) => {
           for (const x of list.children) x.setAttribute("aria-selected", String(x === li));
           btn.textContent = li.textContent;
+          if (!allow("close", e)) return;
           list.hidden = true;
           btn.setAttribute("aria-expanded", "false");
         });

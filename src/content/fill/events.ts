@@ -130,8 +130,12 @@ export function blur(el: HTMLElement) {
   });
 }
 
+const KEY_CODES: Record<string, number> = { Enter: 13, Escape: 27, ArrowDown: 40 };
+
 export function key(el: HTMLElement, k: string, type: "keydown" | "keyup" | "both" = "both") {
-  const init = { key: k, code: k, bubbles: true, composed: true, cancelable: true };
+  // jQuery-era widgets (Select2) read the legacy keyCode/which and ignore keys without them.
+  const keyCode = KEY_CODES[k];
+  const init = { key: k, code: k, keyCode, which: keyCode, bubbles: true, composed: true, cancelable: true };
   dispatching(() => {
     if (type !== "keyup") el.dispatchEvent(new KeyboardEvent("keydown", init));
     if (type !== "keydown") el.dispatchEvent(new KeyboardEvent("keyup", init));

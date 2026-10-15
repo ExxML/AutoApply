@@ -69,6 +69,11 @@ export async function openDropdown(h: FieldHandle): Promise<HTMLElement | null> 
   const t = triggerOf(h);
   realClick(t);
   let c = await waitFor(() => findOptionsContainer(h, before), 300);
+  // Some sites drop a click that lands soon after another popup closed (Amazon's Select2: 250 ms); retry once.
+  if (!c && t.getAttribute("aria-expanded") === "false") {
+    realClick(t);
+    c = await waitFor(() => findOptionsContainer(h, before), 300);
+  }
   if (!c) {
     const target = h.searchInput ?? t;
     focus(target);
