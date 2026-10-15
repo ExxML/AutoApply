@@ -85,6 +85,16 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
     pinnedUntil = 0;
     expand(false);
   };
+  // Collapse on a real click outside the panel (isTrusted skips the fill engine's synthetic events).
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!expanded || !e.isTrusted || e.composedPath().includes(panel)) return;
+      pinnedUntil = 0;
+      expand(false);
+    },
+    true,
+  );
 
   // Drag the header (or the button) vertically along the right edge.
   const drag = (handle: HTMLElement) =>
