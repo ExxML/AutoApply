@@ -23,9 +23,10 @@ export default defineManifest({
   permissions: ["storage", "unlimitedStorage", "scripting", "webNavigation", "tabs"],
   host_permissions: ["<all_urls>"],
   commands: {
+    _execute_action: { suggested_key: { default: "Alt+Shift+A" } },
     "fill-page": {
       suggested_key: { default: "Alt+Shift+F" },
-      description: "Fill the job application on this page",
+      description: "Autofill the job application on this page",
     },
   },
   icons: { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
