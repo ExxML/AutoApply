@@ -2,8 +2,7 @@
 import css from "./styles.css?inline";
 import { HOST_TAG } from "../scan/traverse";
 
-let shadow: ShadowRoot | null = null;
-let layer: HTMLElement | null = null;
+const layers = new Map<boolean, HTMLElement>(); // keyed by `under`
 let evicted = false;
 const TAKEOVER = "autoapply:takeover";
 
@@ -20,26 +19,29 @@ export function claimFrame(onEvicted: () => void) {
     TAKEOVER,
     () => {
       evicted = true;
-      shadow?.host.remove();
+      layers.forEach((l) => (l.getRootNode() as ShadowRoot).host.remove());
       onEvicted();
     },
     { once: true },
   );
 }
 
-export function uiLayer(): HTMLElement {
+/** `under`: a layer first in tree order at z-index 1, so page popups, menus and modals paint over it. */
+export function uiLayer(under = false): HTMLElement {
   if (evicted) return document.createElement("div"); // orphaned: in-flight work renders nowhere
-  if (layer && shadow?.host.isConnected) return layer;
+  const cached = layers.get(under);
+  if (cached?.isConnected) return cached;
   const host = document.createElement(HOST_TAG);
-  host.style.cssText =
-    "all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483646; pointer-events: none;";
-  shadow = host.attachShadow({ mode: "open" });
+  host.style.cssText = `all: initial; position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: ${under ? 1 : 2147483646}; pointer-events: none;`;
+  const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = css;
-  layer = document.createElement("div");
+  const layer = document.createElement("div");
   layer.className = "aa";
   shadow.append(style, layer);
-  document.documentElement.append(host);
+  if (under) document.documentElement.prepend(host);
+  else document.documentElement.append(host);
+  layers.set(under, layer);
   return layer;
 }
 

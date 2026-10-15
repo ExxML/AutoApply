@@ -58,9 +58,9 @@ export function setBadge(
   listen();
   let b = badges.get(id);
   if (!b) {
-    const layer = uiLayer();
     b = { target, box: el("div"), tag: el("button", { type: "button" }) };
-    layer.append(b.box, b.tag);
+    uiLayer(true).append(b.box);
+    uiLayer().append(b.tag);
     badges.set(id, b);
     ro?.observe(target);
   }
