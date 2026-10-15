@@ -130,9 +130,10 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       }
       needs.replaceChildren(
         ...v.needsYou.map((n) => {
+          const label = n.label || "(unlabeled field)";
           const b = el(
             "button",
-            { type: "button", textContent: clip(n.label || "(unlabeled field)", 60) },
+            { type: "button", textContent: label.length > 90 ? `${clip(label, 90)}...` : label },
             el("span", { textContent: n.note }),
           );
           b.onclick = () => h.onFocus(n);
