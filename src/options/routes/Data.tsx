@@ -10,13 +10,14 @@ const ExportSchema = z.object({
   version: z.literal(1),
   profile: z.unknown(),
   settings: z.unknown(),
-  documents: z.array(z.object({ meta: DocumentMetaSchema, base64: z.string() })),
+  documents: z.array(z.object({ meta: DocumentMetaSchema, base64: z.string() })).optional(),
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
 });
 type Export = z.infer<typeof ExportSchema>;
 
 export function Data() {
   const [withKeys, setWithKeys] = useState(false);
+  const [withDocs, setWithDocs] = useState(true);
   const [pending, setPending] = useState<{ data: Export; summary: string[] } | null>(null);
   const [msg, setMsg] = useState("");
   const [resetStep, setResetStep] = useState(0);
@@ -29,13 +30,14 @@ export function Data() {
       "apiKeys",
     ]);
     const documents = [];
-    for (const meta of documentsIndex) documents.push({ meta, base64: (await store.getDoc(meta.id)) ?? "" });
+    if (withDocs)
+      for (const meta of documentsIndex) documents.push({ meta, base64: (await store.getDoc(meta.id)) ?? "" });
     const data: Export = {
       app: "autoapply",
       version: 1,
       profile,
       settings,
-      documents,
+      ...(withDocs ? { documents } : {}),
       ...(withKeys ? { apiKeys } : {}),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -54,7 +56,9 @@ export function Data() {
       const summary = [
         `Profile: ${incoming.personal.firstName || "(no name)"} ${incoming.personal.lastName} replaces ${cur.profile.personal.firstName || "(empty profile)"} ${cur.profile.personal.lastName}`,
         `Saved answers: ${cur.profile.learnedAnswers.length} → ${incoming.learnedAnswers.length}`,
-        `Documents: ${cur.documentsIndex.length} → ${r.data.documents.length}`,
+        r.data.documents
+          ? `Documents: ${cur.documentsIndex.length} → ${r.data.documents.length}`
+          : "Documents: unchanged",
         "Settings: replaced",
         r.data.apiKeys ? `API keys: ${cur.apiKeys.length} → ${r.data.apiKeys.length}` : "API keys: unchanged",
       ];
@@ -67,13 +71,15 @@ export function Data() {
   const applyImport = async () => {
     if (!pending) return;
     const { data } = pending;
-    const old = await store.get("documentsIndex");
-    for (const d of old) await store.removeDoc(d.id);
-    for (const d of data.documents) await store.setDoc(d.meta.id, d.base64);
+    if (data.documents) {
+      const old = await store.get("documentsIndex");
+      for (const d of old) await store.removeDoc(d.id);
+      for (const d of data.documents) await store.setDoc(d.meta.id, d.base64);
+    }
     await store.setProfile(ProfileSchema.parse(data.profile));
     await save({
       settings: SettingsSchema.parse(data.settings),
-      documentsIndex: data.documents.map((d) => d.meta),
+      ...(data.documents ? { documentsIndex: data.documents.map((d) => d.meta) } : {}),
       ...(data.apiKeys ? { apiKeys: data.apiKeys } : {}),
     });
     setPending(null);
@@ -97,6 +103,10 @@ export function Data() {
         <label class="inline">
           <input type="checkbox" checked={withKeys} onChange={(e) => setWithKeys(e.currentTarget.checked)} /> Include
           API keys
+        </label>
+        <label class="inline">
+          <input type="checkbox" checked={withDocs} onChange={(e) => setWithDocs(e.currentTarget.checked)} /> Include
+          documents
         </label>
         <div class="row">
           <button type="button" class="btn" onClick={() => void doExport()}>
