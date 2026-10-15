@@ -144,9 +144,11 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       timings.style.display = v.debug ? "" : "none";
       // Auto-expand while filling and for 4 s after it ends.
       if (v.running || v.error) {
+        panel.classList.remove("done");
         pinnedUntil = Infinity;
         expand(true);
       } else if (wasRunning) {
+        panel.classList.add("done"); // plays the finish animation (styles.css)
         pinnedUntil = Date.now() + 4000;
         clearTimeout(collapseTimer);
         collapseTimer = setTimeout(() => {
