@@ -7,6 +7,7 @@ import type {
   ApiError,
   Decision,
   EssayItem,
+  FieldDescriptor,
   FrameStatus,
   NeedsYouItem,
   RuntimeConfig,
@@ -213,8 +214,8 @@ function opFromDecision(h: FieldHandle, d: Decision): FillOp | null {
     return id ? { type: "file", documentId: id } : null;
   }
   if (k === "checkbox") return d.checked === undefined ? null : { type: "checked", value: d.checked };
-  if (d.optionIndexes?.length && h.desc.options)
-    return { type: "options", texts: d.optionIndexes.map((i) => h.desc.options![i]) };
+  const options = h.desc.options ?? harvested.get(h.id);
+  if (d.optionIndexes?.length && options) return { type: "options", texts: d.optionIndexes.map((i) => options[i]) };
   if (k === "dropdown" || k === "typeahead") {
     const answer = d.intendedAnswer ?? d.text;
     return answer ? { type: "intended", answer, query: d.searchQuery } : null;
@@ -375,26 +376,37 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     if (usedLearned.length) void send({ type: "LEARNED_USED", ids: usedLearned });
     mark("phaseA");
 
-    // PHASE B: one batched mapping call (chunked in the background), pre-harvesting dropdowns meanwhile.
+    // PHASE B: batched mapping calls (chunked in the background). Dropdowns with unknown options are harvested
+    // first and mapped in a second call, so the AI picks from the real options instead of guessing blind.
     if (pending.length && !ctrl.signal.aborted) {
       for (const h of pending) setStatus(h, "working");
-      const mapped = send({ type: "MAP_FIELDS", fields: pending.map((h) => h.desc), host: HOST, groupId });
       const toHarvest = pending.filter((h) => h.desc.kind === "dropdown" && !h.desc.optionsKnown).slice(0, 15);
-      for (const h of toHarvest)
-        void serial(async () => {
-          if (ctrl.signal.aborted || harvested.has(h.id)) return;
-          const opts = await harvestOptions(h, 400);
-          if (opts) harvested.set(h.id, opts);
+      const later = new Set(toHarvest);
+      const now = pending.filter((h) => !later.has(h));
+      const essays: EssayItem[] = [];
+      const harvestThenMap = async () => {
+        for (const h of toHarvest)
+          await serial(async () => {
+            if (ctrl.signal.aborted || harvested.has(h.id)) return;
+            const opts = await harvestOptions(h, 400);
+            if (opts) harvested.set(h.id, opts);
+          });
+        const fields = toHarvest.map((h) => {
+          const options = harvested.get(h.id);
+          return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
         });
-      const res = await mapped;
-      mark("map");
-      if (isErr(res)) {
-        lastError = res.error;
-        for (const h of pending) setStatus(h, "needs", res.error.message);
-        scheduleAutoRetry(res.error);
-      } else {
+        await mapAndApply(toHarvest, fields);
+      };
+      const mapAndApply = async (hs: FieldHandle[], fields: FieldDescriptor[]) => {
+        if (!hs.length || ctrl.signal.aborted) return;
+        const res = await send({ type: "MAP_FIELDS", fields, host: HOST, groupId });
+        if (isErr(res)) {
+          lastError = res.error;
+          for (const h of hs) setStatus(h, "needs", res.error.message);
+          scheduleAutoRetry(res.error);
+          return;
+        }
         usedModel = res.usedModel;
-        const essays: EssayItem[] = [];
         for (const d of res.decisions) {
           const h = handles.get(d.fieldId);
           if (!h || states.get(h.id)?.userOwned) continue;
@@ -413,8 +425,11 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
           else if (d.action === "skip") setStatus(h, "skipped");
           else setStatus(h, "needs", d.note ?? "AI could not answer", suggestion);
         }
-        if (essays.length) jobs.push(draftEssays(essays, groupId, ctrl, mark));
-      }
+      };
+      const fieldsNow = now.map((h) => h.desc);
+      await Promise.all([mapAndApply(now, fieldsNow), harvestThenMap()]);
+      mark("map");
+      if (essays.length) jobs.push(draftEssays(essays, groupId, ctrl, mark));
     }
     await Promise.all(jobs);
     mark("done");
