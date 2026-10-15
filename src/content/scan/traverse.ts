@@ -42,8 +42,10 @@ export interface Collected {
 
 export function shadowOf(el: Element): ShadowRoot | null {
   if (el.shadowRoot) return el.shadowRoot;
+  // chrome.dom throws on non-HTML elements (SVG <path>, MathML); only HTML elements can host shadow roots anyway.
+  if (!(el instanceof HTMLElement)) return null;
   const dom = typeof chrome !== "undefined" ? chrome.dom : undefined;
-  return typeof dom?.openOrClosedShadowRoot === "function" ? dom.openOrClosedShadowRoot(el as HTMLElement) : null;
+  return typeof dom?.openOrClosedShadowRoot === "function" ? dom.openOrClosedShadowRoot(el) : null;
 }
 
 export function collect(root: Element | null = document.body): Collected {
