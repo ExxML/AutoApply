@@ -159,6 +159,19 @@ describe("widget classification (Appendix C.3)", () => {
     expect(fields().map((h) => h.desc.kind)).toEqual(["typeahead", "typeahead", "typeahead", "text"]);
   });
 
+  it("an open dropdown's popup listbox and search box are not separate fields", () => {
+    setBody(`<div><label>Country</label><div role="combobox" aria-expanded="true" aria-controls="pop">Select…</div></div>
+      <div id="pop"><input type="text" placeholder="Filter"><div role="listbox"><div role="option">Canada</div></div></div>
+      <div><label>School</label><input role="combobox" aria-controls="sugg">
+      <ul id="sugg" role="listbox"><li role="option">UBC</li></ul></div>
+      <div><label>Pick one</label><div role="listbox"><div role="option">A</div></div></div>`);
+    expect(fields().map((h) => [h.desc.label, h.desc.kind])).toEqual([
+      ["Country", "dropdown"],
+      ["School", "typeahead"],
+      ["Pick one", "dropdown"],
+    ]);
+  });
+
   it("native multiple select → multiselect", () => {
     setBody(`<label>Langs <select multiple><option>EN</option><option>FR</option></select></label>`);
     expect(fields()[0].desc.kind).toBe("multiselect");

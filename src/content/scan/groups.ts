@@ -80,6 +80,21 @@ export function isQuestionContainer(parent: Element, first: Element): boolean {
   return false;
 }
 
+/** Popups (listboxes, menus) opened by a dropdown/combobox, found via aria-controls/aria-owns. */
+function dropdownPopups(cands: HTMLElement[]): Element[] {
+  const popups: Element[] = [];
+  for (const el of cands) {
+    if (!isDropdownTrigger(el) && el.getAttribute("role") !== "combobox") continue;
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const ids = `${el.getAttribute("aria-controls") ?? ""} ${el.getAttribute("aria-owns") ?? ""}`;
+    for (const id of ids.split(/\s+/).filter(Boolean)) {
+      const p = root.getElementById(id);
+      if (p && !p.contains(el)) popups.push(p);
+    }
+  }
+  return popups;
+}
+
 export function buildUnits(c: Collected): Unit[] {
   const units: Unit[] = [];
   const taken = new Set<Element>();
@@ -88,7 +103,9 @@ export function buildUnits(c: Collected): Unit[] {
     taken.add(u.el);
     u.members?.forEach((m) => taken.add(m));
   };
-  const cands = c.candidates;
+  // An open dropdown's popup belongs to its trigger, not a new question (else opening one triggers an AI call).
+  const popups = dropdownPopups(c.candidates);
+  const cands = c.candidates.filter((el) => !popups.some((p) => p.contains(el)));
 
   // 1. Custom dropdown triggers: outermost wins; an inner editable input becomes its search box.
   const triggers: HTMLElement[] = [];
