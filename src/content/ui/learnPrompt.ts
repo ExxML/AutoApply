@@ -1,4 +1,4 @@
-// §16.3 "Save this answer for future applications?" card. One at a time, auto-dismiss after 12 s.
+// §16.3 "Save this answer for future applications?" card. One at a time, auto-dismiss after 12 s or on outside click.
 import { clip } from "../../shared/normalize";
 import { el, uiLayer } from "./root";
 
@@ -7,8 +7,13 @@ let current: { card: HTMLElement; timer: ReturnType<typeof setTimeout> } | null 
 export function hideLearnPrompt() {
   if (!current) return;
   clearTimeout(current.timer);
+  removeEventListener("pointerdown", onOutside, true);
   current.card.remove();
   current = null;
+}
+
+function onOutside(e: PointerEvent) {
+  if (current && !e.composedPath().includes(current.card)) hideLearnPrompt();
 }
 
 export function showLearnPrompt(anchor: Element, label: string, answer: string, onSave: () => void, title?: string) {
@@ -34,4 +39,5 @@ export function showLearnPrompt(anchor: Element, label: string, answer: string, 
   later.onclick = hideLearnPrompt;
   uiLayer().append(card);
   current = { card, timer: setTimeout(hideLearnPrompt, 12000) };
+  addEventListener("pointerdown", onOutside, true);
 }
