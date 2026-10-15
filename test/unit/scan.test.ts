@@ -1,6 +1,7 @@
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
+import { deepQueryAll } from "../../src/content/scan/traverse";
 
 beforeAll(stubLayout);
 beforeEach(() => setBody(""));
@@ -58,6 +59,30 @@ describe("label extraction (§11.5)", () => {
     host.attachShadow({ mode: "open" }).innerHTML = `<label for="e">Email address</label><input id="e" type="email">`;
     const [h] = fields();
     expect(h.desc).toMatchObject({ label: "Email address", kind: "email" });
+  });
+
+  it("asks chrome.dom for closed shadow roots once per element (Edge logs every chrome.* call)", () => {
+    setBody(`<div id="host"></div><x-late></x-late><p>text</p>`);
+    const host = document.getElementById("host")!;
+    const closed = host.attachShadow({ mode: "closed" });
+    closed.innerHTML = `<div role="listbox"></div>`;
+    const probe = vi.fn((el: Element) => (el === host ? closed : null));
+    vi.stubGlobal("chrome", { dom: { openOrClosedShadowRoot: probe } });
+    // happy-dom never matches :defined; browsers match every element except not-yet-upgraded custom elements.
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, "matches").mockImplementation(function (this: Element, s: string) {
+      return s === ":defined" ? !this.localName.includes("-") : matches.call(this, s);
+    });
+    try {
+      expect(deepQueryAll("[role=listbox]")).toHaveLength(1);
+      probe.mockClear();
+      expect(deepQueryAll("[role=listbox]")).toHaveLength(1);
+      // Only the closed host and the not-yet-defined custom element are probed again.
+      expect(probe.mock.calls.map(([el]) => el.localName).sort()).toEqual(["div", "x-late"]);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
   });
 
   it("reads hints from aria-describedby and helper classes", () => {

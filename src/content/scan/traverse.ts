@@ -40,12 +40,20 @@ export interface Collected {
   order: Map<Element, number>;
 }
 
+// Edge sends every extension API call to its browser process; probing the whole page on each waitFor tick
+// floods it and stalls the page's own requests (typeahead suggestions arrive seconds late). Probe each element once.
+const noShadow = new WeakSet<Element>();
+
 export function shadowOf(el: Element): ShadowRoot | null {
   if (el.shadowRoot) return el.shadowRoot;
   // chrome.dom throws on non-HTML elements (SVG <path>, MathML); only HTML elements can host shadow roots anyway.
-  if (!(el instanceof HTMLElement)) return null;
+  if (!(el instanceof HTMLElement) || noShadow.has(el)) return null;
   const dom = typeof chrome !== "undefined" ? chrome.dom : undefined;
-  return typeof dom?.openOrClosedShadowRoot === "function" ? dom.openOrClosedShadowRoot(el) : null;
+  const sr = typeof dom?.openOrClosedShadowRoot === "function" ? dom.openOrClosedShadowRoot(el) : null;
+  // shortcut: misses a closed root attached to an element after its first probe (not-yet-upgraded custom elements
+  // are re-probed), revisit if a site attaches closed roots late.
+  if (!sr && el.matches(":defined")) noShadow.add(el);
+  return sr;
 }
 
 export function collect(root: Element | null = document.body): Collected {
