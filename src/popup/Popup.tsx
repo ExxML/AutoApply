@@ -1,9 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { send, type TabStatusResponse } from "../shared/messages";
-import { createStorage } from "../shared/storage";
-import type { Settings, StatusCounts } from "../shared/types";
-
-const store = createStorage("popup");
+import type { StatusCounts } from "../shared/types";
 
 export function statusText(r: TabStatusResponse | null): string {
   const frames = Object.values(r?.status?.frames ?? {});
@@ -26,8 +23,6 @@ export function statusText(r: TabStatusResponse | null): string {
 export function Popup() {
   const [tab, setTab] = useState<chrome.tabs.Tab | null>(null);
   const [info, setInfo] = useState<TabStatusResponse | null>(null);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [rules, setRules] = useState<Record<string, { autoFill: "on" | "off" }>>({});
   const [msg, setMsg] = useState("");
 
   const host = (() => {
@@ -40,8 +35,6 @@ export function Popup() {
 
   useEffect(() => {
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => setTab(t ?? null));
-    void store.get("settings").then(setSettings);
-    void store.get("siteRules").then(setRules);
   }, []);
 
   useEffect(() => {
@@ -62,7 +55,6 @@ export function Popup() {
     }
   };
 
-  const siteOn = rules[host] ? rules[host].autoFill === "on" : (settings?.autoFillOnDetect ?? true);
   const ready = info && info.keysTotal > 0 && info.model;
 
   return (
@@ -75,39 +67,6 @@ export function Popup() {
         Fill this page
       </button>
       {msg && <p class="err">{msg}</p>}
-      {host && (
-        <div class="field toggle">
-          <input
-            id="site"
-            type="checkbox"
-            checked={siteOn}
-            onChange={async (e) => {
-              const next = {
-                ...rules,
-                [host]: { autoFill: e.currentTarget.checked ? ("on" as const) : ("off" as const) },
-              };
-              setRules(next);
-              await store.set({ siteRules: next });
-            }}
-          />
-          <label for="site">Auto-fill on this site</label>
-        </div>
-      )}
-      {settings && (
-        <div class="field toggle">
-          <input
-            id="global"
-            type="checkbox"
-            checked={settings.autoFillOnDetect}
-            onChange={async (e) => {
-              const next = { ...settings, autoFillOnDetect: e.currentTarget.checked };
-              setSettings(next);
-              await store.set({ settings: next });
-            }}
-          />
-          <label for="global">Auto-fill on job pages</label>
-        </div>
-      )}
       <div class="meta">
         {ready ? "Ready" : "Setup needed"} · Model: {info?.model ?? "none"} · {info?.keysTotal ?? 0} keys ·{" "}
         {info?.keysHealthy ?? 0} healthy

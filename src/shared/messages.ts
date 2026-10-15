@@ -32,13 +32,10 @@ export type Message =
   | { type: "FRAME_STATUS"; status: FrameStatus }
   | { type: "ABORT"; groupId: string }
   | { type: "BROADCAST_FILL"; rerun: boolean }
-  | { type: "SET_SITE_RULE"; host: string; autoFill: "on" | "off" }
   | { type: "SET_OVERLAY_POS"; host: string; bottom: number }
   | { type: "OPEN_OPTIONS"; hash: string }
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
-  | { type: "URL_CHANGED"; url: string }
-  | { type: "AUTOFILL_CHANGED" }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
   // popup → B
   | { type: "TAB_STATUS"; tabId: number }
@@ -74,12 +71,9 @@ export interface Responses {
   FRAME_STATUS: Ok;
   ABORT: Ok;
   BROADCAST_FILL: Ok;
-  SET_SITE_RULE: Ok;
   SET_OVERLAY_POS: Ok;
   OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
-  URL_CHANGED: Ok;
-  AUTOFILL_CHANGED: Ok;
   FOCUS_FIELD: Ok;
   TAB_STATUS: TabStatusResponse;
   ADD_KEY: Ok | Err;

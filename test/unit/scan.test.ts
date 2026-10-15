@@ -1,13 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
-import { detect } from "../../src/content/detect";
 
 beforeAll(stubLayout);
 beforeEach(() => setBody(""));
 
 const fields = (): FieldHandle[] => scan(newScanState()).handles;
-const loc = (href: string) => new URL(href) as unknown as Location;
 
 describe("label extraction (§11.5)", () => {
   it("uses <label for=>", () => {
@@ -202,56 +200,5 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
       `<label>Card number <input autocomplete="cc-number"></label><label>Social Insurance Number <input></label>`,
     );
     expect(fields().map((h) => h.sensitive)).toEqual([true, true]);
-  });
-});
-
-describe("detection scoring (§11.2)", () => {
-  it("scores an application form above the threshold", () => {
-    document.title = "Apply – Software Intern";
-    setBody(`<h1>Software Engineering Intern</h1><form>
-      <label>First name <input></label><label>Last name <input></label><label>Email <input type="email"></label>
-      <label>Phone <input type="tel"></label><label>LinkedIn <input></label><label>City <input></label>
-      <label>Resume <input type="file"></label><button>Submit application</button></form>`);
-    const d = detect(fields(), loc("https://boards.greenhouse.io/acme/jobs/123"));
-    expect(d.score).toBe(100);
-  });
-
-  it("scores a login page below the maybe threshold", () => {
-    document.title = "Sign in";
-    setBody(
-      `<form><label>Email <input type="email"></label><label>Password <input type="password"></label><button>Sign in</button></form>`,
-    );
-    expect(detect(fields(), loc("https://example.com/login")).score).toBeLessThan(30);
-  });
-
-  it("penalizes a lone search box", () => {
-    document.title = "Jobs";
-    setBody(`<form role="search"><input type="search"></form>`);
-    expect(detect(fields(), loc("https://example.com/jobs")).score).toBeLessThan(30);
-  });
-});
-
-describe("detection on fixture pages (§11.2)", async () => {
-  const { readFileSync } = await import("node:fs");
-  const load = (file: string) => {
-    const doc = new DOMParser().parseFromString(readFileSync(`test/fixtures/${file}`, "utf8"), "text/html");
-    document.title = doc.title;
-    document.body.innerHTML = doc.body.innerHTML; // scripts do not run: static markup only
-    return detect(fields(), loc(`http://localhost:5501/jobs/${file}`)).score;
-  };
-  it.each([
-    "plain.html",
-    "custom-dropdown.html",
-    "typeahead.html",
-    "buttons-group.html",
-    "semantic.html",
-    "iframe-form.html",
-    "dropzone.html",
-    "consent.html",
-  ])("%s scores at or above the auto-fill threshold", (file) => {
-    expect(load(file)).toBeGreaterThanOrEqual(50);
-  });
-  it("login.html scores below the maybe threshold", () => {
-    expect(load("login.html")).toBeLessThan(30);
   });
 });

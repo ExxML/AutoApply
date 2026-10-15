@@ -21,7 +21,6 @@ import {
   labelElementFor,
   precedingText,
   sectionFor,
-  textOf,
 } from "./labels";
 import { collect, type Collected } from "./traverse";
 import { parentOf } from "./visibility";
@@ -245,6 +244,3 @@ function isPrefilled(h: FieldHandle, current: string): boolean {
   if (h.desc.placeholder && current === h.desc.placeholder) return false;
   return true;
 }
-
-/** Visible text of the field container — used by detection and dropzone heuristics. */
-export const containerText = (h: FieldHandle) => textOf(h.container, "script,style,option,select");

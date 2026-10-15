@@ -15,7 +15,6 @@ export interface OverlayView {
 export interface OverlayHandlers {
   onRerun(): void;
   onStop(): void;
-  onPause(): void;
   onRetry(): void;
   onOpenSettings(): void;
   onFocus(item: NeedsYouItem): void;
@@ -57,13 +56,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
     { className: "panel" },
     head,
     el("div", { className: "body" }, status, model, error, needs, timings),
-    el(
-      "div",
-      { className: "actions" },
-      btn("Re-run", h.onRerun, "btn primary"),
-      btn("Stop", h.onStop),
-      btn("Pause on this site", h.onPause),
-    ),
+    el("div", { className: "actions" }, btn("Re-run", h.onRerun, "btn primary"), btn("Stop", h.onStop)),
   );
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-label", "AutoApply status");

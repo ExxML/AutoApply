@@ -1,7 +1,7 @@
 import { FAILURES } from "../mockGemini";
 import { nextMidnightPacific } from "../../src/shared/time";
 import type { KeyState } from "../../src/shared/types";
-import { BASE, expect, seed, storage, test, waitDone } from "./extension";
+import { BASE, expect, fillPage, seed, storage, test, waitDone } from "./extension";
 
 const MODEL = "gemini-2.5-flash-lite";
 const keyState = (sw: import("@playwright/test").Worker) =>
@@ -20,6 +20,7 @@ test("429 per-minute: the next key is used automatically and the chip shows the 
   await seed(sw, { caps: true });
   mock.fail("test-key-1", FAILURES.perMinute);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#spons")).toHaveValue("I will not require sponsorship");
   const maps = mock.calls.filter((c) => c.kind === "map");
@@ -38,6 +39,7 @@ test("429 daily: the key is exhausted for that model until the next Pacific midn
   await seed(sw, { caps: true });
   mock.fail("test-key-1", FAILURES.daily);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect.poll(async () => (await keyState(sw)).k1?.perModel?.[MODEL]?.exhaustedUntil).toBeTruthy();
   const until = (await keyState(sw)).k1.perModel![MODEL].exhaustedUntil!;
@@ -55,6 +57,7 @@ test("invalid key and limit:0 rotate; 503 is retried without penalizing keys", a
   mock.fail("test-key-2", FAILURES.limitZero);
   mock.fail("test-key-3", FAILURES.unavailable);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#gender")).toHaveValue("I don't wish to answer");
   await expect.poll(async () => !!(await keyState(sw)).k3?.successCount).toBe(true);
@@ -72,6 +75,7 @@ test("all keys exhausted for the primary model → the fallback model is used", 
   await seed(sw, { caps: true, fallbackModel: "gemini-2.5-flash" });
   mock.always = (_k, model) => (model === MODEL ? FAILURES.daily : null);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#spons")).toHaveValue("I will not require sponsorship");
   const ok = mock.calls_("map");
@@ -88,6 +92,7 @@ test("all keys exhausted and no fallback → clear overlay error with the reset 
   await seed(sw, { caps: true });
   mock.always = () => FAILURES.perMinute;
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await expect(page.locator("autoapply-root .panel .error")).toContainText(
     /All API keys are rate-limited for gemini-2\.5-flash-lite\. Next retry possible at \d/,
   );

@@ -25,7 +25,7 @@ export const EXCLUDED_MODEL_PATTERNS = [
   "learnlm",
 ];
 
-// ---------- Detection (§11.2, Appendix C.1) ----------
+// ---------- ATS hosts (Appendix C.1) ----------
 export const ATS_HOSTS = [
   "greenhouse.io",
   "boards.greenhouse.io",
@@ -85,12 +85,9 @@ export function isAtsHost(host: string, path: string): boolean {
   );
 }
 
-export const RE_JOB_URL = /apply|application|careers?|jobs?|position|candidate|opening|posting|requisition/i;
-export const RE_JOB_TITLE = /apply|application|job|position|career|role/i;
 export const RE_RESUME_FILE = /r[ée]sum[ée]|\bcv\b|cover letter/i;
 export const RE_RESUME_ONLY = /r[ée]sum[ée]|\bcv\b/i;
 export const RE_COVER_LETTER = /cover letter/i;
-export const RE_SUBMIT_TEXT = /submit application|apply now|submit\b/i;
 
 // ---------- Scanning (§11.3, §11.6, §18) ----------
 export const RE_SKIP_LABEL = /captcha|honeypot|leave this (field )?(blank|empty)/i;

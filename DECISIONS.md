@@ -20,14 +20,14 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 ## Storage
 
 - zod 4 removed `.deepPartial()`. Every profile/settings leaf has a `.catch(default)` instead, so parsing a partial or partly invalid object yields a full object with defaults; this replaces `ProfileSchema.deepPartial()` for §10.9 and makes all storage reads tolerant leaf-by-leaf.
-- Content scripts never access `chrome.storage` at all (strongest form of §18.5). Everything they need comes from `GET_RUNTIME_CONFIG`; the few writes they need go through messages (`SET_SITE_RULE`, `SET_OVERLAY_POS`, `LEARNED_USED`). `storage.ts` has a per-context allow-list (`background`, `options`, `popup`); the popup cannot read `apiKeys` and gets key health from `TAB_STATUS`.
+- Content scripts never access `chrome.storage` at all (strongest form of §18.5). Everything they need comes from `GET_RUNTIME_CONFIG`; the few writes they need go through messages (`SET_OVERLAY_POS`, `LEARNED_USED`). `storage.ts` has a per-context allow-list (`background`, `options`, `popup`); the popup cannot read `apiKeys` and gets key health from `TAB_STATUS`.
 - Overlay position per host is stored in an extra local key `overlayPos: Record<host, number>`.
 
 ## Messages (additions to §17)
 
 - `MAP_FIELDS` / `CHOOSE_OPTIONS` / `DRAFT_ESSAYS` carry a `groupId` (one per pipeline run); `ABORT {groupId}` cancels exactly those fetches.
 - `LEARNED_USED {ids}` updates `learnedAnswers[].lastUsedAt` after a Phase-A learned-answer fill.
-- `BROADCAST_FILL {rerun}` lets the top-frame overlay (Re-run) and the pill trigger every frame of the tab.
+- `BROADCAST_FILL {rerun}` lets the top-frame overlay (Re-run, Retry) trigger every frame of the tab.
 - Options page → background: `ADD_KEY`, `TEST_KEY`, `REFRESH_MODELS`, `VALIDATE_MODEL`, `PARSE_RESUME`, so all network calls stay in the background (§4).
 - The popup's **Fill this page** and the Alt+Shift+F command send `TRIGGER_FILL {force:true}` to **all frames** of the tab (not only frame 0), so forms inside iframes are filled too; frames without fields do nothing.
 - `CACHE_LOOKUP` takes `{signatures}` only. The content script appends `@host` to a field's signature when its label contains the company name (§13.3), so the background never needs the label.
@@ -38,7 +38,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - Content-script bundle: ~84 KB minified in total (entry + shared chunks, no Preact/pdf.js/zod), under the 120 KB budget (§19).
 - pdf.js 6 never uses `eval`/`new Function` (the old `isEvalSupported` option no longer exists); its worker is bundled and loaded via `?url`.
 
-## Scanning and detection
+## Scanning
 
 - **Field container (§11.5 step 5)**: climb up to 4 ancestors from the control (or a group's common ancestor) for as long as the ancestor contains no other field; the highest such ancestor is the container. This is the "field wrapper" whose preceding text is the label and whose box is badged. Climbing stops at `<form>`/`<body>`.
 - Label regexes use word boundaries for `state|province|region` and `apt|suite|unit|town` so "Personal statement" or "Business unit" do not match.
@@ -47,7 +47,6 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - `<header>` fields are skipped only when they are not inside a form; `nav`, `[role=navigation]` and `[role=search]` are always skipped.
 - Password, search and CAPTCHA/honeypot fields are skipped entirely (not listed). Payment and government-ID fields are listed and flagged "Sensitive – fill manually" (§18.2).
 - Radios/checkboxes that are visually hidden count as visible when their `<label>` is visible (custom-styled controls).
-- A visible résumé dropzone counts for the +30 detection signal even when its file input is hidden.
 - Button-style groups made of plain `<button>`s require: 2–8 siblings, none submitting (explicit `type="button"` inside forms), short texts not matching navigation words, and a container label ending in "?".
 - The C.3 heuristic `button[aria-expanded][aria-controls]` is used only when its container's label is a question.
 - A dropdown trigger wrapping more than one native control is not treated as a single dropdown (protects against broad `[data-testid*=select]` matches).
@@ -61,8 +60,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - `MAX_TOKENS` throws immediately so the mapping service splits the chunk; invalid JSON / schema mismatches are retried once (on another key via LRU), then on the fallback model, then the chunk is split, and a single failing field is flagged.
 - After a capability error the retry prefers the same key.
 - A user's trusted `input` on a field marks it user-owned (never filled afterwards). `keydown` is not used, so tabbing through fields does not claim them.
-- A follow-up pass for revealed/conditional fields runs at most 3 rounds; the counter resets on any trusted click/keypress or URL change (so real multi-step forms keep working).
-- Active application session: 30 minutes from the last pipeline run, per frame.
+- **No automatic filling.** A fill runs only when the user triggers it (popup, Alt+Shift+F, the overlay's Re-run/Retry, or the rate-limit auto-retry of that run). Until then the content script only loads its config and listens for messages and user edits: no page scoring, no scanning, no `MutationObserver`. Fields revealed after a fill, and the next step of a multi-step form, need another trigger.
 - The popup's **Fill this page** and a top-frame **Re-run** re-process flagged/failed/"check" fields as well as new ones; filled and user-owned fields are left alone.
 - Learned answers' `lastUsedAt` is updated through an extra `LEARNED_USED` message; `profileVersion` ignores it, so cache keys do not change.
 - The decision cache stores choice answers as option texts (dropdowns: the text shown after selection; typeaheads: the picked suggestion).

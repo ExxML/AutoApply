@@ -47,9 +47,9 @@ AutoApply uses your data only to fill job applications and for nothing else. You
 
 ## Permissions
 
-- **Access to all sites:** job applications appear on many different domains. AutoApply reads forms on pages only to detect and fill applications.
+- **Access to all sites:** job applications appear on many different domains. AutoApply reads a page's form only when you ask it to fill that page.
 - **storage / unlimitedStorage:** stores your profile and uploaded documents locally.
-- **scripting, tabs, webNavigation:** run the form filler on open tabs, respond to the popup and the keyboard shortcut, and detect page changes in multi-step applications.
+- **scripting, tabs:** run the form filler on open tabs and respond to the popup and the keyboard shortcut.
 
 ## Changes
 

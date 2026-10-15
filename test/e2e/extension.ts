@@ -155,6 +155,27 @@ export { expect };
 /** Badge tag for a field, by the field's label (badges live in <autoapply-root>'s open shadow root). */
 export const badge = (page: Page, label: string) => page.locator(`autoapply-root .tag[aria-label^="${label}:"]`);
 
+/** Same as the popup's Fill this page: TRIGGER_FILL to every frame of the page's tab, once each frame is listening. */
+export async function fillPage(page: Page, sw: Worker) {
+  await sw.evaluate(async (url) => {
+    const tab = (await chrome.tabs.query({})).find((t) => t.url === url);
+    if (tab?.id === undefined) throw new Error(`No tab for ${url}`);
+    const tabId = tab.id;
+    const frames = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: () => 0 });
+    await Promise.all(
+      frames.map(async ({ frameId }) => {
+        // A content script answers only after it has loaded its config.
+        for (let i = 0; i < 100; i++) {
+          const msg = { type: "TRIGGER_FILL", force: true };
+          if (await chrome.tabs.sendMessage(tabId, msg, { frameId }).catch(() => null)) return;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        throw new Error(`Frame ${frameId} never answered TRIGGER_FILL`);
+      }),
+    );
+  }, page.url());
+}
+
 export async function waitDone(page: Page) {
   await expect(page.locator("autoapply-root .panel .status")).toHaveText(/^Done ·/, { timeout: 20_000 });
 }

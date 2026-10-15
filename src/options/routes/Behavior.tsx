@@ -6,11 +6,6 @@ type Bool = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[k
 type Num = { [K in keyof Settings]: Settings[K] extends number ? K : never }[keyof Settings];
 
 const TOGGLES: [Bool, string, string][] = [
-  [
-    "autoFillOnDetect",
-    "Auto-fill on job pages",
-    "Start filling as soon as an application form is detected. Per-site overrides live in the popup.",
-  ],
   ["overwritePrefilled", "Overwrite pre-filled fields", "Off: fields that already have a value are left alone."],
   [
     "autoAcceptAcknowledgements",
@@ -36,14 +31,6 @@ const TOGGLES: [Bool, string, string][] = [
 ];
 
 const NUMBERS: [Num, string, string, number, number][] = [
-  ["detectionThreshold", "Detection threshold", "Pages scoring at least this (0–100) auto-fill.", 0, 100],
-  [
-    "maybeThreshold",
-    "“Maybe” threshold",
-    "Pages scoring between this and the detection threshold show an “Autofill this page” pill.",
-    0,
-    100,
-  ],
   ["essayDefaultWords", "Essay length (words)", "Target length when a question gives no limit.", 10, 2000],
   ["coverLetterDefaultWords", "Cover letter length (words)", "Target length for cover-letter text boxes.", 10, 2000],
   [

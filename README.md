@@ -38,14 +38,14 @@ The model list is fetched live with your key and shows only text-in/text-out mod
 - Yes/No questions have **Unset**, and sensitive ones also **Decline**: _Decline_ picks the "prefer not to say" option when the form offers it; _Unset_ means the field is flagged for you.
 - **Documents**: upload PDF/DOCX/TXT (≤ 5 MB) and mark one PDF as the primary résumé.
 
-## How auto-fill works
+## How filling works
 
-1. On each page (and inside iframes and shadow DOM), AutoApply scores how much the page looks like a job application. High scores start filling automatically; borderline pages show an **Autofill this page** pill. You can always use the popup's **Fill this page** or **Alt+Shift+F**.
+1. Click **Fill this page** in the popup or press **Alt+Shift+F**. AutoApply never starts on its own; it scans the page (including iframes and shadow DOM) only when you ask.
 2. Instant pass (no network): name, email, phone, address and links are matched from your profile; questions you answered before (saved answers) and cached AI answers fill immediately.
 3. Everything else goes to Gemini in one batched call. It picks options **by meaning** (e.g. "willing to relocate = yes" → "I am willing to relocate"), and custom dropdowns and typeaheads are operated one at a time.
 4. Open-ended questions ("Why do you want to work here?") are drafted by Gemini from your profile, résumé and the job description, respecting word/character limits, and marked as AI drafts.
-5. Multi-step applications are followed: when the next step appears (new fields or a URL change), it fills automatically.
-6. The panel at the bottom right shows progress, the model used, and a **Needs you** list; click a row to jump to the field. **Re-run**, **Stop** and **Pause on this site** are there too.
+5. Multi-step applications: when the next step appears, click **Fill this page** (or press **Alt+Shift+F**) again. AutoApply does not watch the page between fills.
+6. The panel at the bottom right shows progress, the model used, and a **Needs you** list; click a row to jump to the field. **Re-run** and **Stop** are there too.
 7. When you answer a flagged field yourself, AutoApply offers to **save the answer** for future applications (see **Saved answers** in settings).
 
 ## Badge meanings
@@ -79,7 +79,7 @@ Your profile, documents and settings live only in this browser (`chrome.storage.
 - **"All API keys are rate-limited … Next retry possible at …"**: you hit a quota. The panel retries automatically if the reset is within 90 s. Add keys from **separate Google Cloud projects**, or wait for the daily reset (midnight Pacific).
 - **"Model unavailable on this key"**: the model is not on your key's tier/region; pick another model.
 - **"No API key" / "No model selected"**: open the AI settings from the panel's button.
-- **Nothing happens on a page**: use **Fill this page** in the popup, check that the site isn't paused (popup toggle) or excluded (Behavior), and reload pages that were open before the extension was installed or updated.
+- **Nothing happens on a page**: use **Fill this page** in the popup (or **Alt+Shift+F**), check that the site isn't excluded (Behavior), and reload pages that were open before the extension was installed or updated.
 - Turn on **Debug logging** (Behavior) to see per-stage timings in the panel and prompts/responses in the service-worker console (keys are never logged).
 
 ## Development

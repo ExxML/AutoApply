@@ -1,4 +1,4 @@
-import { BASE, badge, expect, forbidden, seed, storage, test, waitDone } from "./extension";
+import { BASE, badge, expect, fillPage, forbidden, seed, storage, test, waitDone } from "./extension";
 
 test("plain form: deterministic, AI, essay, file and consent fields are filled, verified and badged", async ({
   page,
@@ -7,6 +7,7 @@ test("plain form: deterministic, AI, essay, file and consent fields are filled, 
 }) => {
   await seed(sw);
   await page.goto(BASE + "plain.html");
+  await fillPage(page, sw);
   await waitDone(page);
 
   await expect(page.locator("#fn")).toHaveValue("Ada");

@@ -1,4 +1,4 @@
-// Service worker: message router, commands, webNavigation SPA hooks, onInstalled.
+// Service worker: message router, commands, onInstalled.
 import type { Message, Responses } from "../shared/messages";
 import { createStorage, migrate, session } from "../shared/storage";
 import { normalize } from "../shared/normalize";
@@ -164,9 +164,8 @@ type Handlers = { [T in Message["type"]]?: Handler<T> };
 
 const handlers: Handlers = {
   async GET_RUNTIME_CONFIG(_m, sender) {
-    const s = await store.getMany(["profile", "documentsIndex", "siteRules", "selectedModel", "overlayPos"]);
+    const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos"]);
     const host = hostOf(sender.tab?.url ?? sender.url);
-    const rule = s.siteRules[host];
     const excluded = settings.excludedHosts.some((h) => h && (host === h || host.endsWith("." + h)));
     return {
       settings,
@@ -182,7 +181,6 @@ const handlers: Handlers = {
         })),
       },
       documentsIndex: s.documentsIndex,
-      effectiveAutoFill: !excluded && (rule ? rule.autoFill === "on" : settings.autoFillOnDetect),
       excluded,
       selectedModel: s.selectedModel,
       hasKeys: pool.keys.length > 0,
@@ -286,13 +284,6 @@ const handlers: Handlers = {
 
   async BROADCAST_FILL({ rerun }, sender) {
     if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "TRIGGER_FILL", force: true, rerun });
-    return { ok: true };
-  },
-
-  async SET_SITE_RULE({ host, autoFill }) {
-    const siteRules = await store.get("siteRules");
-    siteRules[host] = { autoFill };
-    await store.set({ siteRules });
     return { ok: true };
   },
 
@@ -403,17 +394,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (tab?.id !== undefined) await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
 });
 
-const onSpaNav = (d: { tabId: number; frameId: number; url: string }) =>
-  void sendToTab(d.tabId, { type: "URL_CHANGED", url: d.url }, d.frameId);
-chrome.webNavigation.onHistoryStateUpdated.addListener(onSpaNav);
-chrome.webNavigation.onReferenceFragmentUpdated.addListener(onSpaNav);
-chrome.webNavigation.onCommitted.addListener((d) => {
-  if (d.frameId === 0) void session.setTabStatus(d.tabId, { frames: {}, updatedAt: Date.now() });
+chrome.tabs.onUpdated.addListener((tabId, info) => {
+  if (info.status === "loading") void session.setTabStatus(tabId, { frames: {}, updatedAt: Date.now() });
 });
 chrome.tabs.onRemoved.addListener((tabId) => void session.clearTab(tabId));
-
-// Open pages cache effectiveAutoFill from load; tell them to refresh when a toggle changes.
-store.onChange(["settings", "siteRules"], async () => {
-  for (const tab of await chrome.tabs.query({}))
-    if (tab.id !== undefined) void sendToTab(tab.id, { type: "AUTOFILL_CHANGED" });
-});

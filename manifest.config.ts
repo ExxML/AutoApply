@@ -20,7 +20,7 @@ export default defineManifest({
   options_page: "src/options/index.html",
   background: { service_worker: "src/background/sw.ts", type: "module" },
   content_scripts: [contentScript],
-  permissions: ["storage", "unlimitedStorage", "scripting", "webNavigation", "tabs"],
+  permissions: ["storage", "unlimitedStorage", "scripting", "tabs"],
   host_permissions: ["<all_urls>"],
   commands: {
     _execute_action: { suggested_key: { default: "Alt+Shift+A" } },

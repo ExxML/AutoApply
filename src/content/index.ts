@@ -1,5 +1,5 @@
-// Content script: per-frame bootstrap (§11.1), fill pipeline (§12), SPA/multi-step handling (§11.8),
-// learning (§16.3) and status reporting. Never sees API keys; never clicks submit/next.
+// Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
+// Fills only when the user triggers it. Never sees API keys; never clicks submit/next.
 import { RE_COVER_LETTER, RE_RESUME_ONLY } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
@@ -14,7 +14,6 @@ import type {
   RuntimeConfig,
   StatusCounts,
 } from "../shared/types";
-import { detect } from "./detect";
 import { extractJobContext } from "./jobContextExtract";
 import { deterministicValue, isFreeText, matchLearned } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
@@ -27,7 +26,6 @@ import { newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
-import { hidePill, showPill } from "./ui/pill";
 import { claimFrame } from "./ui/root";
 
 type Status =
@@ -69,26 +67,20 @@ const BADGE: Partial<Record<Status, [BadgeColor, string]>> = {
 
 const TOP = window === window.top;
 const HOST = location.hostname;
-const SESSION_MS = 30 * 60 * 1000;
 
 let config: RuntimeConfig;
 const scanState = newScanState();
 const handles = new Map<string, FieldHandle>();
 const states = new Map<string, FieldState>();
-const knownSignatures = new Set<string>();
 const checkedByUs = new Set<Element>();
 const harvested = new Map<string, string[]>();
 let current: { groupId: string; ctrl: AbortController } | null = null;
 let running = false;
-let dirty = false;
 let queued: { rerun: boolean } | null = null;
-let sessionUntil = 0;
-let followRounds = 0;
 let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
 let usedModel: string | null = null;
-let detectMs = 0;
 let company = "";
 let overlay: Overlay | null = null;
 const childFrames = new Map<number, FrameStatus>();
@@ -147,10 +139,6 @@ function renderOverlay() {
     {
       onRerun: () => void send({ type: "BROADCAST_FILL", rerun: true }),
       onStop: stop,
-      onPause: () => {
-        stop();
-        void send({ type: "SET_SITE_RULE", host: HOST, autoFill: "off" });
-      },
       onRetry: () => void send({ type: "BROADCAST_FILL", rerun: true }),
       onOpenSettings: () => void send({ type: "OPEN_OPTIONS", hash: "/ai" }),
       onFocus: (n) =>
@@ -350,17 +338,14 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     return;
   }
   running = true;
-  dirty = false;
   lastError = null;
   clearTimeout(retryTimer);
-  hidePill();
   const ctrl = new AbortController();
   const groupId = crypto.randomUUID();
   current = { groupId, ctrl };
   const t0 = performance.now();
-  timings = detectMs ? [["detect", detectMs]] : [];
+  timings = [];
   const mark = (k: string) => timings.push([k, Math.round(performance.now() - t0)]);
-  sessionUntil = Date.now() + SESSION_MS;
   const jobs: Promise<void>[] = [];
   const cacheOut: { signature: string; decision: CachedDecision }[] = [];
   try {
@@ -369,7 +354,6 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     const all = rescan();
     mark("scan");
     const targets = all.filter((h) => {
-      knownSignatures.add(h.signature);
       const s = states.get(h.id);
       if (s?.userOwned) return false;
       if (!s || s.status === "pending") return true;
@@ -497,7 +481,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
       const q = queued;
       queued = null;
       void runPipeline(q);
-    } else if (dirty) void onMutations();
+    }
   }
 }
 
@@ -604,94 +588,12 @@ function onUserCommit(e: Event) {
   }, 50);
 }
 
-// ---------- SPA / multi-step (§11.8) ----------
-let detected = false;
-
-/** `t0`: when the bootstrap scan started, to log scan + detection time (§19). */
-function maybeAuto(all: FieldHandle[], t0?: number) {
-  const d = detect(all);
-  if (t0 !== undefined) detectMs = Math.round(performance.now() - t0);
-  const fillable = all.length;
-  if (config.settings.debugLogging) console.log("[AutoApply] detection", d.score, d.signals);
-  if (d.score >= config.settings.detectionThreshold && config.effectiveAutoFill && fillable >= 3) {
-    detected = true;
-    void runPipeline();
-  } else if (d.score >= config.settings.maybeThreshold && (TOP || fillable >= 3) && fillable > 0) {
-    showPill(() => void send({ type: "BROADCAST_FILL", rerun: false }));
-  }
-}
-
-const sessionActive = () => Date.now() < sessionUntil;
-
-async function onMutations() {
-  if (running) {
-    dirty = true;
-    return;
-  }
-  // Skip the full DOM walk when its result can't be used: runPipeline re-records every signature on its next start.
-  if (sessionActive() ? followRounds >= 3 : detected) return;
-  const { handles: hs } = scan(scanState);
-  const fresh = hs.filter((h) => !knownSignatures.has(h.signature) && !states.has(h.id));
-  if (!fresh.length) return;
-  if (sessionActive()) {
-    followRounds++;
-    void runPipeline();
-  } else {
-    hs.forEach((h) => knownSignatures.add(h.signature));
-    maybeAuto(hs);
-  }
-}
-
-function observe() {
-  let t: ReturnType<typeof setTimeout> | undefined;
-  const mo = new MutationObserver(() => {
-    if (t) return;
-    t = setTimeout(() => {
-      t = undefined;
-      // Orphaned by an extension reload before the new instance claimed the frame: chrome.* calls in scan() would throw.
-      if (!chrome.runtime?.id) return mo.disconnect();
-      void onMutations();
-    }, 500);
-  });
-  mo.observe(document.body, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ["aria-expanded", "hidden", "style", "class"],
-  });
-  life.signal.addEventListener("abort", () => {
-    mo.disconnect();
-    clearTimeout(t);
-  });
-}
-
 // ---------- messages ----------
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
   if (!config) return false;
   switch (msg.type) {
     case "TRIGGER_FILL":
-      followRounds = 0;
-      hidePill();
       void runPipeline({ rerun: msg.rerun ?? msg.force });
-      break;
-    case "URL_CHANGED":
-      followRounds = 0;
-      if (sessionActive()) void onMutations();
-      else {
-        detected = false;
-        maybeAuto(scan(scanState).handles);
-      }
-      break;
-    case "AUTOFILL_CHANGED":
-      void send({ type: "GET_RUNTIME_CONFIG" }).then((c) => {
-        config = c;
-        if (c.effectiveAutoFill) return;
-        // Turned off: halt the current run and anything that would start another on its own.
-        sessionUntil = 0;
-        queued = null;
-        clearTimeout(retryTimer);
-        stop();
-      });
       break;
     case "FOCUS_FIELD":
       focusField(msg.fieldId);
@@ -710,26 +612,6 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
 });
 
 // ---------- bootstrap (§11.1) ----------
-const settle = () =>
-  new Promise<void>((resolve) => {
-    const start = Date.now();
-    let quiet: ReturnType<typeof setTimeout>;
-    const done = () => {
-      mo.disconnect();
-      resolve();
-    };
-    const mo = new MutationObserver(() => {
-      clearTimeout(quiet);
-      if (Date.now() - start > 2500) done();
-      else quiet = setTimeout(done, 300);
-    });
-    mo.observe(document.documentElement, { subtree: true, childList: true });
-    quiet = setTimeout(done, 300);
-  });
-
-const CONTROLS = "input,select,textarea,[contenteditable],[role=combobox]";
-const hasControls = () => !!document.querySelector(CONTROLS) || scan(scanState).handles.length > 0;
-
 async function main() {
   if (!/^https?:$/.test(location.protocol) || !document.body) return;
   const g = globalThis as { __autoapply?: boolean };
@@ -738,7 +620,6 @@ async function main() {
   claimFrame(() => {
     life.abort();
     current?.ctrl.abort(); // no ABORT message: this context's runtime is gone
-    sessionUntil = 0;
     queued = null;
     clearTimeout(retryTimer);
   });
@@ -752,37 +633,6 @@ async function main() {
   const opts = { capture: true, signal: life.signal };
   document.addEventListener("input", onUserInput, opts);
   for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, opts);
-  for (const ev of ["click", "keydown"])
-    document.addEventListener(ev, (e) => e.isTrusted && !isFilling() && (followRounds = 0), opts);
-
-  if (!hasControls()) {
-    const appeared = await new Promise<boolean>((resolve) => {
-      let t: ReturnType<typeof setTimeout> | undefined;
-      const done = (ok: boolean) => {
-        mo.disconnect();
-        clearTimeout(t);
-        resolve(ok);
-      };
-      // Cheap selector check per batch; the full-scan fallback (custom widgets) is throttled like observe().
-      const mo = new MutationObserver(() => {
-        if (document.querySelector(CONTROLS)) done(true);
-        else
-          t ??= setTimeout(() => {
-            t = undefined;
-            if (hasControls()) done(true);
-          }, 500);
-      });
-      mo.observe(document.documentElement, { subtree: true, childList: true });
-      setTimeout(() => done(hasControls()), 3000);
-    });
-    if (!appeared) return;
-  }
-  await settle();
-  const t0 = performance.now();
-  const all = scan(scanState).handles;
-  all.forEach((h) => knownSignatures.add(h.signature));
-  maybeAuto(all, t0);
-  observe();
 }
 
 void main();

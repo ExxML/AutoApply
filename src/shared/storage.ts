@@ -53,8 +53,6 @@ export const ApiKeyEntrySchema = z.object({
   addedAt: z.number(),
 });
 
-export const SiteRuleSchema = z.object({ autoFill: z.enum(["on", "off"]) });
-
 export const KeyStateSchema = z.object({
   invalid: z.object({ reason: z.string(), at: z.number() }).optional(),
   cooldownUntil: z.number().optional(),
@@ -111,7 +109,6 @@ export const LOCAL_SCHEMAS = {
   fallbackModel: z.string().nullable().catch(null),
   modelCapabilities: rec(ModelCapsSchema),
   decisionCache: rec(CachedDecisionSchema),
-  siteRules: rec(SiteRuleSchema),
   overlayPos: rec(z.number()),
 };
 
@@ -126,7 +123,7 @@ export type StorageContext = "background" | "options" | "popup";
 const ALLOW: Record<StorageContext, (key: string) => boolean> = {
   background: () => true,
   options: () => true,
-  popup: (k) => ["settings", "siteRules", "selectedModel", "modelCatalog"].includes(k),
+  popup: (k) => ["settings", "selectedModel", "modelCatalog"].includes(k),
 };
 
 export function createStorage(ctx: StorageContext) {

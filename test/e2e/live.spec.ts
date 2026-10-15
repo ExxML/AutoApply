@@ -1,6 +1,6 @@
 // §20.3 live smoke test against the real Gemini API (no mock). Skipped unless GEMINI_API_KEY is set.
 // GEMINI_MODEL picks the model; by default the first flash-lite model of the sorted live list is used.
-import { BASE, expect, seed, test, waitDone } from "./extension";
+import { BASE, expect, fillPage, seed, test, waitDone } from "./extension";
 
 const KEY = process.env.GEMINI_API_KEY;
 test.use({ useMock: false });
@@ -22,6 +22,7 @@ async function setup(page: import("@playwright/test").Page, sw: import("@playwri
 test("live: semantic selections by meaning (§21 item 6)", async ({ page, sw }) => {
   await setup(page, sw);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.getByLabel("I am willing to relocate", { exact: true })).toBeChecked();
   await expect(page.locator("#spons")).toHaveValue("I will not require sponsorship");
@@ -31,6 +32,7 @@ test("live: semantic selections by meaning (§21 item 6)", async ({ page, sw }) 
 test("live: plain form", async ({ page, sw }) => {
   await setup(page, sw);
   await page.goto(BASE + "plain.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#fn")).toHaveValue("Ada");
   await expect(page.locator("#prov")).toHaveValue("BC");

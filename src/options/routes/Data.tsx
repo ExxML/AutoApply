@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { z } from "zod";
 import { ProfileSchema } from "../../shared/profileSchema";
 import { SettingsSchema } from "../../shared/settings";
-import { ApiKeyEntrySchema, DocumentMetaSchema, SiteRuleSchema } from "../../shared/storage";
+import { ApiKeyEntrySchema, DocumentMetaSchema } from "../../shared/storage";
 import { markSaved, save, store } from "../store";
 
 const ExportSchema = z.object({
@@ -14,7 +14,6 @@ const ExportSchema = z.object({
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   selectedModel: z.string().nullable(),
   fallbackModel: z.string().nullable(),
-  siteRules: z.record(z.string(), SiteRuleSchema),
 });
 type Export = z.infer<typeof ExportSchema>;
 
@@ -26,9 +25,14 @@ export function Data() {
   const [resetStep, setResetStep] = useState(0);
 
   const doExport = async () => {
-    const { profile, settings, documentsIndex, apiKeys, selectedModel, fallbackModel, siteRules } = await store.getMany(
-      ["profile", "settings", "documentsIndex", "apiKeys", "selectedModel", "fallbackModel", "siteRules"],
-    );
+    const { profile, settings, documentsIndex, apiKeys, selectedModel, fallbackModel } = await store.getMany([
+      "profile",
+      "settings",
+      "documentsIndex",
+      "apiKeys",
+      "selectedModel",
+      "fallbackModel",
+    ]);
     const documents = [];
     if (withDocs)
       for (const meta of documentsIndex) documents.push({ meta, base64: (await store.getDoc(meta.id)) ?? "" });
@@ -39,7 +43,6 @@ export function Data() {
       settings,
       selectedModel,
       fallbackModel,
-      siteRules,
       ...(withDocs ? { documents } : {}),
       ...(withKeys ? { apiKeys } : {}),
     };
@@ -54,7 +57,7 @@ export function Data() {
     try {
       const r = ExportSchema.safeParse(JSON.parse(await file.text()));
       if (!r.success) return setMsg("That file is not an AutoApply export.");
-      const cur = await store.getMany(["profile", "settings", "documentsIndex", "apiKeys", "siteRules"]);
+      const cur = await store.getMany(["profile", "settings", "documentsIndex", "apiKeys"]);
       const incoming = ProfileSchema.parse(r.data.profile);
       const summary = [
         `Profile: ${incoming.personal.firstName || "(no name)"} ${incoming.personal.lastName} replaces ${cur.profile.personal.firstName || "(empty profile)"} ${cur.profile.personal.lastName}`,
@@ -64,7 +67,6 @@ export function Data() {
           : "Documents: unchanged",
         "Settings: replaced",
         "Models: replaced",
-        `Site rules: ${Object.keys(cur.siteRules).length} → ${Object.keys(r.data.siteRules).length}`,
         r.data.apiKeys ? `API keys: ${cur.apiKeys.length} → ${r.data.apiKeys.length}` : "API keys: unchanged",
       ];
       setPending({ data: r.data, summary });
@@ -88,7 +90,6 @@ export function Data() {
       ...(data.apiKeys ? { apiKeys: data.apiKeys } : {}),
       selectedModel: data.selectedModel,
       fallbackModel: data.fallbackModel,
-      siteRules: data.siteRules,
     });
     setPending(null);
     setMsg("Imported.");

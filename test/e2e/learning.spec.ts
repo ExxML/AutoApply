@@ -1,4 +1,4 @@
-import { BASE, badge, expect, seed, storage, test, waitDone } from "./extension";
+import { BASE, badge, expect, fillPage, seed, storage, test, waitDone } from "./extension";
 
 const Q = "What is your favourite programming language?";
 
@@ -9,6 +9,7 @@ test("learning: a manually answered flagged field is saved and reused without an
 }) => {
   await seed(sw);
   await page.goto(BASE + "semantic.html");
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(badge(page, Q)).toHaveAttribute("data-color", "yellow");
 
@@ -31,6 +32,7 @@ test("learning: a manually answered flagged field is saved and reused without an
 
   const before = mock.calls_("map").length;
   await page.reload();
+  await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#lang")).toHaveValue("TypeScript");
   await expect(badge(page, Q)).toHaveAttribute("data-color", "green");
