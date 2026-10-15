@@ -103,12 +103,23 @@ function scroller(c: HTMLElement): HTMLElement | null {
   return null;
 }
 
+// Infinite-scroll lists fetch their next page once scrolled to the very bottom: react-select-async-paginate
+// (Greenhouse) checks the scroll position every 300 ms, then shows a spinner until the page arrives. A list is
+// complete once it stays quiet (no growth, no spinner) this long; a harvest budget cannot cut this wait, or no
+// scrollable list would ever fit in one.
+const QUIET_MS = 500;
+const PAGE_MAX_MS = 5000;
+const BUSY = "[aria-busy=true],[class*=loading i],[class*=spinner i]";
+const busy = (roots: Element[]) =>
+  roots.some((r) => [r, ...r.querySelectorAll(BUSY)].some((el) => el.matches(BUSY) && isVisible(el)));
+
 /**
- * Collect option texts, scrolling virtualized lists until nothing new appears twice (max 500).
- * Returns null if `deadline` passes before the list is complete.
+ * Collect option texts, scrolling virtualized lists until nothing new appears twice and the list stays quiet at
+ * the bottom. Returns null if `deadline` passes before the list is complete, or for 500+ options.
  */
 export async function collectOptions(
   c: HTMLElement,
+  widget: Element,
   stopAt?: (text: string) => boolean,
   deadline = Infinity,
 ): Promise<Map<string, HTMLElement> | null> {
@@ -131,14 +142,28 @@ export async function collectOptions(
   await settleScroll();
   add();
   let idle = 0;
-  while (idle < 2 && seen.size < 500) {
+  while (seen.size < 500) {
     s.scrollTop += s.clientHeight;
     await settleScroll();
     idle = add() ? 0 : idle + 1;
-    if ([...seen.keys()].some((t) => stopAt?.(t))) break;
+    if ([...seen.keys()].some((t) => stopAt?.(t))) return seen;
     if (Date.now() > deadline) return null;
+    if (idle < 2) continue;
+    const end = s.scrollHeight;
+    s.scrollTop = end;
+    const start = Date.now();
+    let quiet = start;
+    while (s.scrollHeight <= end) {
+      const now = Date.now();
+      if (busy([c, widget])) {
+        quiet = now;
+        if (now > deadline || now - start > PAGE_MAX_MS) return null;
+      } else if (now - quiet >= QUIET_MS) return seen;
+      await sleep(50);
+    }
+    idle = 0;
   }
-  return seen;
+  return null;
 }
 
 /** Harvest options of a closed dropdown (§14.5.1); null if it cannot open or exceeds `budgetMs`. */
@@ -146,7 +171,7 @@ export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promi
   const deadline = Date.now() + budgetMs;
   const c = await openDropdown(h);
   if (!c) return null;
-  const all = await collectOptions(c, undefined, deadline);
+  const all = await collectOptions(c, h.el, undefined, deadline);
   await closeDropdown(h, c);
   const texts = all ? [...all.keys()] : [];
   return texts.length ? texts : null;
@@ -172,7 +197,7 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
       }, 800)) ?? undefined;
   }
   if (!el) {
-    const all = await collectOptions(c, match);
+    const all = await collectOptions(c, h.el, match);
     const k = all && [...all.keys()].find(match);
     el = k ? all.get(k) : undefined;
   }

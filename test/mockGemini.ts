@@ -91,6 +91,8 @@ function decide(f: Field): Json {
   if (/country/i.test(L))
     return f.options?.length ? choose(/^canada$/i, "personal.address.country") : fill({ intendedAnswer: "Canada" });
   if (/employment type/i.test(L)) return fill({ intendedAnswer: "Co-op", sources: ["preferences.employmentTypes"] });
+  if (/^school/i.test(L))
+    return fill({ intendedAnswer: "University of British Columbia", sources: ["education.school"] });
   if (/location/i.test(L)) return fill({ intendedAnswer: "Vancouver, BC, Canada", searchQuery: "Vancouver" });
   if (/18 years|18 or older/i.test(L)) return choose(/^yes$/i, "workAuthorization.over18");
   if (/work arrangement/i.test(L)) return choose(/^hybrid$/i, "preferences.workArrangement");

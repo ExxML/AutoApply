@@ -35,6 +35,9 @@ test("custom-dropdown: portal + virtualized list and ARIA combobox are operated 
   await expect(page.locator("#types")).toBeHidden();
   await expect(badge(page, "Country")).toHaveAttribute("data-color", "blue");
   await expect(badge(page, "Employment type")).toHaveAttribute("data-color", "blue");
+  // The school is on a later page of an infinite-scroll list: its first page must not count as the whole list.
+  await expect(page.locator("#school-control .select__single-value")).toHaveText("University of British Columbia");
+  await expect(badge(page, "School")).toHaveAttribute("data-color", "blue");
   // "Co-op" is not an exact option, so the harvested options went to chooseOptions.
   expect(mock.calls_("choose")).toHaveLength(1);
   expect(await forbidden(page)).toEqual([]);

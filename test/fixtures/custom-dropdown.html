@@ -32,6 +32,12 @@
         overflow-y: auto;
         z-index: 10;
       }
+      .select__loading-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #888;
+      }
       .select__option {
         height: 30px;
         line-height: 30px;
@@ -82,6 +88,10 @@
           <li role="option" aria-selected="false">Part-time</li>
           <li role="option" aria-selected="false">Co-op / Internship</li>
         </ul>
+      </div>
+      <div class="row">
+        <label for="school">School</label>
+        <div class="select__control" id="school-control"><input id="school" autocomplete="off" /></div>
       </div>
       <div class="row"><label for="cv">Resume</label> <input id="cv" type="file" /></div>
       <button type="submit">Submit application</button>
@@ -185,6 +195,80 @@
           list.hidden = true;
           btn.setAttribute("aria-expanded", "false");
         });
+
+      // Greenhouse-like async select: the server sends 50 schools per page, the next one 700 ms after the list
+      // is scrolled to the bottom, with a spinner in the control meanwhile; typing searches the server instead.
+      const schools = Array.from({ length: 120 }, (_, i) => `College ${100 + i}`);
+      schools.push("University of British Columbia");
+      const school = document.getElementById("school");
+      const schoolControl = document.getElementById("school-control");
+      let schoolMenu = null;
+      let schoolTimer;
+      let spinner = null;
+      let loaded = [];
+      function showSchools(items) {
+        loaded = items;
+        schoolMenu.replaceChildren(
+          ...items.map((t) => {
+            const o = document.createElement("div");
+            o.className = "select__option";
+            o.setAttribute("role", "option");
+            o.textContent = t;
+            o.addEventListener("click", () => {
+              schoolControl.querySelector(".select__single-value")?.remove();
+              schoolControl.insertAdjacentHTML("afterbegin", '<span class="select__single-value"></span>');
+              schoolControl.firstChild.textContent = t;
+              school.value = "";
+              closeSchools();
+            });
+            return o;
+          }),
+        );
+      }
+      function openSchools() {
+        if (schoolMenu) return;
+        schoolMenu = document.createElement("div");
+        schoolMenu.className = "select__menu";
+        schoolMenu.setAttribute("role", "listbox");
+        const r = schoolControl.getBoundingClientRect();
+        schoolMenu.style.left = r.left + scrollX + "px";
+        schoolMenu.style.top = r.bottom + scrollY + "px";
+        document.body.append(schoolMenu);
+        showSchools(schools.slice(0, 50));
+        schoolMenu.addEventListener("scroll", () => {
+          const m = schoolMenu;
+          if (school.value || spinner || loaded.length >= schools.length) return;
+          if (m.scrollTop + m.clientHeight < m.scrollHeight - 2) return;
+          spinner = schoolControl.appendChild(document.createElement("span"));
+          spinner.className = "select__loading-indicator";
+          schoolTimer = setTimeout(() => {
+            spinner.remove();
+            spinner = null;
+            showSchools(schools.slice(0, loaded.length + 50));
+          }, 700);
+        });
+      }
+      function closeSchools() {
+        clearTimeout(schoolTimer);
+        spinner?.remove();
+        spinner = null;
+        schoolMenu?.remove();
+        schoolMenu = null;
+      }
+      schoolControl.addEventListener("mousedown", openSchools);
+      school.addEventListener("input", () => {
+        openSchools();
+        clearTimeout(schoolTimer);
+        const q = school.value.toLowerCase();
+        schoolTimer = setTimeout(
+          () => showSchools(schools.filter((s) => s.toLowerCase().includes(q)).slice(0, 50)),
+          300,
+        );
+      });
+      school.addEventListener("keydown", (e) => e.key === "Escape" && closeSchools());
+      document.addEventListener("mousedown", (e) => {
+        if (schoolMenu && !schoolMenu.contains(e.target) && !schoolControl.contains(e.target)) closeSchools();
+      });
     </script>
   </body>
 </html>
