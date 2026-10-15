@@ -178,6 +178,11 @@ export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promi
 }
 
 const shows = (h: FieldHandle, text: string) => sameValue(text, dropdownText(h), "contains");
+// Some widgets display only part of the picked option: Greenhouse's phone country shows "+1" for "Canada +1".
+const showsPart = (h: FieldHandle, text: string) => {
+  const shown = dropdownText(h);
+  return !!normalize(shown) && sameValue(shown, text, "contains");
+};
 
 async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
   if (shows(h, text)) return true;
@@ -206,9 +211,12 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
     return false;
   }
   const index = optionElements(c).indexOf(el);
+  const before = dropdownText(h);
+  // A partial display only proves our click when it changed (a preset "+1" may be another +1 country).
+  const took = () => shows(h, text) || (dropdownText(h) !== before && showsPart(h, text));
   realClick(el);
   await sleep(40);
-  if (!shows(h, text) && index >= 0) {
+  if (!took() && index >= 0) {
     // Keyboard-driven widgets: ArrowDown to the option, then Enter.
     const t = h.searchInput ?? triggerOf(h);
     focus(t);
@@ -216,7 +224,7 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
     key(t, "Enter");
     await sleep(40);
   }
-  return shows(h, text);
+  return took();
 }
 
 export async function fillDropdown(h: FieldHandle, texts: string[]): Promise<FillResult> {
@@ -247,7 +255,7 @@ export async function fillDropdown(h: FieldHandle, texts: string[]): Promise<Fil
   }
   const open = findOptionsContainer(h, { boxes: new Set(), options: new Set() });
   if (open) await closeDropdown(h, open);
-  return texts.every((t) => shows(h, t))
+  return texts.every((t) => shows(h, t) || showsPart(h, t))
     ? { outcome: "ok", shown: dropdownText(h) }
     : { outcome: "mismatch", note: `Expected ${texts.join(", ")}, shows "${dropdownText(h)}"` };
 }

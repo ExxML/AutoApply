@@ -89,7 +89,7 @@ function decide(f: Field): Json {
   if (/authorized to work/i.test(L)) return choose(/^yes$/i, "workAuthorization.entries.authorized");
   if (/province/i.test(L)) return choose(/british columbia/i, "personal.address.region");
   if (/country/i.test(L))
-    return f.options?.length ? choose(/^canada$/i, "personal.address.country") : fill({ intendedAnswer: "Canada" });
+    return f.options?.length ? choose(/^canada\b/i, "personal.address.country") : fill({ intendedAnswer: "Canada" });
   if (/employment type/i.test(L)) return fill({ intendedAnswer: "Co-op", sources: ["preferences.employmentTypes"] });
   if (/^school/i.test(L))
     return fill({ intendedAnswer: "University of British Columbia", sources: ["education.school"] });

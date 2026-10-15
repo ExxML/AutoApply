@@ -71,6 +71,10 @@
         </div>
       </div>
       <div class="row">
+        <label id="dial-label">Phone country</label>
+        <div class="select__control" id="dial" aria-labelledby="dial-label" tabindex="0"></div>
+      </div>
+      <div class="row">
         <span id="type-label">Employment type</span><br />
         <button
           type="button"
@@ -265,6 +269,45 @@
           300,
         );
       });
+      // Greenhouse phone country: options read "Canada +1", but the control shows only the dial code.
+      const dial = document.getElementById("dial");
+      let dialMenu = null;
+      const closeDial = () => {
+        dialMenu?.remove();
+        dialMenu = null;
+      };
+      dial.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (dialMenu) return closeDial();
+        dialMenu = document.createElement("div");
+        dialMenu.className = "select__menu";
+        dialMenu.setAttribute("role", "listbox");
+        const r = dial.getBoundingClientRect();
+        dialMenu.style.left = r.left + scrollX + "px";
+        dialMenu.style.top = r.bottom + scrollY + "px";
+        for (const [name, code] of [
+          ["United States", "+1"],
+          ["Canada", "+1"],
+          ["United Kingdom", "+44"],
+        ]) {
+          const o = dialMenu.appendChild(document.createElement("div"));
+          o.className = "select__option";
+          o.setAttribute("role", "option");
+          o.textContent = `${name} ${code}`;
+          o.addEventListener("click", () => {
+            dial.innerHTML = '<span class="select__single-value"></span>';
+            dial.firstChild.textContent = code;
+            dial.dataset.country = name;
+            closeDial();
+          });
+        }
+        document.body.append(dialMenu);
+      });
+      dial.addEventListener("keydown", (e) => e.key === "Escape" && closeDial());
+      document.addEventListener("mousedown", (e) => {
+        if (dialMenu && !dialMenu.contains(e.target) && !dial.contains(e.target)) closeDial();
+      });
+
       school.addEventListener("keydown", (e) => e.key === "Escape" && closeSchools());
       document.addEventListener("mousedown", (e) => {
         if (schoolMenu && !schoolMenu.contains(e.target) && !schoolControl.contains(e.target)) closeSchools();
