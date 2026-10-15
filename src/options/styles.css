@@ -123,6 +123,16 @@ main {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 4px 20px;
+  container-type: inline-size;
+}
+.field.wide {
+  grid-column: span 2;
+}
+/* One-column grid: spanning 2 would add an overflowing implicit column. */
+@container (max-width: 539px) {
+  .field.wide {
+    grid-column: auto;
+  }
 }
 .field {
   margin: 0 0 12px;

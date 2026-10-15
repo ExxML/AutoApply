@@ -68,6 +68,8 @@ function renderField(f: FieldSpec, obj: object, change: (path: string, v: unknow
           type={f.k === "textarea" ? undefined : f.k}
           multiline={f.k === "textarea"}
           onInput={set}
+          extra={f.extra && renderField(f.extra, obj, change)}
+          wide={f.wide}
         />
       );
   }

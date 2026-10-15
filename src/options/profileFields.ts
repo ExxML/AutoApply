@@ -1,7 +1,7 @@
 // Declarative layout of the profile editor: one sub-page per top-level §7 group.
 import { EducationSchema, ExperienceSchema, ProjectSchema, WorkAuthEntrySchema } from "../shared/profileSchema";
 
-export type FieldSpec = { path: string; label: string; help: string } & (
+export type FieldSpec = { path: string; label: string; help: string; extra?: FieldSpec; wide?: true } & (
   | { k: "text" | "email" | "tel" | "url" | "date" | "month" | "textarea" | "yn" | "ynd" | "tags" | "bool" }
   | { k: "select" | "multi"; options: [string, string][] }
   | { k: "decl" | "tagsdecl" }
@@ -189,9 +189,14 @@ export const PROFILE_GROUPS: GroupSpec[] = [
           t("location", "Location", "City, region."),
           t("employmentType", "Type", "e.g. Co-op, Internship, Part-time."),
           t("startDate", "Start", "Start month.", "month"),
-          t("endDate", "End", "End month (empty if current).", "month"),
-          t("current", "I currently work here", "Marks this as your current job.", "bool"),
-          t("description", "Description", "What you did and achieved; essays draw from this.", "textarea"),
+          {
+            ...t("endDate", "End", "End month (leave empty if current).", "month"),
+            extra: t("current", "I currently work here", "", "bool"),
+          },
+          {
+            ...t("description", "Description", "What you did and achieved; essays draw from this.", "textarea"),
+            wide: true,
+          },
         ],
       },
     ],
