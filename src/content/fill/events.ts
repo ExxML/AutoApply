@@ -69,11 +69,8 @@ export function isForbiddenClick(el: Element): boolean {
   );
 }
 
-const scrollTo = (el: Element) => el.scrollIntoView?.({ block: "center", behavior: "instant" as ScrollBehavior });
-
 export function realClick(el: HTMLElement, at?: { x: number; y: number }) {
   if (el !== document.body && isForbiddenClick(el)) throw new Error("Refusing to click a submit/navigation control");
-  if (!at) scrollTo(el);
   const r = el.getBoundingClientRect();
   const clientX = at?.x ?? r.left + r.width / 2;
   const clientY = at?.y ?? r.top + r.height / 2;
@@ -115,7 +112,6 @@ export function setNativeValue(el: Valued, value: string) {
 }
 
 export function focus(el: HTMLElement) {
-  scrollTo(el);
   dispatching(() => {
     el.focus({ preventScroll: true });
     el.dispatchEvent(new FocusEvent("focusin", { bubbles: true, composed: true }));
