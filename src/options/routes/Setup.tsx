@@ -1,4 +1,3 @@
-import { Meter } from "../components/controls";
 import { Keys } from "../components/Keys";
 import { ModelPicker } from "../components/ModelPicker";
 import { Prefill } from "../components/Prefill";
@@ -23,7 +22,6 @@ export function Setup({ step }: { step: number }) {
   return (
     <section>
       <h1>Setup</h1>
-      {profile && <Meter label="Profile completeness" value={completeness(profile)} />}
       <ol class="steps">
         {STEPS.map((t, i) => (
           <li class={`${i + 1 === s ? "current" : ""} ${done[i] ? "done" : ""}`}>

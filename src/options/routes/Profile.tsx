@@ -1,6 +1,6 @@
-import { Cards, Field, SelectInput, TagInput, TextInput, Toggle, TriState } from "../components/controls";
+import { Cards, Field, Meter, SelectInput, TagInput, TextInput, Toggle, TriState } from "../components/controls";
 import { PROFILE_GROUPS, type CardSpec, type FieldSpec } from "../profileFields";
-import { getPath, setPath, useProfile } from "../store";
+import { completeness, getPath, setPath, useProfile } from "../store";
 
 /** Renders one field spec against `obj`; `change` receives the dotted path and the new value. */
 function renderField(f: FieldSpec, obj: object, change: (path: string, v: unknown) => void) {
@@ -85,6 +85,7 @@ export function Profile({ group }: { group: string }) {
   return (
     <section>
       <h1>{spec.title}</h1>
+      <Meter label="Profile completeness" value={completeness(profile)} />
       <p class="intro">{spec.intro}</p>
       <nav class="subnav" aria-label="Profile sections">
         {PROFILE_GROUPS.map((g) => (
