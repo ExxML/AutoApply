@@ -28,6 +28,7 @@ import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/b
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
 import { hidePill, showPill } from "./ui/pill";
+import { claimFrame } from "./ui/root";
 
 type Status =
   | "pending"
@@ -91,6 +92,8 @@ let detectMs = 0;
 let company = "";
 let overlay: Overlay | null = null;
 const childFrames = new Map<number, FrameStatus>();
+/** Aborted when a newer instance (extension reload/update) takes over this frame. */
+const life = new AbortController();
 
 // ---------- status ----------
 function counts(): StatusCounts {
@@ -654,6 +657,10 @@ function observe() {
     attributes: true,
     attributeFilter: ["aria-expanded", "hidden", "style", "class"],
   });
+  life.signal.addEventListener("abort", () => {
+    mo.disconnect();
+    clearTimeout(t);
+  });
 }
 
 // ---------- messages ----------
@@ -726,6 +733,13 @@ async function main() {
   const g = globalThis as { __autoapply?: boolean };
   if (g.__autoapply) return;
   g.__autoapply = true;
+  claimFrame(() => {
+    life.abort();
+    current?.ctrl.abort(); // no ABORT message: this context's runtime is gone
+    sessionUntil = 0;
+    queued = null;
+    clearTimeout(retryTimer);
+  });
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
   } catch {
@@ -733,10 +747,11 @@ async function main() {
   }
   if (config.excluded || config.settings.excludedHosts.includes(HOST)) return;
 
-  document.addEventListener("input", onUserInput, true);
-  for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, true);
+  const opts = { capture: true, signal: life.signal };
+  document.addEventListener("input", onUserInput, opts);
+  for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, opts);
   for (const ev of ["click", "keydown"])
-    document.addEventListener(ev, (e) => e.isTrusted && !isFilling() && (followRounds = 0), true);
+    document.addEventListener(ev, (e) => e.isTrusted && !isFilling() && (followRounds = 0), opts);
 
   if (!hasControls()) {
     const appeared = await new Promise<boolean>((resolve) => {
