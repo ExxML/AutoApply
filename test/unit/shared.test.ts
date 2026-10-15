@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { installChromeMock } from "./chromeMock";
 import { cleanLabel, humanize, normalize } from "../../src/shared/normalize";
 import { canonicalCountry, canonicalRegion, regionCode } from "../../src/shared/constants";
-import { canonicalJson, hash } from "../../src/shared/hash";
 import { nextMidnightPacific } from "../../src/shared/time";
-import { createStorage, profileVersionOf } from "../../src/shared/storage";
-import { emptyProfile, ProfileSchema } from "../../src/shared/profileSchema";
+import { createStorage } from "../../src/shared/storage";
+import { ProfileSchema } from "../../src/shared/profileSchema";
 import { defaultSettings } from "../../src/shared/settings";
 
 describe("normalize", () => {
@@ -40,17 +39,6 @@ describe("alias tables", () => {
     expect(canonicalRegion("Québec")).toBe("quebec");
     expect(canonicalRegion("ny")).toBe("new york");
     expect(regionCode("Ontario")).toBe("ON");
-  });
-});
-
-describe("hash", () => {
-  it("is FNV-1a base36 and stable", () => {
-    expect(hash("")).toBe((0x811c9dc5).toString(36));
-    expect(hash("abc")).toBe(hash("abc"));
-    expect(hash("abc")).not.toBe(hash("abd"));
-  });
-  it("canonicalJson sorts keys", () => {
-    expect(canonicalJson({ b: 1, a: [{ d: 1, c: 2 }] })).toBe('{"a":[{"c":2,"d":1}],"b":1}');
   });
 });
 
@@ -108,27 +96,6 @@ describe("storage", () => {
     const popup = createStorage("popup");
     await expect(popup.get("apiKeys")).rejects.toThrow(/not allowed/);
     await expect(popup.get("settings")).resolves.toBeTruthy();
-  });
-
-  it("profileVersion ignores learnedAnswers.lastUsedAt but tracks everything else", () => {
-    const p = emptyProfile();
-    p.learnedAnswers = [
-      {
-        id: "1",
-        question: "Q",
-        normalizedQuestion: "q",
-        kind: "text",
-        answer: "A",
-        host: "h",
-        createdAt: 1,
-        lastUsedAt: 1,
-      },
-    ];
-    const v1 = profileVersionOf(p);
-    p.learnedAnswers[0].lastUsedAt = 999;
-    expect(profileVersionOf(p)).toBe(v1);
-    p.personal.firstName = "Ada";
-    expect(profileVersionOf(p)).not.toBe(v1);
   });
 
   it("drops invalid learned answers", () => {

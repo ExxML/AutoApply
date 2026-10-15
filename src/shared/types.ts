@@ -46,16 +46,6 @@ export interface Decision {
   suggestion?: string;
 }
 
-export interface CachedDecision {
-  action: "fill";
-  text?: string;
-  optionTexts?: string[];
-  checked?: boolean;
-  documentId?: string;
-  source: "ai";
-  savedAt: number;
-}
-
 export interface DocumentMeta {
   id: string;
   label: string;

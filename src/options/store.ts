@@ -55,7 +55,7 @@ export function useProfile(): [Profile | undefined, (fn: (p: Profile) => void) =
     if (pending.current) clearTimeout(pending.current);
     pending.current = setTimeout(async () => {
       pending.current = null;
-      await store.setProfile(latest.current!);
+      await store.set({ profile: latest.current! });
       markSaved();
     }, 400);
   };

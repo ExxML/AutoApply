@@ -83,7 +83,7 @@ export function Data() {
       for (const d of old) await store.removeDoc(d.id);
       for (const d of data.documents) await store.setDoc(d.meta.id, d.base64);
     }
-    await store.setProfile(ProfileSchema.parse(data.profile));
+    await store.set({ profile: ProfileSchema.parse(data.profile) });
     await save({
       settings: SettingsSchema.parse(data.settings),
       ...(data.documents ? { documentsIndex: data.documents.map((d) => d.meta) } : {}),
@@ -153,17 +153,6 @@ export function Data() {
             </div>
           </div>
         )}
-      </div>
-      <div class="panel-box">
-        <h2>Decision cache</h2>
-        <p>Remembered AI answers that skip repeat calls. Clearing it is safe.</p>
-        <button
-          type="button"
-          class="btn"
-          onClick={() => void save({ decisionCache: {} }).then(() => setMsg("Decision cache cleared."))}
-        >
-          Clear decision cache
-        </button>
       </div>
       <div class="panel-box danger-zone">
         <h2>Reset everything</h2>

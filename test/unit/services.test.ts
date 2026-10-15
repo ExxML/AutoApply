@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateDecisions, compactProfile, mapFields } from "../../src/background/services/mapFields";
 import { validateChoices } from "../../src/background/services/chooseOptions";
-import { DecisionCache, CACHE_MAX } from "../../src/background/decisionCache";
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
 import type { Gemini } from "../../src/background/gemini/client";
@@ -133,37 +132,5 @@ describe("essay limits (§15)", () => {
     expect(stripMarkdown("## Title\n**Bold** and *it*\n- item\n[link](http://x)")).toBe(
       "Title\nBold and it\nitem\nlink",
     );
-  });
-});
-
-describe("decision cache (§13.3)", () => {
-  const d = (text: string) => ({ action: "fill" as const, text, source: "ai" as const, savedAt: 0 });
-
-  it("hits by signature + profileVersion and misses after the profile changes", () => {
-    const c = new DecisionCache({});
-    c.store([{ signature: "sig1", decision: d("A") }], "v1");
-    expect(c.lookup(["sig1", "sig2"], "v1")).toMatchObject({ sig1: { text: "A" } });
-    expect(c.lookup(["sig1"], "v2")).toEqual({});
-  });
-
-  it("evicts the least recently used entries beyond the max", () => {
-    let now = 1;
-    const c = new DecisionCache({}, undefined, () => now);
-    for (let i = 0; i < CACHE_MAX; i++) c.store([{ signature: `s${i}`, decision: d(String(i)) }], "v");
-    now++;
-    c.lookup(["s0"], "v"); // s0 becomes most recently used
-    now++;
-    c.store([{ signature: "new", decision: d("n") }], "v");
-    expect(Object.keys(c.entries)).toHaveLength(CACHE_MAX);
-    expect(c.lookup(["s0"], "v").s0).toBeTruthy();
-    expect(c.lookup(["s1"], "v").s1).toBeUndefined();
-  });
-
-  it("expires entries older than 30 days", () => {
-    let now = 0;
-    const c = new DecisionCache({}, undefined, () => now);
-    c.store([{ signature: "s", decision: d("x") }], "v");
-    now = 31 * 24 * 3600 * 1000;
-    expect(c.lookup(["s"], "v")).toEqual({});
   });
 });

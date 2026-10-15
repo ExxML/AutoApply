@@ -1,6 +1,5 @@
 import type {
   ApiError,
-  CachedDecision,
   Choice,
   ChooseItem,
   Decision,
@@ -21,12 +20,9 @@ export type Message =
   | { type: "GET_RUNTIME_CONFIG" }
   | { type: "GET_DOCUMENT"; id: string }
   | { type: "SET_JOB_CONTEXT"; ctx: JobContext }
-  | { type: "GET_JOB_CONTEXT" }
   | { type: "MAP_FIELDS"; fields: FieldDescriptor[]; host: string; groupId: string }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }
   | { type: "DRAFT_ESSAYS"; items: EssayItem[]; groupId: string }
-  | { type: "CACHE_LOOKUP"; signatures: string[] }
-  | { type: "CACHE_STORE"; entries: { signature: string; decision: CachedDecision }[] }
   | { type: "SAVE_LEARNED_ANSWER"; answer: LearnedAnswerInput }
   | { type: "LEARNED_USED"; ids: string[] }
   | { type: "FRAME_STATUS"; status: FrameStatus }
@@ -60,12 +56,9 @@ export interface Responses {
   GET_RUNTIME_CONFIG: RuntimeConfig;
   GET_DOCUMENT: { meta: DocumentMeta; base64: string } | null;
   SET_JOB_CONTEXT: Ok;
-  GET_JOB_CONTEXT: JobContext | null;
   MAP_FIELDS: { decisions: Decision[]; usedModel: string } | Err;
   CHOOSE_OPTIONS: { choices: Choice[] } | Err;
   DRAFT_ESSAYS: { essays: { fieldId: string; text: string | null; note?: string }[] } | Err;
-  CACHE_LOOKUP: Record<string, CachedDecision>;
-  CACHE_STORE: Ok;
   SAVE_LEARNED_ANSWER: Ok;
   LEARNED_USED: Ok;
   FRAME_STATUS: Ok;

@@ -41,7 +41,7 @@ The model list is fetched live with your key and shows only text-in/text-out mod
 ## How filling works
 
 1. Click **Fill this page** in the popup or press **Alt+Shift+F**. AutoApply never starts on its own; it scans the page (including iframes and shadow DOM) only when you ask.
-2. Instant pass (no network): name, email, phone, address and links are matched from your profile; questions you answered before (saved answers) and cached AI answers fill immediately.
+2. Instant pass (no network): name, email, phone, address and links are matched from your profile; questions you answered before (saved answers) fill immediately.
 3. Everything else goes to Gemini in one batched call. It picks options **by meaning** (e.g. "willing to relocate = yes" → "I am willing to relocate"), and custom dropdowns and typeaheads are operated one at a time.
 4. Open-ended questions ("Why do you want to work here?") are drafted by Gemini from your profile, résumé and the job description, respecting word/character limits, and marked as AI drafts.
 5. Multi-step applications: when the next step appears, click **Fill this page** (or press **Alt+Shift+F**) again. AutoApply does not watch the page between fills.

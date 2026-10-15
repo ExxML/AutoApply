@@ -30,7 +30,6 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - `BROADCAST_FILL {rerun}` lets the top-frame overlay (Re-run, Retry) trigger every frame of the tab.
 - Options page → background: `ADD_KEY`, `TEST_KEY`, `REFRESH_MODELS`, `VALIDATE_MODEL`, `PARSE_RESUME`, so all network calls stay in the background (§4).
 - The popup's **Fill this page** and the Alt+Shift+F command send `TRIGGER_FILL {force:true}` to **all frames** of the tab (not only frame 0), so forms inside iframes are filled too; frames without fields do nothing.
-- `CACHE_LOOKUP` takes `{signatures}` only. The content script appends `@host` to a field's signature when its label contains the company name (§13.3), so the background never needs the label.
 
 ## Build
 
@@ -62,8 +61,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - A user's trusted `input` on a field marks it user-owned (never filled afterwards). `keydown` is not used, so tabbing through fields does not claim them.
 - **No automatic filling.** A fill runs only when the user triggers it (popup, Alt+Shift+F, the overlay's Re-run/Retry, or the rate-limit auto-retry of that run). Until then the content script only loads its config and listens for messages and user edits: no page scoring, no scanning, no `MutationObserver`. Fields revealed after a fill, and the next step of a multi-step form, need another trigger.
 - The popup's **Fill this page** and a top-frame **Re-run** re-process flagged/failed/"check" fields as well as new ones; filled and user-owned fields are left alone.
-- Learned answers' `lastUsedAt` is updated through an extra `LEARNED_USED` message; `profileVersion` ignores it, so cache keys do not change.
-- The decision cache stores choice answers as option texts (dropdowns: the text shown after selection; typeaheads: the picked suggestion).
+- Learned answers' `lastUsedAt` is updated through an extra `LEARNED_USED` message.
 
 ## UI
 

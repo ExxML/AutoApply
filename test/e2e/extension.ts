@@ -77,7 +77,6 @@ export async function seed(sw: Worker, o: SeedOptions = {}) {
       await chrome.storage.local.set({
         settings: { ...o.settings },
         profile: o.profile ?? profile,
-        profileVersion: "seed",
         apiKeys: keys,
         keyState: {},
         selectedModel: o.selectedModel === undefined ? "gemini-2.5-flash-lite" : o.selectedModel,

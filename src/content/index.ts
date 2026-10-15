@@ -3,10 +3,8 @@
 import { RE_COVER_LETTER, RE_RESUME_ONLY } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
-import { normalize } from "../shared/normalize";
 import type {
   ApiError,
-  CachedDecision,
   Decision,
   EssayItem,
   FrameStatus,
@@ -18,7 +16,7 @@ import { extractJobContext } from "./jobContextExtract";
 import { deterministicValue, isFreeText, matchLearned } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
-import { fill, serial, type FillOp, type FillResult } from "./fill/engine";
+import { fill, serial, type FillOp } from "./fill/engine";
 import { isFilling, sleep } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { readValue } from "./fill/verify";
@@ -81,7 +79,6 @@ let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
 let usedModel: string | null = null;
-let company = "";
 let overlay: Overlay | null = null;
 const childFrames = new Map<number, FrameStatus>();
 /** Aborted when a newer instance (extension reload/update) takes over this frame. */
@@ -200,9 +197,6 @@ function stop() {
   for (const [id, s] of states) if (s.status === "working") setStatus(handles.get(id)!, "needs", "Stopped");
 }
 
-const cacheSig = (h: FieldHandle) =>
-  company && normalize(h.desc.label).includes(normalize(company)) ? `${h.signature}@${HOST}` : h.signature;
-
 function primaryDocFor(h: FieldHandle): string | null | undefined {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
   const docs = config.documentsIndex;
@@ -228,32 +222,6 @@ function opFromDecision(h: FieldHandle, d: Decision): FillOp | null {
   if (isFreeText(k)) return d.text ? { type: "text", value: d.text } : null;
   const answer = d.intendedAnswer ?? d.text;
   return answer ? { type: "intended", answer } : null;
-}
-
-function opFromCached(h: FieldHandle, c: CachedDecision): FillOp | null {
-  const k = h.desc.kind;
-  if (c.documentId && k === "file") return { type: "file", documentId: c.documentId };
-  if (c.checked !== undefined && k === "checkbox") return { type: "checked", value: c.checked };
-  if (c.optionTexts?.length) {
-    const opts = h.desc.options;
-    if (opts && !c.optionTexts.every((t) => opts.some((o) => normalize(o) === normalize(t)))) return null;
-    return { type: "options", texts: c.optionTexts };
-  }
-  if (c.text)
-    return k === "typeahead" || k === "dropdown"
-      ? { type: "intended", answer: c.text }
-      : { type: "text", value: c.text };
-  return null;
-}
-
-function cachedFrom(op: FillOp, r: FillResult, h: FieldHandle): CachedDecision | null {
-  const base = { action: "fill" as const, source: "ai" as const, savedAt: Date.now() };
-  if (op.type === "text") return { ...base, text: op.value };
-  if (op.type === "options") return { ...base, optionTexts: op.texts };
-  if (op.type === "checked") return { ...base, checked: op.value };
-  if (op.type === "file") return { ...base, documentId: op.documentId };
-  if (h.desc.kind === "typeahead") return r.shown ? { ...base, text: r.shown } : null;
-  return r.shown ? { ...base, optionTexts: r.shown.split(" | ") } : null;
 }
 
 // ---------- choose-options batching (§14.6 step 3) ----------
@@ -298,14 +266,7 @@ function rescan(): FieldHandle[] {
   return all;
 }
 
-async function doFill(
-  h: FieldHandle,
-  op: FillOp,
-  okStatus: Status,
-  tooltip: string,
-  ctrl: AbortController,
-  cache?: { signature: string; decision: CachedDecision }[],
-) {
+async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: string, ctrl: AbortController) {
   if (states.get(h.id)?.userOwned) return;
   setStatus(h, "working");
   const r = await fill(h, op, {
@@ -319,8 +280,6 @@ async function doFill(
   if (states.get(h.id)?.userOwned) return;
   if (r.outcome === "ok") {
     setStatus(h, okStatus, r.note, okStatus === "ai" && r.shown ? `${tooltip} → "${r.shown}"` : tooltip);
-    const c = cache && cachedFrom(op, r, h);
-    if (c) cache.push({ signature: cacheSig(h), decision: c });
   } else if (r.outcome === "mismatch") setStatus(h, "check", r.note, tooltip);
   else if (r.outcome === "failed") setStatus(h, "failed", r.note);
   else setStatus(h, "needs", r.note);
@@ -347,7 +306,6 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
   timings = [];
   const mark = (k: string) => timings.push([k, Math.round(performance.now() - t0)]);
   const jobs: Promise<void>[] = [];
-  const cacheOut: { signature: string; decision: CachedDecision }[] = [];
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
     setBadgesVisible(config.settings.showBadges);
@@ -365,13 +323,12 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
     if (TOP || jc.text) await send({ type: "SET_JOB_CONTEXT", ctx: jc });
-    company = (TOP ? jc.company : (await send({ type: "GET_JOB_CONTEXT" }))?.company) ?? "";
 
-    // PHASE A: deterministic, learned answers, decision cache — no network to Gemini.
+    // PHASE A: deterministic and learned answers — no network to Gemini.
     const det = config.profileSnapshotForDeterministic;
     const hasCountryCode = all.some((h) => /country code|dialing code/i.test(h.desc.label));
     const usedLearned: string[] = [];
-    let pending: FieldHandle[] = [];
+    const pending: FieldHandle[] = [];
     for (const h of targets) {
       if (h.prefilled && !config.settings.overwritePrefilled) {
         setStatus(h, "prefilled");
@@ -416,15 +373,6 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
       pending.push(h);
     }
     if (usedLearned.length) void send({ type: "LEARNED_USED", ids: usedLearned });
-    if (pending.length) {
-      const hits = await send({ type: "CACHE_LOOKUP", signatures: pending.map(cacheSig) });
-      pending = pending.filter((h) => {
-        const c = hits[cacheSig(h)];
-        const op = c && opFromCached(h, c);
-        if (op) jobs.push(doFill(h, op, "ai", "Cached AI answer", ctrl));
-        return !op;
-      });
-    }
     mark("phaseA");
 
     // PHASE B: one batched mapping call (chunked in the background), pre-harvesting dropdowns meanwhile.
@@ -453,7 +401,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
           const suggestion = d.suggestion ? `Suggested: ${d.suggestion}` : undefined;
           if (d.action === "fill") {
             const op = opFromDecision(h, d);
-            if (op) jobs.push(doFill(h, op, "ai", (d.sources ?? []).join(", ") || "AI", ctrl, cacheOut));
+            if (op) jobs.push(doFill(h, op, "ai", (d.sources ?? []).join(", ") || "AI", ctrl));
             else setStatus(h, "needs", d.note ?? "No usable AI answer", suggestion);
           } else if (d.action === "essay") {
             if (config.settings.draftEssays) {
@@ -470,7 +418,6 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     }
     await Promise.all(jobs);
     mark("done");
-    if (cacheOut.length) void send({ type: "CACHE_STORE", entries: cacheOut });
   } catch (e) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {

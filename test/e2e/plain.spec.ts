@@ -1,4 +1,4 @@
-import { BASE, badge, expect, fillPage, forbidden, seed, storage, test, waitDone } from "./extension";
+import { BASE, badge, expect, fillPage, forbidden, seed, test, waitDone } from "./extension";
 
 test("plain form: deterministic, AI, essay, file and consent fields are filled, verified and badged", async ({
   page,
@@ -38,7 +38,4 @@ test("plain form: deterministic, AI, essay, file and consent fields are filled, 
 
   expect(await forbidden(page)).toEqual([]);
   expect(mock.calls_("map")).toHaveLength(1);
-  await expect
-    .poll(async () => Object.keys((await storage<Record<string, unknown>>(sw, "decisionCache")) ?? {}).length)
-    .toBeGreaterThanOrEqual(2);
 });

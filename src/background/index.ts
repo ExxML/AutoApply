@@ -16,7 +16,6 @@ import {
 } from "./gemini/errors";
 import { KeyPool } from "./gemini/keyPool";
 import { defaultModel, updateCatalog, visibleModels } from "./gemini/models";
-import { DecisionCache } from "./decisionCache";
 import { getJobContext, setJobContext } from "./jobContext";
 import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
@@ -41,8 +40,6 @@ let settings: Settings = defaultSettings();
 let caps: Record<string, ModelCaps> = {};
 const pool = new KeyPool([], {}, () => persistKeys());
 const persistKeys = throttle(() => void store.set({ keyState: pool.state }), 500);
-const cache = new DecisionCache({}, () => persistCache());
-const persistCache = throttle(() => void store.set({ decisionCache: cache.entries }), 500);
 const persistCaps = throttle(() => void store.set({ modelCapabilities: caps }), 200);
 
 const gemini = createGemini({
@@ -59,20 +56,17 @@ const gemini = createGemini({
 const ready = (async () => {
   // Listen before reading, and let anything that changes meanwhile win over the initial read.
   const changed = new Set<string>();
-  store.onChange(["settings", "apiKeys", "modelCapabilities", "decisionCache"], (c) => {
+  store.onChange(["settings", "apiKeys", "modelCapabilities"], (c) => {
     Object.keys(c).forEach((k) => changed.add(k));
     if (c.settings) settings = c.settings;
     if (c.apiKeys) pool.setKeys(c.apiKeys);
     if (c.modelCapabilities) caps = Object.keys(c.modelCapabilities).length ? { ...caps, ...c.modelCapabilities } : {};
-    // Only an external clear (Data → Clear decision cache / Reset) empties the cache; our own writes are no-ops.
-    if (c.decisionCache && !Object.keys(c.decisionCache).length) cache.clear();
   });
   await migrate();
-  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities", "decisionCache"]);
+  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities"]);
   if (!changed.has("settings")) settings = s.settings;
   pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
   caps = { ...s.modelCapabilities, ...caps };
-  if (!changed.has("decisionCache")) cache.entries = s.decisionCache;
 })();
 
 // ---------- helpers ----------
@@ -199,10 +193,6 @@ const handlers: Handlers = {
     return { ok: true };
   },
 
-  async GET_JOB_CONTEXT(_m, sender) {
-    return sender.tab?.id !== undefined ? getJobContext(sender.tab.id) : null;
-  },
-
   async MAP_FIELDS({ fields, groupId }, sender) {
     const ctx = await serviceCtx(groupSignal(sender, groupId));
     if ("error" in ctx) return ctx;
@@ -225,15 +215,6 @@ const handlers: Handlers = {
     return { essays: await draftEssays(ctx, items, profile, job) };
   },
 
-  async CACHE_LOOKUP({ signatures }) {
-    return cache.lookup(signatures, await store.get("profileVersion"));
-  },
-
-  async CACHE_STORE({ entries }) {
-    cache.store(entries, await store.get("profileVersion"));
-    return { ok: true };
-  },
-
   async SAVE_LEARNED_ANSWER({ answer }) {
     const profile = await store.get("profile");
     const nq = normalize(answer.question);
@@ -253,7 +234,7 @@ const handlers: Handlers = {
         createdAt: now,
         lastUsedAt: now,
       });
-    await store.setProfile(profile);
+    await store.set({ profile });
     return { ok: true };
   },
 
@@ -261,7 +242,7 @@ const handlers: Handlers = {
     const profile = await store.get("profile");
     const now = Date.now();
     for (const l of profile.learnedAnswers) if (ids.includes(l.id)) l.lastUsedAt = now;
-    await store.setProfile(profile);
+    await store.set({ profile });
     return { ok: true };
   },
 

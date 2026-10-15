@@ -2,7 +2,7 @@
 import { RE_DROPZONE, RE_RESUME_FILE, RE_UPLOAD_BUTTON } from "../../shared/constants";
 import { collapse, normalize } from "../../shared/normalize";
 import type { DocumentMeta } from "../../shared/types";
-import { signatureOf, type FieldHandle, type ScanState } from "../scan/fields";
+import type { FieldHandle, ScanState } from "../scan/fields";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 import { dispatching, isForbiddenClick, realClick, waitFor } from "./events";
@@ -84,7 +84,6 @@ export function findDropzones(handles: FieldHandle[], state: ScanState): FieldHa
       desc,
       el: z,
       container: z,
-      signature: signatureOf(desc),
       prefilled: false,
       sensitive: false,
       consent: false,

@@ -8,7 +8,7 @@ import { stubLayout } from "./dom";
 
 beforeAll(stubLayout);
 
-describe("localMatch (§13.4)", () => {
+describe("localMatch (§13.3)", () => {
   it("returns null for the relocation trap — that goes to the AI", () => {
     expect(localMatch("yes", ["I am willing to relocate", "I am not willing to relocate"])).toBeNull();
     expect(localMatch("Yes", ["I will not require sponsorship", "I will require sponsorship"])).toBeNull();

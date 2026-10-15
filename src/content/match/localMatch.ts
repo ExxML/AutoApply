@@ -1,4 +1,4 @@
-// §13.4 option matching without AI. Only safe matches; anything else returns null and goes to the AI.
+// §13.3 option matching without AI. Only safe matches; anything else returns null and goes to the AI.
 import { canonicalCountry, canonicalRegion } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 

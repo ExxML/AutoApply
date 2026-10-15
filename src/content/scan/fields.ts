@@ -7,8 +7,7 @@ import {
   RE_SENSITIVE_LABEL,
   RE_SKIP_LABEL,
 } from "../../shared/constants";
-import { hash } from "../../shared/hash";
-import { clip, collapse, humanize, normalize } from "../../shared/normalize";
+import { clip, collapse, humanize } from "../../shared/normalize";
 import type { FieldDescriptor } from "../../shared/types";
 import { readValue } from "../fill/verify";
 import { buildUnits, memberText, type Unit } from "./groups";
@@ -38,7 +37,6 @@ export interface FieldHandle {
   listbox?: HTMLElement;
   hiddenSelect?: HTMLSelectElement;
   container: HTMLElement;
-  signature: string;
   prefilled: boolean;
   sensitive: boolean;
   consent: boolean;
@@ -50,9 +48,6 @@ export interface ScanState {
 }
 
 export const newScanState = (): ScanState => ({ ids: new WeakMap(), next: 1 });
-
-export const signatureOf = (d: Pick<FieldDescriptor, "label" | "kind" | "options">) =>
-  hash(`${normalize(d.label)}|${d.kind}|${normalize((d.options ?? []).join("|"))}`);
 
 function lowestCommonAncestor(els: Element[]): Element {
   let a: Element | null = els[0].parentElement ?? els[0];
@@ -156,7 +151,6 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       searchInput: u.searchInput,
       listbox: u.listbox,
       container,
-      signature: "",
       prefilled: false,
       sensitive: false,
       consent: false,
@@ -230,7 +224,6 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     let id = state.ids.get(el);
     if (!id) state.ids.set(el, (id = `f${state.next++}`));
     h.id = d.id = id;
-    h.signature = signatureOf(d);
     handles.push(h);
   }
   return { handles, collected };

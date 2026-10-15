@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { ProfileSchema, type Profile } from "./profileSchema";
+import { ProfileSchema } from "./profileSchema";
 import { SettingsSchema } from "./settings";
-import { canonicalJson, hash } from "./hash";
-import type { CachedDecision, DocumentMeta, JobContext, TabStatus } from "./types";
+import type { DocumentMeta, JobContext, TabStatus } from "./types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -83,23 +82,11 @@ export const ModelCapsSchema = z.object({
   essayThinking: ThinkingSchema.optional(),
 });
 
-export const CachedDecisionSchema = z.object({
-  action: z.literal("fill"),
-  text: z.string().optional(),
-  optionTexts: z.array(z.string()).optional(),
-  checked: z.boolean().optional(),
-  documentId: z.string().optional(),
-  source: z.literal("ai"),
-  savedAt: z.number(),
-  lastUsedAt: z.number().catch(0),
-}) satisfies z.ZodType<CachedDecision>;
-
 /** Every chrome.storage.local key and its schema. All reads are validated. */
 export const LOCAL_SCHEMAS = {
   schemaVersion: z.number().catch(0),
   settings: SettingsSchema,
   profile: ProfileSchema,
-  profileVersion: z.string().catch(""),
   documentsIndex: list(DocumentMetaSchema),
   apiKeys: list(ApiKeyEntrySchema),
   keyState: rec(KeyStateSchema),
@@ -108,7 +95,6 @@ export const LOCAL_SCHEMAS = {
   selectedModel: z.string().nullable().catch(null),
   fallbackModel: z.string().nullable().catch(null),
   modelCapabilities: rec(ModelCapsSchema),
-  decisionCache: rec(CachedDecisionSchema),
   overlayPos: rec(z.number()),
 };
 
@@ -150,12 +136,6 @@ export function createStorage(ctx: StorageContext) {
     await chrome.storage.local.set(values);
   }
 
-  /** Saves the profile and its profileVersion together (§6). */
-  async function setProfile(profile: Profile): Promise<void> {
-    check("profile");
-    await chrome.storage.local.set({ profile, profileVersion: profileVersionOf(profile) });
-  }
-
   function onChange(keys: LocalKey[], cb: (changed: Partial<LocalValues>) => void): () => void {
     keys.forEach(check);
     const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
@@ -189,23 +169,17 @@ export function createStorage(ctx: StorageContext) {
     await chrome.storage.local.remove(`doc:${id}`);
   }
 
-  return { get, getMany, set, setProfile, onChange, getDoc, setDoc, removeDoc };
-}
-
-export function profileVersionOf(p: Profile): string {
-  return hash(canonicalJson({ ...p, learnedAnswers: p.learnedAnswers.map(({ lastUsedAt: _, ...rest }) => rest) }));
+  return { get, getMany, set, onChange, getDoc, setDoc, removeDoc };
 }
 
 /** Runs once at service-worker start: stamps schemaVersion and rewrites values into validated shape. */
 export async function migrate(): Promise<void> {
   const raw = await chrome.storage.local.get(["schemaVersion", "settings", "profile"]);
   if (raw.schemaVersion === SCHEMA_VERSION) return;
-  const profile = LOCAL_SCHEMAS.profile.parse(raw.profile);
   await chrome.storage.local.set({
     schemaVersion: SCHEMA_VERSION,
     settings: LOCAL_SCHEMAS.settings.parse(raw.settings),
-    profile,
-    profileVersion: profileVersionOf(profile),
+    profile: LOCAL_SCHEMAS.profile.parse(raw.profile),
   });
 }
 
