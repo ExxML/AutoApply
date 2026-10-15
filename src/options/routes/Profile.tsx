@@ -42,25 +42,21 @@ function renderField(f: FieldSpec, obj: object, change: (path: string, v: unknow
     case "decl":
     case "tagsdecl": {
       const declined = f.k === "decl" ? v === "decline" : Array.isArray(v) && v[0] === "decline";
-      return (
-        <div class="decl">
-          {!declined &&
-            (f.k === "decl" ? (
-              <TextInput label={f.label} help={f.help} value={(v as string) ?? ""} onInput={set} />
-            ) : (
-              <TagInput label={f.label} help={f.help} value={(v as string[]) ?? []} onChange={set} />
-            ))}
-          {declined && (
-            <Field label={f.label} help={f.help}>
-              {(id) => <input id={id} value="Declined" disabled />}
-            </Field>
-          )}
-          <Toggle
-            label="Decline to answer"
-            checked={declined}
-            onChange={(on) => set(on ? (f.k === "decl" ? "decline" : ["decline"]) : f.k === "decl" ? "" : [])}
-          />
-        </div>
+      const toggle = (
+        <Toggle
+          label="Decline to answer"
+          checked={declined}
+          onChange={(on) => set(on ? (f.k === "decl" ? "decline" : ["decline"]) : f.k === "decl" ? "" : [])}
+        />
+      );
+      return declined ? (
+        <Field label={f.label} help={f.help} extra={toggle}>
+          {(id) => <input id={id} value="Declined" disabled />}
+        </Field>
+      ) : f.k === "decl" ? (
+        <TextInput label={f.label} help={f.help} value={(v as string) ?? ""} onInput={set} extra={toggle} />
+      ) : (
+        <TagInput label={f.label} help={f.help} value={(v as string[]) ?? []} onChange={set} extra={toggle} />
       );
     }
     default:

@@ -440,8 +440,8 @@ label.inline {
 .danger-zone {
   border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
 }
-.decl {
-  display: contents;
+.field .field.toggle {
+  margin: 6px 0 0;
 }
 
 /* popup */

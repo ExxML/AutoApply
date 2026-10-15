@@ -4,12 +4,18 @@ import { useState } from "preact/hooks";
 let uid = 0;
 const useId = () => useState(() => `c${++uid}`)[0];
 
-export function Field(props: { label: string; help?: string; children: (id: string) => ComponentChildren }) {
+export function Field(props: {
+  label: string;
+  help?: string;
+  extra?: ComponentChildren;
+  children: (id: string) => ComponentChildren;
+}) {
   const id = useId();
   return (
     <div class="field">
       <label for={id}>{props.label}</label>
       {props.children(id)}
+      {props.extra}
       {props.help && <p class="help">{props.help}</p>}
     </div>
   );
@@ -23,9 +29,10 @@ export function TextInput(props: {
   type?: string;
   multiline?: boolean;
   placeholder?: string;
+  extra?: ComponentChildren;
 }) {
   return (
-    <Field label={props.label} help={props.help}>
+    <Field label={props.label} help={props.help} extra={props.extra}>
       {(id) =>
         props.multiline ? (
           <textarea
@@ -84,7 +91,13 @@ export function TriState(props: {
   );
 }
 
-export function TagInput(props: { label: string; help?: string; value: string[]; onChange: (v: string[]) => void }) {
+export function TagInput(props: {
+  label: string;
+  help?: string;
+  value: string[];
+  onChange: (v: string[]) => void;
+  extra?: ComponentChildren;
+}) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const parts = draft
@@ -95,7 +108,7 @@ export function TagInput(props: { label: string; help?: string; value: string[];
     setDraft("");
   };
   return (
-    <Field label={props.label} help={props.help}>
+    <Field label={props.label} help={props.help} extra={props.extra}>
       {(id) => (
         <div class="tags">
           {props.value.map((t) => (
