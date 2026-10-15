@@ -29,7 +29,7 @@ export default defineManifest({
       description: "Autofill the job application on this page",
     },
     "toggle-overlay": {
-      suggested_key: { default: "Alt+Shift+S" },
+      suggested_key: { default: "Alt+Shift+W" },
       description: "Expand or collapse the AutoApply panel",
     },
   },
