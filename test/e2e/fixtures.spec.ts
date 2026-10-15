@@ -34,7 +34,7 @@ test("custom-dropdown: portal + virtualized list and ARIA combobox are operated 
   await expect(page.locator(".select__menu")).toHaveCount(0);
   await expect(page.locator("#types")).toBeHidden();
   await expect(badge(page, "Country")).toHaveAttribute("data-color", "blue");
-  // The phone country shows only "+1" once "Canada +1" is picked; that still counts as verified.
+  // The phone country shows "+1" both before and after "Canada +1" is picked; the list's aria-selected verifies it.
   await expect(page.locator("#dial")).toHaveAttribute("data-country", "Canada");
   await expect(badge(page, "Phone country")).toHaveAttribute("data-color", "blue");
   await expect(badge(page, "Employment type")).toHaveAttribute("data-color", "blue");

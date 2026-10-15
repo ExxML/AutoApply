@@ -6,7 +6,7 @@ import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 import { dispatching, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
-import { dropdownText, sameValue } from "./verify";
+import { dropdownText, isOn, sameValue } from "./verify";
 
 export const optText = (o: Element) => collapse(o.textContent ?? "");
 const isRealOption = (o: HTMLElement) => {
@@ -212,18 +212,25 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
   }
   const index = optionElements(c).indexOf(el);
   const before = dropdownText(h);
-  // A partial display only proves our click when it changed (a preset "+1" may be another +1 country).
-  const took = () => shows(h, text) || (dropdownText(h) !== before && showsPart(h, text));
+  // A partial display that did not change ("+1" preset by the phone input) may be another +1 country:
+  // the reopened list's aria-selected option says which one is picked.
+  const selected = async () => {
+    const box = await openDropdown(h);
+    const on = !!box && optionElements(box).some((o) => match(optText(o)) && isOn(o));
+    await closeDropdown(h, box);
+    return on;
+  };
+  const took = async () => shows(h, text) || (showsPart(h, text) && (dropdownText(h) !== before || (await selected())));
   realClick(el);
   await sleep(40);
-  if (!took() && index >= 0) {
-    // Keyboard-driven widgets: ArrowDown to the option, then Enter.
-    const t = h.searchInput ?? triggerOf(h);
-    focus(t);
-    for (let i = 0; i <= index; i++) key(t, "ArrowDown");
-    key(t, "Enter");
-    await sleep(40);
-  }
+  if (await took()) return true;
+  if (index < 0) return false;
+  // Keyboard-driven widgets: ArrowDown to the option, then Enter.
+  const t = h.searchInput ?? triggerOf(h);
+  focus(t);
+  for (let i = 0; i <= index; i++) key(t, "ArrowDown");
+  key(t, "Enter");
+  await sleep(40);
   return took();
 }
 

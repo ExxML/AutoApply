@@ -74,6 +74,7 @@
         <label id="dial-label">Phone country</label>
         <div class="select__control" id="dial" aria-labelledby="dial-label" tabindex="0"></div>
       </div>
+      <div class="row"><label for="tel">Phone</label> <input id="tel" type="tel" /></div>
       <div class="row">
         <span id="type-label">Employment type</span><br />
         <button
@@ -269,8 +270,14 @@
           300,
         );
       });
-      // Greenhouse phone country: options read "Canada +1", but the control shows only the dial code.
+      // Greenhouse phone country: options read "Canada +1", but the control shows only the dial code, and the
+      // selected option is aria-selected. Typing "+1 …" in the phone input sets it to "+1" (United States).
       const dial = document.getElementById("dial");
+      document.getElementById("tel").addEventListener("input", (e) => {
+        if (!e.target.value.startsWith("+1") || dial.dataset.country) return;
+        dial.innerHTML = '<span class="select__single-value">+1</span>';
+        dial.dataset.country = "United States";
+      });
       let dialMenu = null;
       const closeDial = () => {
         dialMenu?.remove();
@@ -294,6 +301,7 @@
           o.className = "select__option";
           o.setAttribute("role", "option");
           o.textContent = `${name} ${code}`;
+          o.setAttribute("aria-selected", String(name === dial.dataset.country));
           o.addEventListener("click", () => {
             dial.innerHTML = '<span class="select__single-value"></span>';
             dial.firstChild.textContent = code;
