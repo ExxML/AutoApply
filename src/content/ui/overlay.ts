@@ -28,7 +28,7 @@ export function statusLine(c: StatusCounts, running: boolean): string {
 const pendingOf = (c: StatusCounts) =>
   Math.max(0, c.total - c.filled - c.needsYou - c.failed - c.prefilled - c.skipped);
 
-const DONE_PIN_MS = 3000; // how long the panel stays open after a run finishes
+const DONE_PIN_MS = 1500; // how long the panel stays open after a run finishes
 const FRAME_CLICK = "autoapply:frame-click";
 
 /** Child frames: tell the top frame's overlay about real clicks, which never cross the iframe boundary. */
