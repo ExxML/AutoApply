@@ -97,6 +97,10 @@ export interface MapInput {
   job: JobContext | null;
 }
 
+// The model miscounts positions in long lists (picked "Cape Verde +238", the option after "Canada +1"),
+// so each option carries its index for the model to read back.
+export const numbered = (options: string[]) => options.map((o, i) => `${i}: ${o}`);
+
 export function mappingPayloadBase(input: Omit<MapInput, "fields">) {
   const { resumeText, learnedAnswers, ...rest } = input.profile;
   return {
@@ -129,7 +133,7 @@ export async function mapFields(
       const r = await ctx.gemini.call(
         {
           system: MAP_FIELDS_PROMPT,
-          payload: { fields: chunk, ...base },
+          payload: { fields: chunk.map((f) => (f.options ? { ...f, options: numbered(f.options) } : f)), ...base },
           schema: MAPPING_SCHEMA,
           validate: (d) => MappingZ.parse(d),
           timeoutMs: ctx.settings.requestTimeoutMs,

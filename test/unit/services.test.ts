@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateDecisions, compactProfile, mapFields } from "../../src/background/services/mapFields";
-import { validateChoices } from "../../src/background/services/chooseOptions";
+import { chooseOptions, validateChoices } from "../../src/background/services/chooseOptions";
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
 import type { Gemini } from "../../src/background/gemini/client";
@@ -100,6 +100,23 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     );
     expect(r.decisions.map((d) => d.action)).toEqual(["fill", "fill", "flag", "fill"]);
     expect(sizes[0]).toBe(4);
+  });
+
+  it("sends options numbered so the model reads indexes instead of counting", async () => {
+    const payloads: Record<string, unknown>[] = [];
+    const gemini = {
+      call: async (s: { payload: Record<string, unknown> }) => {
+        payloads.push(s.payload);
+        return { data: { decisions: [], choices: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const ctx = { gemini, settings: defaultSettings(), model: "m", fallback: null };
+    const options = ["Canada +1", "Cape Verde +238"];
+    await mapFields(ctx, { fields: [field("a", { options })], profile: emptyProfile(), documents: [], job: null });
+    await chooseOptions(ctx, [{ fieldId: "b", question: "q", intendedAnswer: "Canada", options, multiple: false }]);
+    const want = ["0: Canada +1", "1: Cape Verde +238"];
+    expect((payloads[0].fields as FieldDescriptor[])[0].options).toEqual(want);
+    expect((payloads[1].items as { options: string[] }[])[0].options).toEqual(want);
   });
 
   it("compactProfile drops empty values recursively", () => {

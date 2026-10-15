@@ -68,8 +68,10 @@ export const FAILURES = {
 
 type Failure = { status: number; body: unknown };
 
+const unnumber = (o: string) => o.replace(/^\d+: /, "");
+
 const pick = (f: Field, re: RegExp) => {
-  const i = (f.options ?? []).findIndex((o) => re.test(o));
+  const i = (f.options ?? []).findIndex((o) => re.test(unnumber(o)));
   return i >= 0 ? [i] : null;
 };
 
@@ -184,7 +186,7 @@ export class MockGemini {
     if (kind === "choose") {
       const items = payload.items as { fieldId: string; intendedAnswer: string; options: string[] }[];
       const choices = items.map((i) => {
-        const idx = i.options.findIndex((o) => o.toLowerCase().includes(i.intendedAnswer.toLowerCase()));
+        const idx = i.options.findIndex((o) => unnumber(o).toLowerCase().includes(i.intendedAnswer.toLowerCase()));
         return { fieldId: i.fieldId, optionIndexes: idx >= 0 ? [idx] : null, confidence: idx >= 0 ? "high" : "low" };
       });
       return send(200, reply({ choices }), call);
