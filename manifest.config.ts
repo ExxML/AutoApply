@@ -21,7 +21,12 @@ export default defineManifest({
   background: { service_worker: "src/background/sw.ts", type: "module" },
   content_scripts: [
     contentScript,
-    { ...contentScript, js: ["src/content/scrollLock.ts"], run_at: "document_start" as const, world: "MAIN" as const },
+    {
+      ...contentScript,
+      js: ["src/content/scrollLock.ts", "src/content/pageTimers.ts"],
+      run_at: "document_start" as const,
+      world: "MAIN" as const,
+    },
   ],
   permissions: ["storage", "unlimitedStorage", "scripting", "tabs"],
   host_permissions: ["<all_urls>"],

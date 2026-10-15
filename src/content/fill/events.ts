@@ -1,6 +1,7 @@
 // §14.1 event helpers. Every DOM write goes through here with `fillingNow` set, so our own
 // synthetic events are never mistaken for user input.
 import { RE_FORBIDDEN_CLICK } from "../../shared/constants";
+import { send } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
 
 let fillingNow = false;
@@ -16,7 +17,16 @@ export function dispatching<T>(fn: () => T): T {
   }
 }
 
-export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const timeout = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+// A hidden tab's timers wake at most once a second, so after a tab switch a fill would crawl. The service worker's
+// timers are not throttled, and its reply reaches the hidden tab at once.
+export const sleep = (ms: number): Promise<void> =>
+  document.hidden
+    ? send({ type: "SLEEP", ms }).then(
+        () => undefined,
+        () => timeout(ms),
+      )
+    : timeout(ms);
 
 let scrollHolds = 0;
 /** Stops the page's own scripts from scrolling while fn runs (see scrollLock.ts). */
@@ -26,9 +36,9 @@ export async function holdScroll<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } finally {
     // widgets often scroll a frame or two after our last event (React effects, menu positioning)
-    setTimeout(() => {
+    void sleep(300).then(() => {
       if (--scrollHolds === 0) document.dispatchEvent(new Event("autoapply-scroll-unlock"));
-    }, 300);
+    });
   }
 }
 
@@ -42,7 +52,6 @@ export function waitFor<T>(fn: () => T | null | undefined | false, timeoutMs: nu
       if (done) return;
       done = true;
       mo.disconnect();
-      clearTimeout(timer);
       resolve(v);
     };
     const check = () => {
@@ -51,13 +60,14 @@ export function waitFor<T>(fn: () => T | null | undefined | false, timeoutMs: nu
     };
     const mo = new MutationObserver(check);
     mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+    // Hidden tabs get no animation frames: the observer alone watches there.
     const tick = () => {
       if (done) return;
       check();
-      requestAnimationFrame(tick);
+      if (!document.hidden) requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
-    const timer = setTimeout(() => finish(fn() || null), timeoutMs);
+    if (!document.hidden) requestAnimationFrame(tick);
+    void sleep(timeoutMs).then(() => finish(fn() || null));
   });
 }
 
@@ -128,6 +138,8 @@ export function setNativeValue(el: Valued, value: string) {
 export function focus(el: HTMLElement) {
   dispatching(() => {
     el.focus({ preventScroll: true });
+    // A page without focus (background tab) moves activeElement but fires no focus events.
+    if (!document.hasFocus()) el.dispatchEvent(new FocusEvent("focus"));
     el.dispatchEvent(new FocusEvent("focusin", { bubbles: true, composed: true }));
   });
 }

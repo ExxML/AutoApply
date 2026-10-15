@@ -27,6 +27,7 @@ export type Message =
   | { type: "LEARNED_USED"; ids: string[] }
   | { type: "FRAME_STATUS"; status: FrameStatus }
   | { type: "ABORT"; groupId: string }
+  | { type: "SLEEP"; ms: number }
   | { type: "BROADCAST_FILL"; rerun: boolean }
   | { type: "SET_OVERLAY_POS"; host: string; bottom: number }
   | { type: "OPEN_OPTIONS"; hash: string }
@@ -64,6 +65,7 @@ export interface Responses {
   LEARNED_USED: Ok;
   FRAME_STATUS: Ok;
   ABORT: Ok;
+  SLEEP: Ok;
   BROADCAST_FILL: Ok;
   SET_OVERLAY_POS: Ok;
   OPEN_OPTIONS: Ok;

@@ -263,6 +263,9 @@ const handlers: Handlers = {
     return { ok: true };
   },
 
+  // The content script's timer while its tab is hidden (see sleep in fill/events.ts).
+  SLEEP: ({ ms }) => new Promise((r) => setTimeout(() => r({ ok: true }), ms)),
+
   async BROADCAST_FILL({ rerun }, sender) {
     if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "TRIGGER_FILL", force: true, rerun });
     return { ok: true };

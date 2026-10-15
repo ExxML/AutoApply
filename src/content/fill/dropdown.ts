@@ -90,11 +90,20 @@ export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
   if (c.isConnected && isVisible(c)) realClick(document.body, { x: 1, y: 1 });
 }
 
-// Virtualized lists re-render from scroll events, which fire on the next rendering frame.
-// Background tabs get no animation frames, so never wait on them longer than 100 ms.
+// Virtualized lists re-render from scroll events, which fire on the next rendering frame. Hidden tabs render no
+// frames, so there the event is ours, fired at once, and nothing waits on frames.
+function scrollTo(s: HTMLElement, top: number) {
+  s.scrollTop = top;
+  if (document.hidden) s.dispatchEvent(new Event("scroll"));
+}
 const settleScroll = () =>
   sleep(50).then(() =>
-    Promise.race([new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))), sleep(100)]),
+    document.hidden
+      ? undefined
+      : Promise.race([
+          new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),
+          sleep(100),
+        ]),
   );
 
 function scroller(c: HTMLElement): HTMLElement | null {
@@ -138,19 +147,19 @@ export async function collectOptions(
   add();
   const s = scroller(c);
   if (!s || [...seen.keys()].some((t) => stopAt?.(t))) return seen;
-  s.scrollTop = 0;
+  scrollTo(s, 0);
   await settleScroll();
   add();
   let idle = 0;
   while (seen.size < 500) {
-    s.scrollTop += s.clientHeight;
+    scrollTo(s, s.scrollTop + s.clientHeight);
     await settleScroll();
     idle = add() ? 0 : idle + 1;
     if ([...seen.keys()].some((t) => stopAt?.(t))) return seen;
     if (Date.now() > deadline) return null;
     if (idle < 2) continue;
     const end = s.scrollHeight;
-    s.scrollTop = end;
+    scrollTo(s, end);
     const start = Date.now();
     let quiet = start;
     while (s.scrollHeight <= end) {

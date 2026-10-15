@@ -298,6 +298,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     return;
   }
   running = true;
+  document.dispatchEvent(new Event("autoapply-fill-start")); // see pageTimers.ts
   lastError = null;
   clearTimeout(retryTimer);
   const ctrl = new AbortController();
@@ -437,6 +438,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
     running = false;
+    document.dispatchEvent(new Event("autoapply-fill-end"));
     current = null;
     report();
     if (queued) {
@@ -599,6 +601,17 @@ async function main() {
   const opts = { capture: true, signal: life.signal };
   document.addEventListener("input", onUserInput, opts);
   for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, opts);
+  // A page timer set during a fill in a hidden tab (pageTimers.ts): fire it on time.
+  document.addEventListener(
+    "autoapply-timer",
+    (e) => {
+      const [id, ms] = String((e as CustomEvent<string>).detail).split(":");
+      void sleep(Number(ms)).then(() =>
+        document.dispatchEvent(new CustomEvent("autoapply-timer-fire", { detail: id })),
+      );
+    },
+    opts,
+  );
 }
 
 void main();
