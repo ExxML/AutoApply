@@ -113,11 +113,16 @@ function CardList(props: { card: CardSpec; profile: object; change: (path: strin
       items={(getPath(props.profile, card.path) as object[]) ?? []}
       make={card.make}
       onChange={(items) => props.change(card.path, items)}
-      render={(item, updateItem) => (
-        <div class="form">
-          {card.fields.map((f) => renderField(f, item, (path, v) => updateItem((it) => setPath(it, path, v))))}
-        </div>
-      )}
+      render={(item, updateItem) => {
+        const set = (path: string, v: unknown) => updateItem((it) => setPath(it, path, v));
+        return (
+          <div class="form">
+            {card.fields.map((f) =>
+              Array.isArray(f) ? <div>{f.map((g) => renderField(g, item, set))}</div> : renderField(f, item, set),
+            )}
+          </div>
+        );
+      }}
     />
   );
 }

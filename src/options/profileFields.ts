@@ -12,7 +12,8 @@ export interface CardSpec {
   path: string;
   title: string;
   make: () => object;
-  fields: FieldSpec[];
+  /** An inner array stacks its fields in one grid cell. */
+  fields: (FieldSpec | FieldSpec[])[];
 }
 
 export interface GroupSpec {
@@ -212,10 +213,9 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         title: "Project",
         make: () => ProjectSchema.parse({}),
         fields: [
-          t("name", "Name", "Project name."),
-          t("url", "URL", "Link to code or demo.", "url"),
-          t("description", "Description", "What it does and your role.", "textarea"),
+          [t("name", "Name", "Project name."), t("url", "URL", "Link to code or demo.", "url")],
           t("tech", "Tech", "Languages and tools. Press Enter after each.", "tags"),
+          { ...t("description", "Description", "What it does and your role.", "textarea"), wide: true },
         ],
       },
     ],
