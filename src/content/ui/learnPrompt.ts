@@ -1,27 +1,21 @@
 // §16.3 "Save this answer for future applications?" card. One at a time, auto-dismiss after 12 s or on outside click.
 import { clip } from "../../shared/normalize";
-import { anchorTo, el, uiLayer } from "./root";
+import { anchorTo, el, onOutsideClick, uiLayer } from "./root";
 
 let current: {
   card: HTMLElement;
   timer: ReturnType<typeof setTimeout>;
-  follow: () => void;
+  listeners: AbortController;
   release: (() => void) | null;
 } | null = null;
 
 export function hideLearnPrompt() {
   if (!current) return;
   clearTimeout(current.timer);
-  removeEventListener("pointerdown", onOutside, true);
-  removeEventListener("scroll", current.follow, true);
-  removeEventListener("resize", current.follow);
+  current.listeners.abort();
   current.release?.();
   current.card.remove();
   current = null;
-}
-
-function onOutside(e: PointerEvent) {
-  if (current && !e.composedPath().includes(current.card)) hideLearnPrompt();
 }
 
 export function showLearnPrompt(anchor: Element, label: string, answer: string, onSave: () => void, title?: string) {
@@ -58,9 +52,11 @@ export function showLearnPrompt(anchor: Element, label: string, answer: string, 
     hideLearnPrompt();
   };
   later.onclick = hideLearnPrompt;
-  current = { card, timer: setTimeout(hideLearnPrompt, 12000), follow, release };
-  addEventListener("pointerdown", onOutside, true);
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  current = { card, timer: setTimeout(hideLearnPrompt, 12000), listeners, release };
+  onOutsideClick(card, hideLearnPrompt, signal);
   if (release) return;
-  addEventListener("scroll", follow, { capture: true, passive: true });
-  addEventListener("resize", follow, { passive: true });
+  addEventListener("scroll", follow, { capture: true, passive: true, signal });
+  addEventListener("resize", follow, { passive: true, signal });
 }

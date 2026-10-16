@@ -45,6 +45,27 @@ export function uiLayer(under = false): HTMLElement {
   return layer;
 }
 
+const FRAME_CLICK = "autoapply:frame-click";
+
+/** Child frames: tell the top frame's UI about real clicks, which never cross the iframe boundary. */
+export const relayClicksToTop = (signal: AbortSignal) =>
+  addEventListener("pointerdown", (e) => e.isTrusted && window.top?.postMessage(FRAME_CLICK, "*"), {
+    capture: true,
+    signal,
+  });
+
+/**
+ * Calls `fn` on a real click outside `inside` (isTrusted skips the fill engine's synthetic events). Window capture
+ * runs before any page listener can stop it; clicks inside iframes never reach this window, so child frames relay.
+ */
+export function onOutsideClick(inside: Element, fn: () => void, signal?: AbortSignal) {
+  addEventListener("pointerdown", (e) => e.isTrusted && !e.composedPath().includes(inside) && fn(), {
+    capture: true,
+    signal,
+  });
+  addEventListener("message", (e) => e.data === FRAME_CLICK && fn(), { signal });
+}
+
 const RUN = Math.random().toString(36).slice(2, 8); // keeps names unique beside an orphaned instance's leftovers
 let anchors = 0;
 /**

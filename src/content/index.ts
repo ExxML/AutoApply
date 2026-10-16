@@ -24,8 +24,8 @@ import { readValue } from "./fill/verify";
 import { newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
-import { createOverlay, relayClicksToTop, type Overlay } from "./ui/overlay";
-import { claimFrame } from "./ui/root";
+import { createOverlay, type Overlay } from "./ui/overlay";
+import { claimFrame, relayClicksToTop } from "./ui/root";
 
 type Status =
   | "pending"
