@@ -39,3 +39,11 @@ test("plain form: deterministic, AI, essay, file and consent fields are filled, 
   expect(await forbidden(page)).toEqual([]);
   expect(mock.calls_("map")).toHaveLength(1);
 });
+
+test("no form: a triggered fill on a page without fields shows the overlay with an error", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "no-form.html");
+  await fillPage(page, sw);
+  await expect(page.locator("autoapply-root .panel .error")).toHaveText(/No job application form found/);
+  await expect(page.locator("autoapply-root .fab .count")).toHaveText("!");
+});

@@ -113,8 +113,9 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       const c = v.counts;
       status.textContent = statusLine(c, v.running);
       model.textContent = v.model ? `Model: ${v.model}` : "";
-      count.textContent = String(v.needsYou.length || c.filled);
-      count.style.background = v.needsYou.length ? "" : "var(--green)";
+      count.textContent = v.error ? "!" : String(v.needsYou.length || c.filled);
+      count.style.background = v.error ? "var(--red)" : v.needsYou.length ? "" : "var(--green)";
+      count.style.color = v.error ? "#fff" : "";
       error.style.display = v.error ? "" : "none";
       error.replaceChildren();
       if (v.error) {

@@ -81,6 +81,9 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
 let usedModel: string | null = null;
 let overlay: Overlay | null = null;
+/** Top frame: a triggered fill found no fields here, and no child frame reported any either. */
+let noForm = false;
+const NO_FORM: ApiError = { kind: "other", message: "No job application form found on this page." };
 const childFrames = new Map<number, FrameStatus>();
 /** Aborted when a newer instance (extension reload/update) takes over this frame. */
 const life = new AbortController();
@@ -132,7 +135,10 @@ function report() {
 function renderOverlay() {
   const own = frameStatus();
   const frames = [own, ...childFrames.values()].filter((f) => f.counts.total || f.running || f.error);
-  if (!frames.length && !lastError) return;
+  const childError = [...childFrames.values()].find((f) => f.error)?.error;
+  const error =
+    lastError ?? (childError ? { kind: "other", message: childError } : !frames.length && noForm ? NO_FORM : null);
+  if (!frames.length && !error) return;
   overlay ??= createOverlay(
     {
       onRerun: () => void send({ type: "BROADCAST_FILL", rerun: true }),
@@ -156,12 +162,11 @@ function renderOverlay() {
     skipped: 0,
   };
   for (const f of frames) for (const k of Object.keys(total) as (keyof StatusCounts)[]) total[k] += f.counts[k];
-  const childError = [...childFrames.values()].find((f) => f.error)?.error;
   overlay.update({
     counts: total,
     needsYou: frames.flatMap((f) => f.needsYou.map((n) => ({ ...n, frameId: f.frameId }))),
     running: frames.some((f) => f.running),
-    error: lastError ?? (childError ? { kind: "other", message: childError } : null),
+    error,
     model: usedModel ?? config?.selectedModel ?? null,
     debug: config?.settings.debugLogging ? timings.map(([k, v]) => `${k.padEnd(10)} ${v} ms`).join("\n") : "",
   });
@@ -441,6 +446,12 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     document.dispatchEvent(new Event("autoapply-fill-end"));
     current = null;
     report();
+    // Child frames report their fields ~250 ms after the trigger; give them time before calling the page empty.
+    if (TOP && !states.size)
+      setTimeout(() => {
+        noForm = true;
+        renderOverlay();
+      }, 1000);
     if (queued) {
       const q = queued;
       queued = null;
