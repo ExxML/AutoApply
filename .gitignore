@@ -5,6 +5,7 @@ playwright-report/
 test/fixtures/vendor/
 .e2e-profile*/
 *.log
+.claude/
 PROMPT.md
 TODO.md
 AutoApply.zip
