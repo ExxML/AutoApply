@@ -1,5 +1,5 @@
 // §16.3 "Save this answer for future applications?" card. One at a time, auto-dismiss after 12 s or on outside click.
-import { clip } from "../../shared/normalize";
+import { ellipsize } from "../../shared/normalize";
 import { anchorTo, el, onOutsideClick, uiLayer } from "./root";
 
 let current: {
@@ -27,7 +27,7 @@ export function showLearnPrompt(anchor: Element, label: string, answer: string, 
     "div",
     { className: "learn" },
     el("div", { className: "status", textContent: title ?? "Save this answer for future applications?" }),
-    el("div", { className: "qa", textContent: `"${clip(label, 80)}" → "${clip(answer, 120)}"` }),
+    el("div", { className: "qa", textContent: `"${ellipsize(label, 110)}" → "${ellipsize(answer, 120)}"` }),
     el("div", { className: "actions" }, save, later),
   );
   card.setAttribute("role", "dialog");

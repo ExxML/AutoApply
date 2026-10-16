@@ -1,5 +1,5 @@
 // §16.1 overlay panel (top frame only): collapsed 44 px button, expandable status panel, draggable vertically.
-import { clip } from "../../shared/normalize";
+import { ellipsize } from "../../shared/normalize";
 import type { ApiError, NeedsYouItem, StatusCounts } from "../../shared/types";
 import { el, onOutsideClick, uiLayer } from "./root";
 
@@ -131,7 +131,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
           const label = n.label || "(unlabeled field)";
           const b = el(
             "button",
-            { type: "button", textContent: label.length > 90 ? `${clip(label, 90)}...` : label },
+            { type: "button", textContent: ellipsize(label, 110) },
             el("span", { textContent: n.note }),
           );
           b.onclick = () => h.onFocus(n);

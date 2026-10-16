@@ -24,6 +24,7 @@ export function humanize(s: string): string {
 }
 
 export const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, n).trimEnd() : s);
+export const ellipsize = (s: string, n: number): string => (s.length > n ? `${clip(s, n)}...` : s);
 
 export const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
