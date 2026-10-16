@@ -1,5 +1,6 @@
-// §16.2 field badges: outline box + pill tag in the shadow-root layer, repositioned via rAF.
-import { el, uiLayer } from "./root";
+// §16.2 field badges: outline box + pill tag in the shadow-root layer, CSS-anchored to the field (styles.css);
+// fields in page shadow trees can't be anchored and are repositioned via rAF instead.
+import { anchorTo, el, uiLayer } from "./root";
 
 export type BadgeColor = "green" | "blue" | "purple" | "yellow" | "orange" | "red";
 
@@ -7,6 +8,7 @@ interface Badge {
   target: Element;
   box: HTMLElement;
   tag: HTMLElement;
+  release: (() => void) | null; // set when CSS-anchored
 }
 
 const badges = new Map<string, Badge>();
@@ -15,6 +17,10 @@ let queued = false;
 let ro: ResizeObserver | null = null;
 
 function place(b: Badge) {
+  if (b.release) {
+    b.box.style.display = b.tag.style.display = visible ? "" : "none";
+    return;
+  }
   const r = b.target.getBoundingClientRect();
   const hide = !visible || (!r.width && !r.height) || !b.target.isConnected;
   b.box.style.display = b.tag.style.display = hide ? "none" : "";
@@ -55,14 +61,18 @@ export function setBadge(
   onClick?: () => void,
   fieldLabel = "",
 ) {
-  listen();
   let b = badges.get(id);
   if (!b) {
-    b = { target, box: el("div"), tag: el("button", { type: "button" }) };
-    uiLayer(true).append(b.box);
-    uiLayer().append(b.tag);
+    const box = el("div");
+    const tag = el("button", { type: "button" });
+    uiLayer(true).append(box);
+    uiLayer().append(tag);
+    b = { target, box, tag, release: anchorTo(target, box, tag) };
     badges.set(id, b);
-    ro?.observe(target);
+    if (!b.release) {
+      listen();
+      ro?.observe(target);
+    }
   }
   b.box.className = `box ${color}`;
   b.tag.className = `tag ${color}`;
@@ -80,6 +90,7 @@ export function removeBadge(id: string) {
   if (!b) return;
   b.box.remove();
   b.tag.remove();
+  b.release?.();
   ro?.unobserve(b.target);
   badges.delete(id);
 }

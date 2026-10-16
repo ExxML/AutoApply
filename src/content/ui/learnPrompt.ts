@@ -1,8 +1,13 @@
 // §16.3 "Save this answer for future applications?" card. One at a time, auto-dismiss after 12 s or on outside click.
 import { clip } from "../../shared/normalize";
-import { el, uiLayer } from "./root";
+import { anchorTo, el, uiLayer } from "./root";
 
-let current: { card: HTMLElement; timer: ReturnType<typeof setTimeout>; follow: () => void } | null = null;
+let current: {
+  card: HTMLElement;
+  timer: ReturnType<typeof setTimeout>;
+  follow: () => void;
+  release: (() => void) | null;
+} | null = null;
 
 export function hideLearnPrompt() {
   if (!current) return;
@@ -10,6 +15,7 @@ export function hideLearnPrompt() {
   removeEventListener("pointerdown", onOutside, true);
   removeEventListener("scroll", current.follow, true);
   removeEventListener("resize", current.follow);
+  current.release?.();
   current.card.remove();
   current = null;
 }
@@ -32,23 +38,29 @@ export function showLearnPrompt(anchor: Element, label: string, answer: string, 
   );
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "Save answer");
-  // Keep the initial (viewport-clamped) offset from the anchor and re-apply it as the page scrolls.
+  // Keep the initial (viewport-clamped) offset from the anchor as the page scrolls: in CSS when the anchor can be
+  // CSS-anchored, else re-applied on scroll.
   const dx = Math.max(8, Math.min(r.left, innerWidth - 316)) - r.left;
   const dy = Math.min(r.bottom + 6, innerHeight - 120) - r.top;
+  uiLayer().append(card);
+  const release = anchorTo(anchor, card);
   const follow = () => {
     const a = anchor.getBoundingClientRect();
     card.style.left = `${a.left + dx}px`;
     card.style.top = `${a.top + dy}px`;
   };
-  follow();
+  if (release) {
+    card.style.left = `calc(anchor(left) + ${dx}px)`;
+    card.style.top = `calc(anchor(top) + ${dy}px)`;
+  } else follow();
   save.onclick = () => {
     onSave();
     hideLearnPrompt();
   };
   later.onclick = hideLearnPrompt;
-  uiLayer().append(card);
-  current = { card, timer: setTimeout(hideLearnPrompt, 12000), follow };
+  current = { card, timer: setTimeout(hideLearnPrompt, 12000), follow, release };
   addEventListener("pointerdown", onOutside, true);
+  if (release) return;
   addEventListener("scroll", follow, { capture: true, passive: true });
   addEventListener("resize", follow, { passive: true });
 }

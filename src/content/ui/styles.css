@@ -38,14 +38,22 @@
 }
 
 /* badges */
+/* Geometry follows the anchored field (anchorTo); place() overrides it inline for fields that can't be anchored.
+   The top fallback parks a badge offscreen while its field is detached or display: none. */
 .box {
   position: fixed;
+  left: calc(anchor(left) - 3px);
+  top: calc(anchor(top, -9999px) - 3px);
+  width: calc(anchor-size(width) + 6px);
+  height: calc(anchor-size(height) + 6px);
   border: 2px solid var(--c);
   border-radius: 6px;
   pointer-events: none;
 }
 .tag {
   position: fixed;
+  left: calc(anchor(right) + 3px);
+  top: calc(anchor(top, -9999px) - 3px);
   transform: translate(-100%, -55%);
   background: var(--c);
   color: #fff;
