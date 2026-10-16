@@ -104,6 +104,8 @@ export const RE_FORBIDDEN_CLICK = /submit|next|continue|apply|save|sign ?in|log 
 export const RE_NAV_BUTTON =
   /submit|next|continue|apply|save|sign ?in|log ?in|sign ?up|register|finish|review|back|previous|cancel|close|delete|remove|upload|attach|search|\bedit\b|\badd\b/i;
 export const RE_UPLOAD_BUTTON = /upload|attach|browse|choose file|select file/i;
+/** A control label that only names the upload action ("Attach"), not the question. */
+export const RE_ACTION_LABEL = /^(attach|upload|browse|choose|select)( (a )?files?)?$/i;
 export const RE_DROPZONE = /drag|drop|upload|attach/i;
 export const RE_TYPEAHEAD_HINT =
   /location|city|school|university|college|company|employer|search|autocomplete|typeahead/i;

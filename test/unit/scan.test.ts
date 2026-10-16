@@ -29,6 +29,19 @@ describe("label extraction (§11.5)", () => {
     expect(fields()[0].desc).toMatchObject({ label: "Why do you want this job?", kind: "textarea" });
   });
 
+  it("uses the upload group's label over a generic 'Attach' input label (Greenhouse)", () => {
+    const upload = (id: string, q: string) => `<div role="group" aria-labelledby="l-${id}">
+      <div id="l-${id}">${q}<span>*</span></div><div><div><div><div><button type="button">Attach</button>
+      <label for="${id}">Attach</label><input id="${id}" type="file"></div></div></div></div></div>`;
+    setBody(
+      `<form>${upload("resume", "Resume/CV")}${upload("q1", "Please upload your unofficial transcript.")}</form>`,
+    );
+    expect(fields().map((h) => [h.desc.label, h.desc.required])).toEqual([
+      ["Resume/CV", true],
+      ["Please upload your unofficial transcript.", true],
+    ]);
+  });
+
   it("uses the fieldset legend for radio groups and member labels as options", () => {
     setBody(`<fieldset><legend>Willing to relocate?</legend>
       <label><input type="radio" name="rel" value="y"> I am willing to relocate</label>

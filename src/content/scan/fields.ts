@@ -1,5 +1,6 @@
 // §11.4 FieldDescriptor extraction. Element references stay in the content script (FieldHandle).
 import {
+  RE_ACTION_LABEL,
   RE_CONSENT,
   RE_COOKIE_CONTAINER,
   RE_NEWSLETTER,
@@ -82,6 +83,14 @@ function buildOwnerMap(units: Unit[]): Map<Element, Set<Unit>> {
   return m;
 }
 
+/** Upload widgets (e.g. Greenhouse) label the input "Attach"; the question sits on an enclosing group of its own. */
+function ownLabel(el: HTMLElement, unit: Unit, owner: Map<Element, Set<Unit>>): string {
+  const own = controlLabel(el);
+  if (!RE_ACTION_LABEL.test(own)) return own;
+  const g = el.closest("[role=group],fieldset");
+  return g && owner.get(g)?.size === 1 && owner.get(g)!.has(unit) ? groupLabel(g) : "";
+}
+
 const isDisabled = (el: Element) =>
   (el as HTMLInputElement).disabled === true || el.getAttribute("aria-disabled") === "true";
 
@@ -131,7 +140,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const rawLabel =
       (isGroup
         ? groupLabel(u.groupEl ?? null) || precedingText(container, members![0], memberLabels)
-        : controlLabel(el) ||
+        : ownLabel(el, u, owner) ||
           (u.searchInput ? controlLabel(u.searchInput) : "") ||
           precedingText(container, el, memberLabels)) || fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
