@@ -102,6 +102,51 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(sizes[0]).toBe(4);
   });
 
+  it("re-asks once for fields the model left out", async () => {
+    const sent: string[][] = [];
+    const gemini = {
+      call: async (s: { payload: { fields: FieldDescriptor[] } }) => {
+        const ids = s.payload.fields.map((f) => f.id);
+        sent.push(ids);
+        const answer = sent.length === 1 ? ids.filter((id) => id !== "b") : ids;
+        return {
+          data: { decisions: answer.map((fieldId) => ({ fieldId, action: "fill", text: "x", confidence: "high" })) },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields: ["a", "b", "c"].map((id) => field(id)), profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(sent).toEqual([["a", "b", "c"], ["b"]]);
+    expect(r.decisions.map((d) => d.action)).toEqual(["fill", "fill", "fill"]);
+  });
+
+  it("a split retry does not earn its halves another retry", async () => {
+    const sent: string[][] = [];
+    const gemini = {
+      call: async (s: { payload: { fields: FieldDescriptor[] } }) => {
+        const ids = s.payload.fields.map((f) => f.id);
+        sent.push(ids);
+        if (sent.length === 2) throw new BadOutputError("Invalid JSON from model");
+        const answer = sent.length === 1 ? ["a"] : [];
+        return {
+          data: { decisions: answer.map((fieldId) => ({ fieldId, action: "fill", text: "x", confidence: "high" })) },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields: ["a", "b", "c"].map((id) => field(id)), profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(sent).toEqual([["a", "b", "c"], ["b", "c"], ["b"], ["c"]]);
+    expect(r.decisions.map((d) => d.note)).toEqual([undefined, "No AI decision", "No AI decision"]);
+  });
+
   it("sends options numbered so the model reads indexes instead of counting", async () => {
     const payloads: Record<string, unknown>[] = [];
     const gemini = {
@@ -116,7 +161,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     await chooseOptions(ctx, [{ fieldId: "b", question: "q", intendedAnswer: "Canada", options, multiple: false }]);
     const want = ["0: Canada +1", "1: Cape Verde +238"];
     expect((payloads[0].fields as FieldDescriptor[])[0].options).toEqual(want);
-    expect((payloads[1].items as { options: string[] }[])[0].options).toEqual(want);
+    expect((payloads.at(-1)!.items as { options: string[] }[])[0].options).toEqual(want);
   });
 
   it("compactProfile drops empty values recursively", () => {

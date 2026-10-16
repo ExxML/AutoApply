@@ -109,6 +109,8 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">) {
     learnedAnswers: [...learnedAnswers]
       .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
       .slice(0, 100)
+      // Recency picks which 100; createdAt orders them so the prompt doesn't reshuffle after every fill.
+      .sort((a, b) => a.createdAt - b.createdAt)
       .map((l) => ({ q: l.question, a: l.answer })),
     documents: input.documents.map(({ id, label, kind }) => ({ id, label, kind })),
     job: compactProfile({
@@ -142,12 +144,18 @@ export async function mapFields(
         { model: ctx.model, fallback: ctx.fallback },
       );
       if (r.usedModel !== ctx.model) usedModel = r.usedModel;
-      return validateDecisions(chunk, r.data.decisions);
+      const decisions = validateDecisions(chunk, r.data.decisions);
+      // The model sometimes drops fields from long batches; ask once more for just those.
+      const answered = new Set(r.data.decisions.map((d) => d.fieldId));
+      const missing = chunk.filter((f) => !answered.has(f.id));
+      if (!missing.length || retried) return decisions;
+      const again = new Map((await runChunk(missing, true)).map((d) => [d.fieldId, d]));
+      return decisions.map((d) => again.get(d.fieldId) ?? d);
     } catch (e) {
       if (!(e instanceof BadOutputError || e instanceof BlockedError)) throw e;
       if (chunk.length > 1) {
         const mid = Math.ceil(chunk.length / 2);
-        return (await Promise.all([runChunk(chunk.slice(0, mid)), runChunk(chunk.slice(mid))])).flat();
+        return (await Promise.all([runChunk(chunk.slice(0, mid), retried), runChunk(chunk.slice(mid), retried)])).flat();
       }
       if (e instanceof BadOutputError && !retried) return runChunk(chunk, true);
       return [flag(chunk[0].id, e instanceof BlockedError ? "AI declined this field" : "AI response was invalid")];

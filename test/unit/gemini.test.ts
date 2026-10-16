@@ -384,6 +384,7 @@ describe("callGemini rotation", () => {
     const gc = h.calls[0].body.generationConfig as Record<string, unknown>;
     expect(gc.temperature).toBeUndefined();
     expect(gc.topP).toBeUndefined();
+    expect(gc.seed).toBe(1);
     expect(gc.thinkingConfig).toEqual({ thinkingLevel: "minimal" });
   });
 });

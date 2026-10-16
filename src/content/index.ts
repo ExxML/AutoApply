@@ -225,7 +225,10 @@ function opFromDecision(h: FieldHandle, d: Decision): FillOp | null {
     const answer = d.intendedAnswer ?? d.text;
     return answer ? { type: "intended", answer, query: d.searchQuery } : null;
   }
-  if (isFreeText(k)) return d.text ? { type: "text", value: d.text } : null;
+  if (isFreeText(k)) {
+    const value = d.text ?? d.intendedAnswer;
+    return value ? { type: "text", value } : null;
+  }
   const answer = d.intendedAnswer ?? d.text;
   return answer ? { type: "intended", answer } : null;
 }

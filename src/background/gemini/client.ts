@@ -154,6 +154,8 @@ export function buildBody(
       responseMimeType: "application/json",
       ...(schema && !promptOnly ? { responseSchema: schema } : {}),
       maxOutputTokens,
+      // Fixed seed: same prompt → same answer (best-effort). Temperature stays default (PROMPT.md: no sampling params).
+      seed: 1,
       ...(tc ? { thinkingConfig: tc } : {}),
     },
   };
