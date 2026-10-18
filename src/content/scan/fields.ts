@@ -2,6 +2,8 @@
 import {
   RE_ACTION_LABEL,
   RE_CONSENT,
+  RE_CONSENT_NO,
+  RE_CONSENT_YES,
   RE_COOKIE_CONTAINER,
   RE_NEWSLETTER,
   RE_OPTIONAL_CONSENT,
@@ -229,7 +231,15 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
 
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
     const text = `${label} ${d.hint ?? ""}`;
-    h.consent = kind === "checkbox" && (RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text));
+    // Choice consents ("Consent" / "Do Not Consent") are answered locally; background/drug checks follow the profile.
+    h.consent =
+      kind === "checkbox"
+        ? RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text)
+        : !d.multiple &&
+          !!d.options &&
+          RE_CONSENT.test(text) &&
+          !/background|drug/i.test(text) &&
+          !!consentPair(d.options);
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);
@@ -241,6 +251,13 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     handles.push(h);
   }
   return { handles, collected };
+}
+
+/** [consenting, declining] option indexes when the options hold exactly one of each. */
+export function consentPair(options: string[]): [number, number] | null {
+  const yes = options.flatMap((o, i) => (RE_CONSENT_YES.test(o) ? [i] : []));
+  const no = options.flatMap((o, i) => (RE_CONSENT_NO.test(o) ? [i] : []));
+  return yes.length === 1 && no.length === 1 ? [yes[0], no[0]] : null;
 }
 
 function isPrefilled(h: FieldHandle, current: string): boolean {

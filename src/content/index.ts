@@ -21,7 +21,7 @@ import { fill, serial, type FillOp } from "./fill/engine";
 import { isFilling, sleep } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { readValue } from "./fill/verify";
-import { newScanState, scan, type FieldHandle } from "./scan/fields";
+import { consentPair, newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
@@ -301,8 +301,10 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
   const mode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
   const accept = mode === "accept";
-  // Choice fields: the AI returns [consenting option, declining option].
-  const pick = (h.desc.options ?? harvested.get(h.id))?.[d?.optionIndexes?.[accept ? 0 : 1] ?? -1];
+  // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
+  const options = h.desc.options ?? harvested.get(h.id);
+  const pair = d ? d.optionIndexes : options && consentPair(options);
+  const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
   const op: FillOp | null =
     h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;
   const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${optional ? " (optional)" : ""}`;

@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
+import { consentPair, newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
 import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 
@@ -146,6 +146,19 @@ describe("grouping (§11.5)", () => {
       options: ["Python", "Go"],
       multiple: true,
     });
+  });
+
+  it("consent radio groups (Avature/EA) are consent fields; background-check and Yes/No ones are not", () => {
+    setBody(`<fieldset><legend>By selecting "Consent", you consent that EA will process your personal data as described in the Candidate Privacy Notice. *</legend>
+        <div role="radiogroup" aria-required="true"><label><input type="radio" name="p"> Consent</label><label><input type="radio" name="p"> Do Not Consent</label></div></fieldset>
+      <fieldset><legend>Do you consent to a background check?</legend><label><input type="radio" name="b"> I consent</label><label><input type="radio" name="b"> I do not consent</label></fieldset>
+      <fieldset><legend>Do you agree to relocate?</legend><label><input type="radio" name="r"> Yes</label><label><input type="radio" name="r"> No</label></fieldset>`);
+    const hs = fields();
+    expect(hs[0].desc).toMatchObject({ kind: "radio_group", required: true, options: ["Consent", "Do Not Consent"] });
+    expect(hs.map((h) => h.consent)).toEqual([true, false, false]);
+    expect(consentPair(["Do Not Acknowledge", "Acknowledge"])).toEqual([1, 0]);
+    expect(consentPair(["Select…", "Yes, I agree", "No, I do not agree"])).toEqual([1, 2]);
+    expect(consentPair(["Yes", "No"])).toBeNull();
   });
 });
 

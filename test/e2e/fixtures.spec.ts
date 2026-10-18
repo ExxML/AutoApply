@@ -168,6 +168,8 @@ test("consent: acknowledgements are flagged, not ticked, by default", async ({ p
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
   await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator("#r1")).not.toBeChecked();
+  await expect(page.locator("#r2")).not.toBeChecked();
   await expect(badge(page, "I certify that the information provided is accurate and complete.")).toHaveAttribute(
     "data-color",
     "yellow",
@@ -187,6 +189,7 @@ test("consent: with required consents on, required boxes are ticked and badged b
   await expect(page.locator("#c1")).toBeChecked();
   await expect(page.locator("#c2")).toBeChecked();
   await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator("#r1")).toBeChecked(); // "Consent" / "Do Not Consent" radios are required consent
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "blue");
 });
 
@@ -198,6 +201,7 @@ test("consent: with optional consents on accept, only the optional box is ticked
   await expect(page.locator("#c3")).toBeChecked();
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
+  await expect(page.locator("#r1")).not.toBeChecked();
 });
 
 test("consent: with optional consents on decline, the optional box is left unticked and not flagged", async ({
@@ -214,4 +218,5 @@ test("consent: with optional consents on decline, the optional box is left untic
     "blue",
   );
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "yellow");
+  await expect(page.locator("#r2")).not.toBeChecked(); // required consent is never declined
 });
