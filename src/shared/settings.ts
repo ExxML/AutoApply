@@ -6,6 +6,7 @@ const n = (d: number, min: number, max: number) => z.number().int().min(min).max
 const base = z.object({
   overwritePrefilled: b(false),
   autoAcceptAcknowledgements: b(false),
+  optionalConsents: z.enum(["ask", "accept", "decline"]).catch("ask"),
   draftEssays: b(true),
   essayDefaultWords: n(150, 10, 2000),
   coverLetterDefaultWords: n(300, 10, 2000),

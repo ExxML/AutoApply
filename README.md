@@ -59,7 +59,7 @@ The model list is fetched live with your key and shows only text-in/text-out mod
 | Orange **Check**     | The page shows something different from what was entered                                                                               |
 | Red **Failed**       | Could not be filled                                                                                                                    |
 
-Consent and attestation checkboxes are **flagged, not ticked**, unless you turn on _Auto-accept acknowledgements_ in **Behavior**.
+Consent and attestation boxes are **flagged, not ticked**, unless you turn on _Auto-accept required consents_ (privacy notice, terms, attestations) in **Behavior**. _Optional consents_ (contact about other jobs, talent community, marketing) are set separately: flag for you (default), auto-accept, or auto-decline.
 
 ## Privacy
 

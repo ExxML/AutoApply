@@ -167,6 +167,7 @@ test("consent: acknowledgements are flagged, not ticked, by default", async ({ p
   await waitDone(page);
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
+  await expect(page.locator("#c3")).not.toBeChecked();
   await expect(badge(page, "I certify that the information provided is accurate and complete.")).toHaveAttribute(
     "data-color",
     "yellow",
@@ -175,11 +176,42 @@ test("consent: acknowledgements are flagged, not ticked, by default", async ({ p
   await expect(page.locator("autoapply-root .needs")).toContainText("Needs your confirmation");
 });
 
-test("consent: with autoAcceptAcknowledgements on, boxes are ticked and badged blue", async ({ page, sw }) => {
+test("consent: with required consents on, required boxes are ticked and badged blue, optional left", async ({
+  page,
+  sw,
+}) => {
   await seed(sw, { settings: { autoAcceptAcknowledgements: true } });
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#c1")).toBeChecked();
+  await expect(page.locator("#c2")).toBeChecked();
+  await expect(page.locator("#c3")).not.toBeChecked();
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "blue");
+});
+
+test("consent: with optional consents on accept, only the optional box is ticked", async ({ page, sw }) => {
+  await seed(sw, { settings: { optionalConsents: "accept" } });
+  await page.goto(BASE + "consent.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#c3")).toBeChecked();
+  await expect(page.locator("#c1")).not.toBeChecked();
+  await expect(page.locator("#c2")).not.toBeChecked();
+});
+
+test("consent: with optional consents on decline, the optional box is left unticked and not flagged", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw, { settings: { optionalConsents: "decline" } });
+  await page.goto(BASE + "consent.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator('autoapply-root .tag[aria-label^="I want recruiters"]')).toHaveAttribute(
+    "data-color",
+    "blue",
+  );
+  await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "yellow");
 });

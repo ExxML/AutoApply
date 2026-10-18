@@ -4,6 +4,7 @@ import {
   RE_CONSENT,
   RE_COOKIE_CONTAINER,
   RE_NEWSLETTER,
+  RE_OPTIONAL_CONSENT,
   RE_PLACEHOLDER_OPTION,
   RE_SENSITIVE_LABEL,
   RE_SKIP_LABEL,
@@ -224,7 +225,8 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     if (el instanceof HTMLInputElement && el.type === "file" && el.accept) d.accept = el.accept;
 
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
-    h.consent = kind === "checkbox" && RE_CONSENT.test(label);
+    const text = `${label} ${d.hint ?? ""}`;
+    h.consent = kind === "checkbox" && (RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text));
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);

@@ -96,7 +96,10 @@ export const RE_NEWSLETTER = /newsletter|subscribe/i;
 export const RE_SENSITIVE_LABEL =
   /card number|cvv|cvc|expiry|iban|routing|\bsin\b|social insurance|social security|ssn|passport (number|no)/i;
 export const RE_CONSENT =
-  /i (agree|acknowledge|certify|consent|confirm|understand|accept)|terms|privacy (policy|notice)|attest/i;
+  /i (agree|acknowledge|certify|confirm|understand|accept)|consent|terms|privacy (policy|notice)|attest/i;
+/** Consent that is not needed to apply: future/other roles, talent pools, marketing. */
+export const RE_OPTIONAL_CONSENT =
+  /\b(future|other|additional|similar|relevant)\b(\s+\w+){0,2}\s+(opportunit\w*|openings|vacancies)|considered for (other|future)|talent (community|pool|network)|job alerts?|newsletter|marketing (e-?mails?|communications?|messages|materials)|unsubscribe|keep me (informed|updated|posted)/i;
 export const RE_HELPER_CLASS = /help|hint|description|desc|subtext|instructions/i;
 /** Buttons/links the extension must never click (§18.1). */
 export const RE_FORBIDDEN_CLICK = /submit|next|continue|apply|save|sign ?in|log ?in|sign ?up|register|finish|review/i;

@@ -1,4 +1,4 @@
-import { NumberInput, TagInput, Toggle } from "../components/controls";
+import { NumberInput, SelectInput, TagInput, Toggle } from "../components/controls";
 import { save, useStored } from "../store";
 import type { Settings } from "../../shared/types";
 
@@ -9,8 +9,8 @@ const TOGGLES: [Bool, string, string][] = [
   ["overwritePrefilled", "Overwrite pre-filled fields", "Off: fields that already have a value are left alone."],
   [
     "autoAcceptAcknowledgements",
-    "Auto-accept acknowledgements",
-    "Off: consent/attestation checkboxes are flagged for you instead of ticked.",
+    "Auto-accept required consents",
+    "Consents needed to apply (privacy notice, terms, attestations). Off: they are flagged for you instead of accepted.",
   ],
   [
     "draftEssays",
@@ -53,7 +53,22 @@ export function Behavior() {
       <h1>Behavior</h1>
       <div class="form">
         {TOGGLES.map(([k, label, help]) => (
-          <Toggle label={label} help={help} checked={s[k]} onChange={(v) => set({ [k]: v })} />
+          <>
+            <Toggle label={label} help={help} checked={s[k]} onChange={(v) => set({ [k]: v })} />
+            {k === "autoAcceptAcknowledgements" && (
+              <SelectInput
+                label="Optional consents"
+                help="Consents you can skip (contact about other jobs, talent community, marketing)."
+                value={s.optionalConsents}
+                options={[
+                  ["ask", "Flag for me"],
+                  ["accept", "Auto-accept"],
+                  ["decline", "Auto-decline"],
+                ]}
+                onChange={(v) => set({ optionalConsents: v as Settings["optionalConsents"] })}
+              />
+            )}
+          </>
         ))}
         {NUMBERS.map(([k, label, help, min, max]) => (
           <NumberInput label={label} help={help} value={s[k]} min={min} max={max} onChange={(v) => set({ [k]: v })} />

@@ -20,7 +20,7 @@ For EVERY field return exactly one decision with the same fieldId:
   • checkbox (single): set "checked" true/false.
   • file: set "documentId" to the best matching document id (résumé/CV → the résumé; cover letter → a cover_letter document; transcript → transcript). If no suitable document exists, use action "flag".
 - action "essay": the field asks for open-ended prose written for this application (why this company/role, describe an experience, tell us about yourself, cover letter text, additional information) and no learned answer fits. Do not write the essay here.
-- action "consent": the field is an acknowledgement/consent/attestation checkbox (agree to terms, privacy policy, certify information is accurate). Set "checked": true if it is a standard acknowledgement a candidate must accept to apply.
+- action "consent": the field is an acknowledgement/consent/attestation question (agree to terms, privacy policy, certify information is accurate, contact me about other opportunities). Set "checked": true if a candidate must accept it to apply, false if it is optional (future or other job opportunities, talent community, marketing, newsletters). For choice kinds put exactly two indexes in "optionIndexes": the option that gives consent, then the option that declines it.
 - action "skip": the field is optional and does not apply to the candidate (e.g. "Referral name" when there is no referrer, "Middle name" when none). Leave blank.
 - action "flag": a required or meaningful field you cannot answer from the provided data, or you are unsure.
 

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { installChromeMock } from "./chromeMock";
 import { cleanLabel, humanize, normalize } from "../../src/shared/normalize";
-import { canonicalCountry, canonicalRegion, regionCode } from "../../src/shared/constants";
+import {
+  canonicalCountry,
+  canonicalRegion,
+  RE_CONSENT,
+  RE_OPTIONAL_CONSENT,
+  regionCode,
+} from "../../src/shared/constants";
 import { nextMidnightPacific } from "../../src/shared/time";
 import { createStorage } from "../../src/shared/storage";
 import { ProfileSchema } from "../../src/shared/profileSchema";
@@ -20,6 +26,25 @@ describe("normalize", () => {
     expect(cleanLabel("First name *")).toBe("First name");
     expect(cleanLabel("Phone (optional)")).toBe("Phone");
     expect(cleanLabel("Is a visa required")).toBe("Is a visa required");
+  });
+});
+
+describe("consent patterns", () => {
+  const required = [
+    'By selecting "Consent", you consent that EA will process your personal data as described in the Candidate Privacy Notice.',
+    "I certify that the information provided is accurate and complete, and understand false statements may disqualify me from this and other positions.",
+    "I agree to the Terms of Service",
+  ];
+  const optional = [
+    "I want EA recruiters to contact me in relation to other relevant job opportunities, including related events. I understand that I can withdraw my consent at any time by clicking unsubscribe on any emails received from EA.",
+    "Join our talent community",
+    "I'd like to be considered for future openings",
+    "Send me marketing emails",
+  ];
+  it("tells required from optional consents", () => {
+    for (const t of [...required, ...optional]) expect(RE_CONSENT.test(t) || RE_OPTIONAL_CONSENT.test(t)).toBe(true);
+    for (const t of required) expect(RE_OPTIONAL_CONSENT.test(t)).toBe(false);
+    for (const t of optional) expect(RE_OPTIONAL_CONSENT.test(t)).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 // Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
 // Fills only when the user triggers it. Never sees API keys; never clicks submit/next.
-import { RE_COVER_LETTER, RE_RESUME_ONLY } from "../shared/constants";
+import { RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
 import type {
@@ -294,9 +294,19 @@ async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: str
   else setStatus(h, "needs", r.note);
 }
 
-function handleConsent(h: FieldHandle, checked: boolean | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
-  if (config.settings.autoAcceptAcknowledgements && checked !== false)
-    jobs.push(doFill(h, { type: "checked", value: true }, "ai", "Auto-accepted", ctrl));
+/** Required and optional consents follow separate settings; a required field is never optional. */
+function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
+  const optional =
+    !h.desc.required && (d?.checked === false || RE_OPTIONAL_CONSENT.test(`${h.desc.label} ${h.desc.hint ?? ""}`));
+  const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
+  const mode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
+  const accept = mode === "accept";
+  // Choice fields: the AI returns [consenting option, declining option].
+  const pick = (h.desc.options ?? harvested.get(h.id))?.[d?.optionIndexes?.[accept ? 0 : 1] ?? -1];
+  const op: FillOp | null =
+    h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;
+  const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${optional ? " (optional)" : ""}`;
+  if (mode !== "ask" && op) jobs.push(doFill(h, op, "ai", tooltip, ctrl));
   else setStatus(h, "needs", "Needs your confirmation");
 }
 
@@ -430,7 +440,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
               const kind = RE_COVER_LETTER.test(h.desc.label) ? "cover_letter" : "essay";
               essays.push({ fieldId: h.id, question: h.desc.label, hint: h.desc.hint, ...limits, kind });
             } else setStatus(h, "needs", "Write this yourself");
-          } else if (d.action === "consent") handleConsent(h, d.checked, ctrl, jobs);
+          } else if (d.action === "consent") handleConsent(h, d, ctrl, jobs);
           else if (d.action === "skip") setStatus(h, "skipped");
           else setStatus(h, "needs", d.note ?? "AI could not answer", suggestion);
         }
