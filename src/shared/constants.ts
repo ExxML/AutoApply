@@ -113,7 +113,7 @@ export const RE_DROPZONE = /drag|drop|upload|attach/i;
 export const RE_TYPEAHEAD_HINT =
   /location|city|school|university|college|company|employer|search|autocomplete|typeahead/i;
 export const RE_PLACEHOLDER_OPTION = /^(select|choose|please select|--|—|-)(\b|\s|$)/i;
-export const RE_NO_OPTIONS = /^(no options|no results|no matches|nothing found|loading)/i;
+export const RE_NO_OPTIONS = /^(no options|no results|no matches|nothing found|loading|searching)/i;
 
 /** Appendix C.3 */
 export const DROPDOWN_TRIGGER_SELECTORS = [

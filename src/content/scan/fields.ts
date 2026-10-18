@@ -184,10 +184,13 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         h.optionEls = [...u.listbox.querySelectorAll<HTMLElement>("[role=option]")];
         d.options = h.optionEls.map((o) => collapse(o.textContent ?? ""));
         if (u.listbox.getAttribute("aria-multiselectable") === "true") d.multiple = true;
-      } else if (hidden && nativeOptions(hidden)) {
+      } else if (hidden) {
         h.hiddenSelect = hidden;
-        d.options = nativeOptions(hidden)!.texts;
         if (hidden.multiple) d.multiple = true;
+        // AJAX widgets (Select2) back onto a select holding only the picked option: the list is unknown until opened.
+        const o = nativeOptions(hidden);
+        if (o?.texts.length) d.options = o.texts;
+        else d.optionsKnown = false;
       } else {
         d.optionsKnown = false;
         if (el.getAttribute("aria-multiselectable") === "true") d.multiple = true;

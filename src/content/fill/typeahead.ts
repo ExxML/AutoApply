@@ -3,7 +3,7 @@ import { normalize } from "../../shared/normalize";
 import { localMatch } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
 import { closeDropdown, findOptionsContainer, optText, optionElements, snapshot } from "./dropdown";
-import { blur, focus, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
+import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 
 export async function fillTypeahead(
@@ -21,6 +21,11 @@ export async function fillTypeahead(
   await typeText(input, query || intended);
   const c = await waitFor(() => findOptionsContainer(h, before), 2000);
   if (!c) {
+    // A dropdown's search box only filters its list: text left there selects nothing.
+    if (h.desc.kind === "dropdown") {
+      setNativeValue(input, "");
+      key(input, "Escape");
+    }
     blur(input);
     await sleep(50);
     return input.value

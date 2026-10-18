@@ -37,6 +37,8 @@ export interface EngineDeps {
 }
 
 const SERIAL = new Set(["dropdown", "typeahead"]);
+// Remote lists can page very slowly (EA skills: 3 options per request); past this, searching beats paging.
+const HARVEST_MS = 3000;
 let chain: Promise<unknown> = Promise.resolve();
 
 export function fill(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<FillResult> {
@@ -107,7 +109,7 @@ async function dispatch(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<F
           // Fast path: the intended answer is usually an exact option (scrolls virtualized lists to it).
           const direct = await fillDropdown(h, [answerOf(op)]);
           if (direct.outcome === "ok") return direct;
-          options = await harvestOptions(h);
+          options = await harvestOptions(h, HARVEST_MS);
           if (options) deps.harvested.set(h.id, options);
         }
         if (!options) {

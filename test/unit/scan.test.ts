@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
+import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 
 beforeAll(stubLayout);
 beforeEach(() => setBody(""));
@@ -185,6 +186,25 @@ describe("widget classification (Appendix C.3)", () => {
     const [h] = fields();
     expect(h.desc).toMatchObject({ kind: "dropdown", optionsKnown: true, options: ["Alberta", "British Columbia"] });
     expect(h.hiddenSelect).toBeTruthy();
+  });
+
+  it("an AJAX widget's hidden select with no options leaves the list unknown", () => {
+    setBody(`<div><label>Skills</label><span class="select2-selection">Select…</span>
+      <select multiple style="display:none"><option value=""></option></select></div>`);
+    const [h] = fields();
+    expect(h.desc).toMatchObject({ kind: "dropdown", optionsKnown: false, multiple: true });
+    expect(h.desc.options).toBeUndefined();
+    expect(h.hiddenSelect).toBeTruthy();
+  });
+
+  it("a popup still showing its loading row is not the options list yet", () => {
+    setBody(`<div><label>Country</label><span class="select2-selection">Select…</span></div>`);
+    const [h] = fields();
+    const before = snapshot();
+    document.body.insertAdjacentHTML("beforeend", `<ul><li role="option" class="loading-results">Searching…</li></ul>`);
+    expect(findOptionsContainer(h, before)).toBeNull();
+    document.querySelector("ul")!.innerHTML = `<li role="option">Canada</li><li role="option">Chile</li>`;
+    expect(findOptionsContainer(h, before)).toBe(document.querySelector("ul"));
   });
 
   it("typeaheads: combobox inputs, aria-autocomplete, and location inputs with aria-controls", () => {

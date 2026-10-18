@@ -4,6 +4,7 @@ import { collapse, normalize } from "../../shared/normalize";
 import type { FieldHandle } from "../scan/fields";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
+import { isTextInput } from "../scan/widgets";
 import { dispatching, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, isOn, sameValue } from "./verify";
@@ -50,7 +51,7 @@ export function findOptionsContainer(h: FieldHandle, before: Snapshot): HTMLElem
   for (const lb of deepQueryAll("[role=listbox]"))
     if (lb !== h.listbox && !before.boxes.has(lb) && isVisible(lb) && optionElements(lb).length) return lb;
   const fresh = deepQueryAll(OPTION_SELECTORS).filter(
-    (o) => !before.options.has(o) && !h.el.contains(o) && isVisible(o),
+    (o) => !before.options.has(o) && !h.el.contains(o) && isVisible(o) && isRealOption(o),
   );
   const parents = new Map<Element, number>();
   for (const o of fresh) if (o.parentElement) parents.set(o.parentElement, (parents.get(o.parentElement) ?? 0) + 1);
@@ -73,6 +74,12 @@ export async function openDropdown(h: FieldHandle): Promise<HTMLElement | null> 
   if (!c && t.getAttribute("aria-expanded") === "false") {
     realClick(t);
     c = await waitFor(() => findOptionsContainer(h, before), 300);
+  }
+  // Opened and settled with no options ("No results found" until a parent field is set): nothing more will come.
+  const popups = controlledBy([t]).filter(isVisible);
+  if (!c && t.getAttribute("aria-expanded") === "true" && popups.length && !busy(popups)) {
+    await closeDropdown(h, popups[0]);
+    return null;
   }
   if (!c) {
     const target = h.searchInput ?? t;
@@ -180,7 +187,10 @@ export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promi
   const deadline = Date.now() + budgetMs;
   const c = await openDropdown(h);
   if (!c) return null;
-  const all = await collectOptions(c, h.el, undefined, deadline);
+  // A row still loading (Select2's "Loading more results…") means another page plus QUIET_MS: past a short budget.
+  const loading =
+    budgetMs < QUIET_MS && [...c.querySelectorAll(OPTION_SELECTORS)].some((o) => /^loading/i.test(optText(o)));
+  const all = loading ? null : await collectOptions(c, h.el, undefined, deadline);
   await closeDropdown(h, c);
   const texts = all ? [...all.keys()] : [];
   return texts.length ? texts : null;
@@ -199,16 +209,24 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
   if (!c) return false;
   const match = (t: string) => normalize(t) === normalize(text);
   let el = optionElements(c).find((o) => match(optText(o)));
-  if (!el && h.searchInput) {
-    focus(h.searchInput);
-    setNativeValue(h.searchInput, "");
-    await typeText(h.searchInput, text, 0);
-    el =
-      (await waitFor(() => {
-        const box = c!.isConnected ? c! : findOptionsContainer(h, { boxes: new Set(), options: new Set() });
-        if (box) c = box;
-        return box ? optionElements(box).find((o) => match(optText(o))) : undefined;
-      }, 800)) ?? undefined;
+  // Select2 keeps its search box in the popup, focused on open and tied to the list by aria-controls.
+  const a = document.activeElement;
+  const search = h.searchInput ?? (a && isTextInput(a) && !a.readOnly && controlledBy([a]).includes(c) ? a : undefined);
+  if (!el && search) {
+    focus(search);
+    setNativeValue(search, "");
+    await typeText(search, text, 0);
+    const found = () => {
+      const box = c!.isConnected ? c! : findOptionsContainer(h, { boxes: new Set(), options: new Set() });
+      if (box) c = box;
+      return box ? optionElements(box).find((o) => match(optText(o))) : undefined;
+    };
+    el = (await waitFor(found, 800)) ?? undefined;
+    // Remote search (Select2 AJAX) can take over a second: keep waiting until the list's spinner goes.
+    if (!el && busy([c!, h.el])) {
+      await waitFor(() => found() || !busy([c!, h.el]), PAGE_MAX_MS);
+      el = found();
+    }
   }
   if (!el) {
     const all = await collectOptions(c, h.el, match);
