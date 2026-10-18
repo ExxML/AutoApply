@@ -71,9 +71,15 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("LinkedIn profile"), p)?.value).toBe("https://linkedin.com/in/ada");
     expect(deterministicValue(f("Province / State"), p)?.value).toBe("British Columbia");
   });
-  it("skips ambiguous labels, empty values and non-text kinds", () => {
+  it("returns empty values for recognized fields unset in the profile", () => {
+    expect(deterministicValue(f("GitHub"), p)).toEqual({ value: "", path: "personal.links.github" });
+    expect(deterministicValue(f("Address 1"), p)).toEqual({ value: "", path: "personal.address.line1" });
+    expect(deterministicValue(f("Phone", { kind: "tel" }), { ...p, phone: { ...p.phone, number: "" } })?.value).toBe(
+      "",
+    );
+  });
+  it("skips ambiguous labels and non-text kinds", () => {
     expect(deterministicValue(f("City, State"), p)).toBeNull();
-    expect(deterministicValue(f("GitHub"), p)).toBeNull();
     expect(deterministicValue(f("Personal statement", { kind: "textarea" }), p)).toBeNull();
     expect(deterministicValue(f("First name", { kind: "select" }), p)).toBeNull();
   });

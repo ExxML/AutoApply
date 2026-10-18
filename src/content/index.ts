@@ -374,7 +374,8 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
       }
       const d = deterministicValue(h.desc, det.personal, hasCountryCode);
       if (d) {
-        jobs.push(doFill(h, { type: "text", value: d.value }, "filled", d.path, ctrl));
+        if (d.value) jobs.push(doFill(h, { type: "text", value: d.value }, "filled", d.path, ctrl));
+        else setStatus(h, "needs", "Not set in your Profile");
         continue;
       }
       const l = matchLearned(h.desc, det.learnedAnswers);

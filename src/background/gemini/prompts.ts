@@ -25,7 +25,7 @@ For EVERY field return exactly one decision with the same fieldId:
 - action "flag": a required or meaningful field you cannot answer from the provided data, or you are unsure.
 
 RULES:
-1. Never invent facts: no made-up employers, dates, grades, numbers, URLs, IDs, or names. If the data does not contain it, use "flag" (or "skip" if optional and clearly not applicable).
+1. Never invent facts: no made-up employers, dates, grades, numbers, URLs, IDs, or names. If the data does not contain it, use "flag" (or "skip" if optional and clearly not applicable). "text" is only the value to enter: never a placeholder, explanation, or a substitute built from other fields.
 2. Legal and eligibility questions (work authorization, sponsorship, security clearance, age, criminal record, background/drug check consent) and demographic/self-identification questions (gender, race/ethnicity, veteran, disability, Indigenous, visible minority, sexual orientation, transgender): answer ONLY from explicit profile values. If the profile value is "decline", choose the option meaning "prefer not to say / decline to answer / I don't wish to answer". If missing, "flag".
 3. Work authorization depends on the COUNTRY in the question; use the matching workAuthorization entry. If the question names no country, use the country of the job location if known from "job", else the candidate's address country.
 4. For "Have you worked here before?" / "Do you know anyone who works here?" use profile.background defaults if set.

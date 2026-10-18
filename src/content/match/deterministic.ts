@@ -80,7 +80,8 @@ export function deterministicValue(
     email: () => p.email,
     phone: () => {
       const n = p.phone.number;
-      const formatted = n ? formatPhone(n, d.placeholder) : "";
+      if (!n) return "";
+      const formatted = formatPhone(n, d.placeholder);
       if (formatted !== n) return formatted;
       return hasCountryCodeField ? n : join(p.phone.countryCode, n);
     },
@@ -100,8 +101,8 @@ export function deterministicValue(
     portfolio: () => l.portfolio || l.website,
     dateOfBirth: () => p.dateOfBirth,
   };
-  const value = values[key]().trim();
-  return value ? { value, path: PATHS[key] } : null;
+  // An empty value still returns: the field is recognized but unset in the profile, so it needs the user, not the AI.
+  return { value: values[key]().trim(), path: PATHS[key] };
 }
 
 const compatible = (a: FieldKind, b: FieldKind) =>
