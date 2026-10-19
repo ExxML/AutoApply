@@ -28,6 +28,7 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [License](#license)
 
 ## App Preview
 <div align="center">
@@ -141,3 +142,8 @@ GEMINI_API_KEY=AIza... npm run test:live
 ```
 
 See `DECISIONS.md` for design choices and deviations from the specification.
+
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
