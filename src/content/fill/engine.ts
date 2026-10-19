@@ -114,7 +114,7 @@ async function dispatch(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<F
         }
         if (!options) {
           if (h.searchInput)
-            return fillTypeahead({ ...h, el: h.searchInput }, answerOf(op), answerOf(op), (o) =>
+            return fillTypeahead(h, answerOf(op), answerOf(op), (o) =>
               deps.choose(h, answerOf(op), o).then((r) => r?.[0] ?? null),
             );
           // Too long to harvest (remote paging): choose among what its popup search finds instead.

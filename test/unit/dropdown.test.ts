@@ -58,14 +58,35 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     setBody(`<div><label>Skills</label><span role="combobox" aria-haspopup="true" aria-expanded="false">
       <input type="search" class="select2-search__field"></span></div>`);
     const h = scan(newScanState()).handles[0];
-    const r = await fillTypeahead(
-      { ...h, el: h.searchInput! },
-      "Python programming",
-      "Python programming",
-      async () => null,
-    );
+    const r = await fillTypeahead(h, "Python programming", "Python programming", async () => null);
     expect(r.outcome).toBe("flag");
     expect(h.searchInput!.value).toBe("");
+  });
+
+  it("a remote search dropdown picks the AI's choice even if the list closed while it chose, and verifies the pick", async () => {
+    // react-select (Greenhouse location): typing lists suggestions; a pick shows in the control and empties the input.
+    setBody(`<div><label>Location (City)</label><div class="select__control"><div class="select__value"></div>
+      <input role="combobox" aria-haspopup="true" aria-expanded="false" aria-controls="menu"></div></div>
+      <div id="menu" role="listbox" hidden></div>`);
+    const h = scan(newScanState()).handles[0];
+    const menu = document.getElementById("menu")!;
+    const input = h.searchInput!;
+    input.addEventListener("input", () => {
+      menu.hidden = false;
+      menu.innerHTML = `<div role="option">Vancouver, British Columbia, Canada</div><div role="option">Vancouver, Washington, United States</div>`;
+    });
+    // Delegated like React's handlers: a click on a detached option reaches nothing.
+    menu.addEventListener("click", (e) => {
+      if (!menu.contains(e.target as Node)) return; // happy-dom still bubbles from detached nodes
+      h.el.querySelector(".select__value")!.textContent = (e.target as Element).textContent;
+      input.value = "";
+      menu.hidden = true;
+    });
+    // Another fill takes focus while the AI chooses: the list closes and its options are gone.
+    const close = () => ((menu.hidden = true), (menu.innerHTML = ""));
+    const r = await fillTypeahead(h, "Vancouver", "Vancouver", async () => (close(), 0));
+    expect(r).toEqual({ outcome: "ok", shown: "Vancouver, British Columbia, Canada" });
+    expect(h.el.textContent!.trim()).toBe("Vancouver, British Columbia, Canada");
   });
 
   it("a list too long to harvest is searched from its popup search box", async () => {

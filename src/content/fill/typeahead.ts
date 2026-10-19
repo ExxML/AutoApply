@@ -5,6 +5,7 @@ import type { FieldHandle } from "../scan/fields";
 import { closeDropdown, findOptionsContainer, optText, optionElements, snapshot } from "./dropdown";
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
+import { dropdownText, sameValue } from "./verify";
 
 export async function fillTypeahead(
   h: FieldHandle,
@@ -15,11 +16,14 @@ export async function fillTypeahead(
   const input = (h.searchInput ?? h.el) as HTMLInputElement;
   if (normalize(input.value) && normalize(input.value) === normalize(intended))
     return { outcome: "ok", shown: input.value };
-  const before = snapshot();
-  focus(input);
-  setNativeValue(input, "");
-  await typeText(input, query || intended);
-  const c = await waitFor(() => findOptionsContainer(h, before), 2000);
+  const suggest = async () => {
+    const before = snapshot();
+    focus(input);
+    setNativeValue(input, "");
+    await typeText(input, query || intended);
+    return waitFor(() => findOptionsContainer(h, before), 2000);
+  };
+  const c = await suggest();
   if (!c) {
     // A dropdown's search box only filters its list: text left there selects nothing.
     if (h.desc.kind === "dropdown") {
@@ -43,9 +47,25 @@ export async function fillTypeahead(
     return { outcome: "flag", note: `No suggestion matched "${intended}"` };
   }
   const want = texts[i];
-  realClick(els[i]);
+  let el: HTMLElement | undefined = els[i];
+  // The AI takes seconds to choose; another fill taking focus meanwhile closes the list, detaching the option.
+  if (!el.isConnected || optText(el) !== want) {
+    const again = await suggest();
+    el = again ? optionElements(again).find((o) => optText(o) === want) : undefined;
+    if (!el) {
+      await closeDropdown(h, again);
+      blur(input);
+      return { outcome: "failed", note: `Could not select "${want}"` };
+    }
+  }
+  realClick(el);
   await sleep(40);
   blur(input);
+  // A dropdown's search box empties once an option is picked; the widget shows the pick.
+  if (h.desc.kind === "dropdown")
+    return sameValue(want, dropdownText(h), "contains")
+      ? { outcome: "ok", shown: want }
+      : { outcome: "mismatch", note: `Expected "${want}", shows "${dropdownText(h)}"` };
   const v = normalize(input.value || h.el.textContent || "");
   return v && (v.includes(normalize(want)) || normalize(want).includes(v))
     ? { outcome: "ok", shown: want }
