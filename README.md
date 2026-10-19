@@ -1,6 +1,43 @@
+<div align="center" markdown="1">
+
+<img src="public/icons/128.png" alt="AutoApply Icon" width="128" height="128">
+
 # AutoApply
 
-A Chrome extension (Manifest V3) that fills job applications on any website from your profile, using Google Gemini with your own API keys. It fills; **you** review and submit — it never clicks Submit, Next, Continue or Apply.
+A Chrome extension (Manifest V3) that fills job applications on any website from your profile, using Google Gemini with your own API keys. It fills; **you** review and submit.
+
+[![Chrome Extension](https://img.shields.io/badge/Chrome_Extension-MV3-34A853?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Preact](https://img.shields.io/badge/Preact-673AB8?logo=preact&logoColor=white)](https://preactjs.com/)
+[![Gemini API](https://img.shields.io/badge/Gemini_API-2496ED?logo=google&logoColor=white)](https://ai.google.dev/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-orange.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
+### Check it out! [AutoApply on Chrome Web Store]()
+
+</div>
+
+## Table of Contents
+- [App Preview](#-app-preview)
+- [Install](#install)
+  - [Get Gemini API keys](#get-gemini-api-keys)
+  - [Choose a model](#choose-a-model)
+  - [Fill in your profile](#fill-in-your-profile)
+  - [How filling works](#how-filling-works)
+- [Badge meanings](#badge-meanings)
+- [Privacy](#privacy)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+
+## App Preview
+<div align="center">
+  <img src="app_previews/extension_popup.png" alt="AutoApply Popup" height="247">
+  <img src="app_previews/settings_setup.png" alt="AutoApply Setup Settings" height="247">
+</div>
+
+<div align="center">
+  <img src="app_previews/settings_behaviour.png" alt="AutoApply Behaviour Settings" width="800">
+</div>
 
 ## Install
 
@@ -17,7 +54,7 @@ npm run build          # produces dist/
 
 The settings page opens on first install at the setup wizard.
 
-## Get Gemini API keys
+### Get Gemini API keys
 
 1. Go to <https://aistudio.google.com/apikey> and create a key.
 2. In AutoApply → **Setup** (or **AI (Gemini)**), paste it with a label and click **Add key**. The key is checked by fetching the model list; invalid keys are rejected with Google's error message.
@@ -27,18 +64,18 @@ The settings page opens on first install at the setup wizard.
 
 Each key row shows a status chip: _Healthy_, _Cooling down until 14:32_, _Daily quota used for &lt;model&gt; until 00:00 PT_, _Invalid key_, or _Model unavailable on this key_. Daily quotas reset at midnight Pacific time.
 
-## Choose a model
+### Choose a model
 
 The model list is fetched live with your key and shows only text-in/text-out models that support `generateContent` (no embedding, image, audio, live, TTS or Gemma models), **newest-added first**. A Flash-Lite model is preselected because it is fast and cheap; picking a model runs a quick validation call (✓/✗). You can also set an optional **fallback model**, used automatically when every key is exhausted for the primary model. Click **Refresh list** to re-fetch (it also refreshes automatically once a day).
 
-## Fill in your profile
+### Fill in your profile
 
 - **Setup → Upload résumé (PDF)**: it is attached to résumé/CV upload fields automatically, and its text (extracted locally with pdf.js) is given to Gemini as context. **Prefill profile from résumé** proposes values for empty profile fields only; tick what to keep.
 - **Profile**: contact details, work authorization per country, education, co-op, experience, projects, skills, preferences, background, referral, self-identification and essay guidance. Every field explains how it is used. Changes save automatically.
 - Yes/No questions have **Unset**, and sensitive ones also **Decline**: _Decline_ picks the "prefer not to say" option when the form offers it; _Unset_ means the field is flagged for you.
 - **Documents**: upload PDF/DOCX/TXT (≤ 5 MB) and mark one PDF as the primary résumé.
 
-## How filling works
+### How filling works
 
 1. Click **Fill this page** in the popup or press **Alt+Shift+F**. AutoApply never starts on its own; it scans the page (including iframes and shadow DOM) only when you ask.
 2. Instant pass (no network): name, email, phone, address and links are matched from your profile; questions you answered before (saved answers) fill immediately.
