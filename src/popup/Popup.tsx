@@ -59,6 +59,11 @@ export function Popup() {
 
   return (
     <div class="popup">
+      <h1 class="brand">
+        <a href="https://github.com/ExxML/AutoApply" target="_blank" rel="noreferrer">
+          <img src="/icons/48.png" alt="" width={24} height={24} /> AutoApply
+        </a>
+      </h1>
       <div class="host">{host || "No page"}</div>
       <div class="status" role="status">
         {statusText(info)}
