@@ -17,7 +17,8 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 </div>
 
 ## Table of Contents
-- [App Preview](#-app-preview)
+- [App Preview](#app-preview)
+- [Features](#features)
 - [Install](#install)
   - [Get Gemini API keys](#get-gemini-api-keys)
   - [Choose a model](#choose-a-model)
@@ -27,6 +28,7 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 - [Privacy](#privacy)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
+- [How It Works](#how-it-works)
 - [Development](#development)
 - [License](#license)
 
@@ -40,11 +42,21 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
   <img src="docs/app_previews/settings_behaviour.png" alt="AutoApply Behaviour Settings" width="800">
 </div>
 
+## Features
+
+- **One-click Filling**: Click **Fill this page** or press **Alt+Shift+F** to fill an application on any site, including fields inside iframes and shadow DOM.
+- **Semantic Matching**: Gemini picks dropdown, radio and checkbox options by meaning rather than exact wording, and operates custom dropdowns and typeaheads.
+- **AI Essay Drafts**: Open-ended questions are drafted from your profile, résumé and the job description, within the question's word/character limits.
+- **Saved Answers**: Answer a flagged question once and AutoApply can reuse your answer on future applications.
+- **Multi-Key Rotation**: Add several Gemini API keys and set a fallback model; AutoApply switches automatically when a key hits its rate limit or quota.
+
 ## Install
 
 Requirements: Node 20+ and Chrome/Chromium 120+.
 
 ```bash
+git clone https://github.com/ExxML/AutoApply.git
+cd AutoApply
 npm install
 npm run build          # produces dist/
 ```
@@ -55,13 +67,15 @@ npm run build          # produces dist/
 
 The settings page opens on first install at the setup wizard.
 
+Note: Other Chromium-based browsers that support Manifest V3 should also work, but only Chrome/Chromium is tested.
+
 ### Get Gemini API keys
 
 1. Go to <https://aistudio.google.com/apikey> and create a key.
 2. In AutoApply → **Setup** (or **AI (Gemini)**), paste it with a label and click **Add key**. The key is checked by fetching the model list; invalid keys are rejected with Google's error message.
 3. Add more keys if you hit rate limits. AutoApply rotates to the next healthy key automatically when one returns a quota or rate-limit error.
 
-> **Rate limits apply per Google Cloud project, not per key. Keys created in the same project share one quota.** To get more capacity, create keys in _separate_ projects.
+> **Rate limits apply per Google Cloud project, not per key. Keys created in the same project share one quota.** To get more capacity, create keys in _separate_ projects. Free tier limits vary by model; see [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) for up-to-date quotas.
 
 Each key row shows a status chip: _Healthy_, _Cooling down until 14:32_, _Daily quota used for &lt;model&gt; until 00:00 PT_, _Invalid key_, or _Model unavailable on this key_. Daily quotas reset at midnight Pacific time.
 
@@ -69,12 +83,17 @@ Each key row shows a status chip: _Healthy_, _Cooling down until 14:32_, _Daily 
 
 The model list is fetched live with your key and shows only text-in/text-out models that support `generateContent` (no embedding, image, audio, live, TTS or Gemma models), **newest-added first**. A Flash-Lite model is preselected because it is fast and cheap; picking a model runs a quick validation call (✓/✗). You can also set an optional **fallback model**, used automatically when every key is exhausted for the primary model. Click **Refresh list** to re-fetch (it also refreshes automatically once a day).
 
+The newest Gemini models are often under heavy load, and rejected requests may still use up your quota. If consistency matters to you, use a slightly less popular model as your primary or fallback.
+
 ### Fill in your profile
 
 - **Setup → Upload résumé (PDF)**: it is attached to résumé/CV upload fields automatically, and its text (extracted locally with pdf.js) is given to Gemini as context. **Prefill profile from résumé** proposes values for empty profile fields only; tick what to keep.
 - **Profile**: contact details, work authorization per country, education, co-op, experience, projects, skills, preferences, background, referral, self-identification and essay guidance. Every field explains how it is used. Changes save automatically.
 - Yes/No questions have **Unset**, and sensitive ones also **Decline**: _Decline_ picks the "prefer not to say" option when the form offers it; _Unset_ means the field is flagged for you.
 - **Documents**: upload PDF/DOCX/TXT (≤ 5 MB) and mark one PDF as the primary résumé.
+
+> [!NOTE]
+> Your profile, documents and saved answers are stored in your browser's local storage. Clearing your browser data or uninstalling AutoApply deletes them, so keep a backup with **Data → Export JSON** (tick **Include documents** to back up your files too).
 
 ### How filling works
 
@@ -119,6 +138,30 @@ Your profile, documents and settings live only in this browser (`chrome.storage.
 - **"No API key" / "No model selected"**: open the AI settings from the panel's button.
 - **Nothing happens on a page**: use **Fill this page** in the popup (or **Alt+Shift+F**), check that the site isn't excluded (Behavior), and reload pages that were open before the extension was installed or updated.
 - Turn on **Debug logging** (Behavior) to see per-stage timings in the panel and prompts/responses in the service-worker console (keys are never logged).
+
+## How It Works
+
+```
+User clicks "Fill this page" (or presses Alt+Shift+F)
+        │
+        ▼
+Content script scans the page, iframes and shadow DOM for fields
+        │
+        ▼
+Instant pass (no network): profile values and saved answers filled
+        │
+        ▼
+Remaining fields sent in one batch → background service worker
+        │   Adds profile + résumé text, calls Gemini with a healthy key
+        ▼
+Gemini returns a decision per field: fill / essay / consent / needs you
+        │
+        ├── fill  → value entered, then verified against the page
+        └── essay → drafted in a follow-up Gemini call, then entered
+        │
+        ▼
+Badges + bottom-right panel show results; user reviews and submits
+```
 
 ## Development
 
