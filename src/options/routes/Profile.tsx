@@ -85,6 +85,7 @@ export function Profile({ group }: { group: string }) {
       <h1>{spec.title}</h1>
       <Meter label="Profile completeness" value={completeness(profile)} />
       <p class="intro">{spec.intro}</p>
+      <p class="intro">Filled-in fields are sent to Gemini with your own key when a form needs AI.</p>
       <nav class="subnav" aria-label="Profile sections">
         {PROFILE_GROUPS.map((g) => (
           <a href={`#/profile/${g.id}`} aria-current={g.id === spec.id ? "page" : undefined}>

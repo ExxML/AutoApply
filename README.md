@@ -101,7 +101,7 @@ Consent and attestation boxes are **flagged, not ticked**, unless you turn on _A
 
 ## Privacy
 
-Your profile, documents and settings live only in this browser (`chrome.storage.local`). To answer questions, the extension sends your profile, résumé text and the page's field labels/job description **to Google Gemini under your own API keys**; there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
+Your profile, documents and settings live only in this browser (`chrome.storage.local`). To answer questions, the extension sends your profile, résumé text, saved answers and the page's field labels/job description **to Google Gemini under your own API keys**; there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
 
 ## Limitations
 

@@ -25,8 +25,9 @@ All of the data above is stored locally with Chrome's extension storage (`chrome
 When AutoApply fills a form, it may send data to the **Google Gemini API** (`generativelanguage.googleapis.com`) to map form fields, choose answers, or draft essay answers. A request can include:
 
 - form questions and options from the page
-- relevant profile information (including self-identification answers, which are used only for matching questions on the form)
+- your profile (every field you have filled in, including self-identification answers, which are used only for matching questions on the form)
 - your résumé text
+- your saved answers
 - the job title, company, URL and description
 
 Requests are authenticated with **your own** Gemini API key. Google processes them under its own terms: the [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms) and the [Google Privacy Policy](https://policies.google.com/privacy). Depending on your Google account and API tier, Google may use the data to improve its products. See Google's terms for details.
