@@ -5,6 +5,20 @@ import type { Decision } from "../../shared/types";
 const nullableStr = { type: "STRING", nullable: true };
 const CONFIDENCE = { type: "STRING", enum: ["high", "medium", "low"] };
 
+const DECISION_PROPS = {
+  fieldId: { type: "STRING" },
+  action: { type: "STRING", enum: ["fill", "essay", "consent", "skip", "flag"] },
+  text: nullableStr,
+  optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
+  intendedAnswer: nullableStr,
+  searchQuery: nullableStr,
+  checked: { type: "BOOLEAN", nullable: true },
+  documentId: nullableStr,
+  confidence: CONFIDENCE,
+  sources: { type: "ARRAY", items: { type: "STRING" } },
+  note: nullableStr,
+};
+
 export const MAPPING_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -12,19 +26,10 @@ export const MAPPING_SCHEMA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: {
-          fieldId: { type: "STRING" },
-          action: { type: "STRING", enum: ["fill", "essay", "consent", "skip", "flag"] },
-          text: nullableStr,
-          optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
-          intendedAnswer: nullableStr,
-          searchQuery: nullableStr,
-          checked: { type: "BOOLEAN", nullable: true },
-          documentId: nullableStr,
-          confidence: CONFIDENCE,
-          sources: { type: "ARRAY", items: { type: "STRING" } },
-          note: nullableStr,
-        },
+        properties: DECISION_PROPS,
+        // Without this Gemini orders optional keys alphabetically, so "text" is last: when the model wants to add
+        // "sources" after it, the grammar forbids closing into another key and the reply spills into the string.
+        propertyOrdering: Object.keys(DECISION_PROPS),
         required: ["fieldId", "action", "confidence"],
       },
     },
