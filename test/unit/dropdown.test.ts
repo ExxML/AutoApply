@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan } from "../../src/content/scan/fields";
-import { harvestOptions, openDropdown } from "../../src/content/fill/dropdown";
+import { harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 
 beforeAll(() => {
@@ -66,5 +66,27 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     );
     expect(r.outcome).toBe("flag");
     expect(h.searchInput!.value).toBe("");
+  });
+
+  it("a list too long to harvest is searched from its popup search box", async () => {
+    const { h, ul } = select2(`<li role="option">Aalto University</li><li role="option">Loading more results…</li>`);
+    ul.insertAdjacentHTML("beforebegin", `<input type="search" aria-controls="res" hidden>`);
+    const box = document.querySelector<HTMLInputElement>("input")!;
+    h.el.addEventListener("mousedown", () => (box.hidden = false));
+    h.el.addEventListener("click", () => box.focus());
+    box.addEventListener("input", () => {
+      ul.innerHTML = `<li role="option" class="loading-results">Searching…</li>`;
+      const q = box.value;
+      setTimeout(() => {
+        if (box.value !== q) return;
+        const hits = ["University of British Columbia", "University of Northern British Columbia"];
+        ul.innerHTML = hits.map((t) => `<li role="option">${t}</li>`).join("");
+      }, 1000);
+    });
+    expect(await searchOptions(h, "British Columbia")).toEqual([
+      "University of British Columbia",
+      "University of Northern British Columbia",
+    ]);
+    expect(ul.hidden).toBe(true);
   });
 });

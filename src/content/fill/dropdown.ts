@@ -196,6 +196,61 @@ export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promi
   return texts.length ? texts : null;
 }
 
+// Select2 keeps its search box in the popup, focused on open and tied to the list by aria-controls.
+function searchBoxOf(h: FieldHandle, c: HTMLElement): HTMLInputElement | undefined {
+  const a = document.activeElement;
+  return h.searchInput ?? (a && isTextInput(a) && !a.readOnly && controlledBy([a]).includes(c) ? a : undefined);
+}
+
+/** Types `query` into the open list's search box; waits until `want` finds something in the (re-rendered) list. */
+async function searchList<T>(
+  h: FieldHandle,
+  c: HTMLElement,
+  search: HTMLInputElement,
+  query: string,
+  want: (box: HTMLElement) => T | undefined,
+): Promise<{ box: HTMLElement; hit: T | undefined }> {
+  focus(search);
+  setNativeValue(search, "");
+  await typeText(search, query, 0);
+  let box = c;
+  const found = () => {
+    const b = box.isConnected ? box : findOptionsContainer(h, { boxes: new Set(), options: new Set() });
+    if (b) box = b;
+    return b ? want(b) : undefined;
+  };
+  let hit: T | undefined = (await waitFor(found, 800)) ?? undefined;
+  // Remote search (Select2 AJAX) can take over a second: keep waiting until the list's spinner goes.
+  if (!hit && busy([box, h.el])) {
+    await waitFor(() => found() || !busy([box, h.el]), PAGE_MAX_MS);
+    hit = found();
+  }
+  return { box, hit };
+}
+
+/**
+ * Options a dropdown lists for `query` in its popup search box, for remote lists too long to harvest (EA's
+ * colleges: thousands, 100 per page). Null if it has no search box or nothing matches.
+ */
+export async function searchOptions(h: FieldHandle, query: string): Promise<string[] | null> {
+  const c = await openDropdown(h);
+  if (!c) return null;
+  const search = searchBoxOf(h, c);
+  if (!search) {
+    await closeDropdown(h, c);
+    return null;
+  }
+  const stale = new Set(optionElements(c));
+  const { box, hit } = await searchList(h, c, search, query, (b) => {
+    const els = optionElements(b);
+    // "Searching…" is a spinner, not an empty result; the unfiltered list may linger until the search starts.
+    if (!els.length && busy([b, h.el])) return undefined;
+    return els.length !== stale.size || els.some((o) => !stale.has(o)) ? els : undefined;
+  });
+  await closeDropdown(h, box);
+  return hit?.length ? hit.map(optText) : null;
+}
+
 const shows = (h: FieldHandle, text: string) => sameValue(text, dropdownText(h), "contains");
 // Some widgets display only part of the picked option: Greenhouse's phone country shows "+1" for "Canada +1".
 const showsPart = (h: FieldHandle, text: string) => {
@@ -209,25 +264,11 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
   if (!c) return false;
   const match = (t: string) => normalize(t) === normalize(text);
   let el = optionElements(c).find((o) => match(optText(o)));
-  // Select2 keeps its search box in the popup, focused on open and tied to the list by aria-controls.
-  const a = document.activeElement;
-  const search = h.searchInput ?? (a && isTextInput(a) && !a.readOnly && controlledBy([a]).includes(c) ? a : undefined);
-  if (!el && search) {
-    focus(search);
-    setNativeValue(search, "");
-    await typeText(search, text, 0);
-    const found = () => {
-      const box = c!.isConnected ? c! : findOptionsContainer(h, { boxes: new Set(), options: new Set() });
-      if (box) c = box;
-      return box ? optionElements(box).find((o) => match(optText(o))) : undefined;
-    };
-    el = (await waitFor(found, 800)) ?? undefined;
-    // Remote search (Select2 AJAX) can take over a second: keep waiting until the list's spinner goes.
-    if (!el && busy([c!, h.el])) {
-      await waitFor(() => found() || !busy([c!, h.el]), PAGE_MAX_MS);
-      el = found();
-    }
-  }
+  const search = searchBoxOf(h, c);
+  if (!el && search)
+    ({ box: c, hit: el } = await searchList(h, c, search, text, (b) =>
+      optionElements(b).find((o) => match(optText(o))),
+    ));
   if (!el) {
     const all = await collectOptions(c, h.el, match);
     const k = all && [...all.keys()].find(match);

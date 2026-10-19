@@ -3,7 +3,7 @@ import { normalize } from "../../shared/normalize";
 import type { DocumentMeta } from "../../shared/types";
 import { localMatch, localMatchAll } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
-import { fillDropdown, harvestOptions } from "./dropdown";
+import { fillDropdown, harvestOptions, searchOptions } from "./dropdown";
 import { holdScroll } from "./events";
 import { compatibleDoc, fillFile } from "./file";
 import {
@@ -113,10 +113,13 @@ async function dispatch(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<F
           if (options) deps.harvested.set(h.id, options);
         }
         if (!options) {
-          if (!h.searchInput) return flag("Could not open the list");
-          return fillTypeahead({ ...h, el: h.searchInput }, answerOf(op), answerOf(op), (o) =>
-            deps.choose(h, answerOf(op), o).then((r) => r?.[0] ?? null),
-          );
+          if (h.searchInput)
+            return fillTypeahead({ ...h, el: h.searchInput }, answerOf(op), answerOf(op), (o) =>
+              deps.choose(h, answerOf(op), o).then((r) => r?.[0] ?? null),
+            );
+          // Too long to harvest (remote paging): choose among what its popup search finds instead.
+          options = await searchOptions(h, (op.type === "intended" && op.query) || answerOf(op));
+          if (!options) return flag(`Suggested: ${answerOf(op)}`);
         }
         let texts = textsFor(op, options);
         if (!texts) {
