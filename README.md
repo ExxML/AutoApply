@@ -32,12 +32,12 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 
 ## App Preview
 <div align="center">
-  <img src="app_previews/extension_popup.png" alt="AutoApply Popup" height="247">
-  <img src="app_previews/settings_setup.png" alt="AutoApply Setup Settings" height="247">
+  <img src="docs/app_previews/extension_popup.png" alt="AutoApply Popup" height="247">
+  <img src="docs/app_previews/settings_setup.png" alt="AutoApply Setup Settings" height="247">
 </div>
 
 <div align="center">
-  <img src="app_previews/settings_behaviour.png" alt="AutoApply Behaviour Settings" width="800">
+  <img src="docs/app_previews/settings_behaviour.png" alt="AutoApply Behaviour Settings" width="800">
 </div>
 
 ## Install
