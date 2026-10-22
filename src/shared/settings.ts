@@ -11,7 +11,7 @@ const base = z.object({
   essayDefaultWords: n(150, 10, 2000),
   coverLetterDefaultWords: n(300, 10, 2000),
   showBadges: b(true),
-  learnPrompts: b(true),
+  learnPrompts: b(false),
   excludedHosts: z.array(z.string()).catch([]),
   maxFieldsPerRequest: n(40, 1, 200),
   requestTimeoutMs: n(25000, 1000, 120000),
