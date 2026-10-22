@@ -3,6 +3,7 @@ import { setBody, stubLayout } from "./dom";
 import { consentPair, newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
 import { RE_OPTIONAL_CONSENT } from "../../src/shared/constants";
+import { extractJobContext } from "../../src/content/jobContextExtract";
 import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 
 beforeAll(stubLayout);
@@ -353,5 +354,16 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
   it("does not flag a résumé upload whose label runs into status text as sensitive (Lever)", () => {
     setBody(`<label>Resume/CV ✱ ATTACH RESUME/CV<input type="file"><span>Couldn't auto-read resume.</span></label>`);
     expect(fields()[0].sensitive).toBe(false);
+  });
+});
+
+describe("job context (§11.7)", () => {
+  it("keeps the text above the form when the page has no description (Lever's apply page)", () => {
+    setBody(`<div class="posting-headline"><h2>Infrastructure Engineer, Internship</h2><div>Washington, D.C. / Internship</div></div>
+      <form><label>Full name <input></label><p>Not part of the header</p></form>`);
+    const jc = extractJobContext(document, location);
+    expect(jc.text).toBe("");
+    expect(jc.header).toMatch(/^Infrastructure Engineer, Internship Washington, D\.C\. \/ Internship/);
+    expect(jc.header).not.toContain("Not part of the header");
   });
 });

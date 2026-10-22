@@ -100,6 +100,8 @@ export interface JobContext {
   company: string;
   jobTitle: string;
   text: string;
+  /** Page text above the form when there is no description: apply pages still name the job's location there. */
+  header?: string;
   capturedAt: number;
 }
 

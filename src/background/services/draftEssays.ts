@@ -26,7 +26,7 @@ export async function draftEssays(
       company: job?.company,
       title: job?.jobTitle,
       url: job?.url,
-      description: job?.text.slice(0, 8000),
+      description: job?.text.slice(0, 8000) || job?.header,
     }),
   };
   const target = (i: EssayItem) =>

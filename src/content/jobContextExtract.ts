@@ -67,16 +67,33 @@ function largestDescriptionBlock(doc: Document): string {
   return best ? collapse(best.innerText ?? best.textContent ?? "").slice(0, 8000) : "";
 }
 
+/** Visible text before the first form control (title, location, team on apply pages). */
+function headerText(doc: Document): string {
+  const first = doc.querySelector("input:not([type=hidden]),select,textarea");
+  const parts: string[] = [];
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n && parts.join(" ").length < 1000; n = walker.nextNode()) {
+    if (first && first.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) break;
+    const p = n.parentElement;
+    if (!p || p.closest("script,style,noscript,template") || !isVisible(p)) continue;
+    const t = n.textContent?.trim();
+    if (t) parts.push(t);
+  }
+  return collapse(parts.join(" ")).slice(0, 1000);
+}
+
 export function extractJobContext(doc: Document = document, loc: Location = location): JobContext {
   const ld = jsonLdJobPosting(doc);
   const h1 = collapse(doc.querySelector("h1")?.textContent ?? "");
   const org = ld?.hiringOrganization;
+  const text = ld?.description ? htmlToText(ld.description).slice(0, 8000) : largestDescriptionBlock(doc);
   return {
     url: loc.href,
     title: doc.title,
     jobTitle: h1 || meta(doc, "og:title") || doc.title,
     company: meta(doc, "og:site_name") || (typeof org === "string" ? org : (org?.name ?? "")) || companyFromHost(loc),
-    text: ld?.description ? htmlToText(ld.description).slice(0, 8000) : largestDescriptionBlock(doc),
+    text,
+    ...(text ? {} : { header: headerText(doc) }),
     capturedAt: Date.now(),
   };
 }

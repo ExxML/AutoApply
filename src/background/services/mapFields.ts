@@ -124,7 +124,7 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">) {
       company: input.job?.company,
       title: input.job?.jobTitle,
       url: input.job?.url,
-      descriptionExcerpt: input.job?.text.slice(0, 3000),
+      descriptionExcerpt: input.job?.text.slice(0, 3000) || input.job?.header,
     }),
     today: todayIso(),
   };
