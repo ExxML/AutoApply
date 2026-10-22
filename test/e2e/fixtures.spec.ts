@@ -83,6 +83,15 @@ test("semantic: relocation, negatively phrased sponsorship and EEO decline are c
   await expect(page.locator("autoapply-root .panel .status")).toHaveText("Done · 6 filled · 0 AI drafts · 1 need you");
 });
 
+test("followup: a question revealed by an answer is filled in a second pass", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "followup.html");
+  await fillPage(page, sw);
+  await expect(page.locator("#prov")).toHaveValue("British Columbia");
+  await waitDone(page);
+  await expect(badge(page, "Which province do you prefer?")).toHaveAttribute("data-color", "blue");
+});
+
 test("shadow: fields inside an open shadow root are filled", async ({ page, sw }) => {
   await seed(sw);
   await page.goto(BASE + "shadow.html");

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Developer | Northwind</title>
+    <script src="common.js"></script>
+  </head>
+  <body>
+    <h1>Developer application</h1>
+    <form onsubmit="return false;">
+      <fieldset>
+        <legend>Are you willing to relocate for this position?</legend>
+        <label><input type="radio" name="reloc" value="1" /> I am willing to relocate</label>
+        <label><input type="radio" name="reloc" value="0" /> I am not willing to relocate</label>
+      </fieldset>
+      <!-- Revealed by the answer above, like Greenhouse's race question after Hispanic/Latino "No". -->
+      <div id="follow" hidden>
+        <label for="prov">Which province do you prefer?</label>
+        <select id="prov">
+          <option value="">Select…</option>
+          <option>Ontario</option>
+          <option>British Columbia</option>
+        </select>
+      </div>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      document.querySelector("form").addEventListener("change", (e) => {
+        if (e.target.name === "reloc") document.getElementById("follow").hidden = e.target.value !== "1";
+      });
+    </script>
+  </body>
+</html>

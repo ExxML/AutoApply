@@ -76,7 +76,7 @@ const checkedByUs = new Set<Element>();
 const harvested = new Map<string, string[]>();
 let current: { groupId: string; ctrl: AbortController } | null = null;
 let running = false;
-let queued: { rerun: boolean } | null = null;
+let queued: { rerun: boolean; depth?: number } | null = null;
 let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
@@ -313,7 +313,7 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   else setStatus(h, "needs", "Needs your confirmation");
 }
 
-async function runPipeline(opts: { rerun?: boolean } = {}) {
+async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   if (running) {
     queued = { rerun: !!opts.rerun || !!queued?.rerun };
     return;
@@ -457,6 +457,10 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
     }
     await Promise.all(jobs);
     mark("done");
+    // Answers can reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race): fill those in another pass.
+    const depth = opts.depth ?? 0;
+    if (!ctrl.signal.aborted && depth < 2 && rescan().some((h) => !states.has(h.id)))
+      queued ??= { rerun: false, depth: depth + 1 };
   } catch (e) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
