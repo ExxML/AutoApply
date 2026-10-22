@@ -3,10 +3,12 @@ import { normalize } from "../../shared/normalize";
 import { localMatch } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
 import {
+  busy,
   closeDropdown,
   findOptionsContainer,
   optText,
   optionElements,
+  PAGE_MAX_MS,
   settle,
   snapshot,
   submitSearch,
@@ -30,7 +32,12 @@ export async function fillTypeahead(
     setNativeValue(input, "");
     await typeText(input, query || intended);
     if (h.searchInput) submitSearch(input);
-    const c = await waitFor(() => findOptionsContainer(h, before), 2000);
+    let c = await waitFor(() => findOptionsContainer(h, before), 2000);
+    // A slow suggestion search (Lever's location lookup) shows its spinner meanwhile: wait it out.
+    if (!c && busy([h.container])) {
+      await waitFor(() => findOptionsContainer(h, before) || !busy([h.container]), PAGE_MAX_MS);
+      c = findOptionsContainer(h, before);
+    }
     if (c) await settle(c);
     return c;
   };

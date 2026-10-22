@@ -235,3 +235,27 @@ describe("read-only input dropdowns (Workable)", () => {
     expect(await fillDropdown(h, ["Available immediately"])).toMatchObject({ outcome: "ok" });
   });
 });
+
+describe("slow typeahead suggestions", () => {
+  it("waits past the usual timeout while the field shows a loading spinner (Lever)", async () => {
+    setBody(`<div><label for="loc">Current location</label><input id="loc" role="combobox">
+      <div class="loading" hidden>Loading</div><div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    const spinner = document.querySelector<HTMLElement>(".loading")!;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    input.addEventListener("input", () => {
+      spinner.hidden = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        spinner.hidden = true;
+        document.getElementById("res")!.innerHTML = `<div role="option">Langley, BC, CAN</div>`;
+      }, 2600);
+    });
+    document.getElementById("res")!.addEventListener("click", (e) => {
+      input.value = (e.target as HTMLElement).textContent!;
+    });
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Langley", "Langley, BC, CAN", async () => 0);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Langley, BC, CAN" });
+  }, 10_000);
+});

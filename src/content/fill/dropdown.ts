@@ -150,9 +150,9 @@ function scroller(c: HTMLElement): HTMLElement | null {
 // complete once it stays quiet (no growth, no spinner) this long; a harvest budget cannot cut this wait, or no
 // scrollable list would ever fit in one.
 const QUIET_MS = 500;
-const PAGE_MAX_MS = 5000;
+export const PAGE_MAX_MS = 5000;
 const BUSY = "[aria-busy=true],[class*=loading i],[class*=spinner i]";
-const busy = (roots: Element[]) =>
+export const busy = (roots: Element[]) =>
   roots.some((r) => [r, ...r.querySelectorAll(BUSY)].some((el) => el.matches(BUSY) && isVisible(el)));
 
 // Workday loads its list in pages as it scrolls, with no spinner, so rows can be skipped; its rows declare the
