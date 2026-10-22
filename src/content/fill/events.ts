@@ -103,17 +103,32 @@ export function realClick(el: HTMLElement, at?: { x: number; y: number }) {
   const base = { bubbles: true, composed: true, cancelable: true, clientX, clientY, button: 0, view: window };
   const p = (type: string) => new PointerEvent(type, { ...base, pointerType: "mouse", isPrimary: true, pointerId: 1 });
   const m = (type: string) => new MouseEvent(type, base);
+  const t = innermost(el);
   dispatching(() => {
-    el.dispatchEvent(p("pointerover"));
-    el.dispatchEvent(p("pointerenter"));
-    el.dispatchEvent(m("mouseover"));
-    el.dispatchEvent(p("pointerdown"));
-    el.dispatchEvent(m("mousedown"));
+    t.dispatchEvent(p("pointerover"));
+    t.dispatchEvent(p("pointerenter"));
+    t.dispatchEvent(m("mouseover"));
+    t.dispatchEvent(p("pointerdown"));
+    t.dispatchEvent(m("mousedown"));
     el.focus?.({ preventScroll: true });
-    el.dispatchEvent(p("pointerup"));
-    el.dispatchEvent(m("mouseup"));
-    el.dispatchEvent(m("click"));
+    t.dispatchEvent(p("pointerup"));
+    t.dispatchEvent(m("mouseup"));
+    t.dispatchEvent(m("click"));
   });
+}
+
+/**
+ * Where a real pointer would land: inside a custom element's shadow root, whose listeners never see events
+ * dispatched on the host (SmartRecruiters' <spl-select-option>). Events still bubble out to the host.
+ */
+function innermost(el: HTMLElement): HTMLElement {
+  let t = el;
+  for (let i = 0; i < 4 && t.shadowRoot; i++) {
+    const inner = [...t.shadowRoot.children].find((c) => !c.matches("style,script,link,template,slot"));
+    if (!(inner instanceof HTMLElement) || isForbiddenClick(inner)) break;
+    t = inner;
+  }
+  return t;
 }
 
 type Valued = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;

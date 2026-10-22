@@ -4,6 +4,7 @@ import { newScanState, scan } from "../../src/content/scan/fields";
 import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
+import { realClick } from "../../src/content/fill/events";
 
 beforeAll(() => {
   stubLayout();
@@ -273,5 +274,18 @@ describe("text fills", () => {
       outcome: "ok",
       shown: "08/2026",
     });
+  });
+});
+
+describe("clicks", () => {
+  it("land inside a custom element's shadow root, where its listener is (SmartRecruiters)", () => {
+    setBody(`<x-option></x-option>`);
+    const host = document.querySelector<HTMLElement>("x-option")!;
+    const sr = host.attachShadow({ mode: "open" });
+    sr.innerHTML = `<style></style><div role="option">Langley</div>`;
+    let clicked = 0;
+    sr.querySelector("div")!.addEventListener("click", () => clicked++);
+    realClick(host);
+    expect(clicked).toBe(1);
   });
 });
