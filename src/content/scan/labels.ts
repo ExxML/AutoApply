@@ -54,7 +54,9 @@ export function controlLabel(el: HTMLElement): string {
   const nameFromContent = el.tagName === "BUTTON" || !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
   if (nameFromContent && !el.getAttribute("aria-label") && !el.getAttribute("title")) return "";
   try {
-    return collapse(computeAccessibleName(el));
+    const name = collapse(computeAccessibleName(el));
+    // Workday's questionnaire triggers name only their value: aria-label " Select One Required" on "Select One".
+    return nameFromContent && name.replace(/\s*\b(required|optional)$/i, "") === textOf(el) ? "" : name;
   } catch {
     return "";
   }

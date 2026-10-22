@@ -195,6 +195,15 @@ describe("widget classification (Appendix C.3)", () => {
     expect(fields().map((h) => h.desc.kind)).toEqual(["file"]);
   });
 
+  it("a trigger whose aria-label names only its value falls back to the question (Workday questionnaire)", () => {
+    setBody(
+      `<div><fieldset><legend><div id="rich-label47"><p><b>Do you hold any licenses?</b><abbr>*</abbr></p></div></legend>` +
+        `<div><div><div><button type="button" aria-haspopup="listbox" aria-label=" Select One Required">Select One</button>` +
+        `<input type="text" style="display:none"></div></div></div></fieldset></div>`,
+    );
+    expect(fields()[0].desc).toMatchObject({ kind: "dropdown", label: "Do you hold any licenses?", required: true });
+  });
+
   it("question button with aria-expanded/aria-controls → dropdown", () => {
     setBody(
       `<div><p>Which term are you available?</p><button type="button" aria-expanded="false" aria-controls="m">Pick</button></div>`,
