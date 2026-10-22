@@ -81,6 +81,9 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Current Location", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
     expect(deterministicValue(f("City", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
     expect(deterministicValue(f("Location (City)"), q)?.value).toBe(loc.value);
+    const search = { kind: "dropdown" as const, optionsKnown: false };
+    expect(deterministicValue(f("Location (City)", search), q)).toEqual({ ...loc, query: "Langley" });
+    expect(deterministicValue(f("Location", { kind: "dropdown", options: ["Vancouver"] }), q)).toBeNull();
     expect(deterministicValue(f("Office location", { kind: "typeahead" }), q)).toBeNull();
     expect(deterministicValue(f("School", { kind: "typeahead" }), q)).toBeNull();
   });

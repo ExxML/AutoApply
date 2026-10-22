@@ -69,7 +69,8 @@ export function deterministicValue(
   p: DeterministicProfile["personal"],
   hasCountryCodeField = false,
 ): DetResult | null {
-  const typeahead = d.kind === "typeahead";
+  // Typeaheads, and remote-search dropdowns (Greenhouse's "Location (City)"), list places to search.
+  const typeahead = d.kind === "typeahead" || (d.kind === "dropdown" && !d.optionsKnown);
   if (!TEXT_KINDS.has(d.kind) && !typeahead) return null;
   const key = keyFor(d);
   if (!key) return null;
