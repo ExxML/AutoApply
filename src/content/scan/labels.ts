@@ -123,7 +123,7 @@ export function hintFor(el: HTMLElement, container: Element): string {
   return "";
 }
 
-/** Nearest preceding h1–h4 / legend / [role=heading] in traversal order. */
+/** Nearest preceding h1–h6 / legend / [role=heading] in traversal order. */
 export function sectionFor(el: Element, order: Map<Element, number>, headings: HTMLElement[]): string {
   const pos = order.get(el) ?? 0;
   let best: HTMLElement | null = null;

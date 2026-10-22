@@ -171,9 +171,16 @@ export interface DeterministicProfile {
   learnedAnswers: Pick<LearnedAnswer, "id" | "question" | "normalizedQuestion" | "kind" | "options" | "answer">[];
 }
 
+/** Filled profile entries per repeatable form section (sections opened with an "Add" button). */
+export type EntryCounts = Record<
+  "experience" | "education" | "certifications" | "languages" | "projects" | "websites",
+  number
+>;
+
 export interface RuntimeConfig {
   settings: Settings;
   profileSnapshotForDeterministic: DeterministicProfile;
+  entryCounts: EntryCounts;
   documentsIndex: DocumentMeta[];
   /** The tab's host is in settings.excludedHosts. */
   excluded: boolean;

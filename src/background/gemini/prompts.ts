@@ -36,6 +36,7 @@ RULES:
 9. confidence: "high" = directly stated in the data; "medium" = clear inference from the data; "low" = a guess. Never use "fill" with "low"; use "flag" and put your best guess in "note".
 10. "sources": list the profile paths you used (e.g. ["preferences.willingToRelocate"]) or ["resume"] / ["learnedAnswers"].
 11. "note": at most 12 words, only when useful (why flagged, or the suggestion).
+12. A numbered repeated section ("Work Experience 2", "Education 1", "Languages 1", "Websites 2") is the Nth entry of the matching profile list (experience, education, skills.certifications, skills.languages, projects; websites: the links other than LinkedIn). Fill each from its own entry; never reuse one entry in two sections.
 Return only JSON matching the schema.`;
 
 export const CHOOSE_OPTIONS_PROMPT = `You select options in job application dropdowns for a candidate. Each item has: fieldId, question, intendedAnswer (what the candidate wants to answer), options (the exact options shown, each prefixed with its index, e.g. "3: Canada"), multiple.

@@ -3,7 +3,7 @@ import type { Message, Responses } from "../shared/messages";
 import { createStorage, migrate, session } from "../shared/storage";
 import { normalize } from "../shared/normalize";
 import { formatTime } from "../shared/time";
-import type { ApiError, ModelCaps, Settings, TabStatus } from "../shared/types";
+import type { ApiError, EntryCounts, ModelCaps, Profile, Settings, TabStatus } from "../shared/types";
 import { defaultSettings } from "../shared/settings";
 import { createGemini, listModels } from "./gemini/client";
 import {
@@ -149,6 +149,19 @@ async function updateTabStatus(tabId: number, fn: (s: TabStatus) => void) {
 const sendToTab = (tabId: number, msg: Message, frameId?: number) =>
   chrome.tabs.sendMessage(tabId, msg, frameId === undefined ? {} : { frameId }).catch(() => undefined);
 
+function entryCounts(p: Profile): EntryCounts {
+  const { links } = p.personal;
+  return {
+    experience: p.experience.filter((e) => e.title || e.company).length,
+    education: p.education.filter((e) => e.school).length,
+    certifications: p.skills.certifications.filter((c) => c.name).length,
+    languages: p.skills.languages.filter((l) => l.language).length,
+    projects: p.projects.filter((x) => x.name).length,
+    // LinkedIn has its own field on the forms that have a Websites section
+    websites: [links.github, links.portfolio, links.website, ...links.other.map((o) => o.url)].filter(Boolean).length,
+  };
+}
+
 // ---------- router ----------
 type Handler<T extends Message["type"]> = (
   msg: Extract<Message, { type: T }>,
@@ -174,6 +187,7 @@ const handlers: Handlers = {
           answer,
         })),
       },
+      entryCounts: entryCounts(s.profile),
       documentsIndex: s.documentsIndex,
       excluded,
       selectedModel: s.selectedModel,

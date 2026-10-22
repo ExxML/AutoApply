@@ -21,7 +21,7 @@ export const CANDIDATE_SELECTOR = [
   DROPDOWN_TRIGGER_SELECTORS,
 ].join(",");
 
-const HEADING_SELECTOR = "h1,h2,h3,h4,legend,[role=heading]";
+const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6,legend,[role=heading]";
 const SKIP_TAGS = new Set([
   "SCRIPT",
   "STYLE",

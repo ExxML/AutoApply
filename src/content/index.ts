@@ -20,6 +20,7 @@ import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
 import { isFilling, sleep } from "./fill/events";
 import { findDropzones } from "./fill/file";
+import { addEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
 import { consentPair, newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
@@ -331,6 +332,7 @@ async function runPipeline(opts: { rerun?: boolean } = {}) {
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
     setBadgesVisible(config.settings.showBadges);
+    await addEntries(config.entryCounts, ctrl.signal);
     const all = rescan();
     mark("scan");
     const targets = all.filter((h) => {
