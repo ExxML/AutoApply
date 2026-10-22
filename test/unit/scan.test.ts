@@ -31,6 +31,11 @@ describe("label extraction (§11.5)", () => {
     expect(fields()[0].desc.label).toBe("Current location");
   });
 
+  it("strips Lever's ✱ required marker", () => {
+    setBody(`<label><div>Full name<span>✱</span></div><input required></label>`);
+    expect(fields()[0].desc).toMatchObject({ label: "Full name", required: true });
+  });
+
   it("prefers aria-labelledby", () => {
     setBody(
       `<span id="q">Why do you want this job?</span><label for="t">ignored</label><textarea id="t" aria-labelledby="q"></textarea>`,
