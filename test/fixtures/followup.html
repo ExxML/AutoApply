@@ -8,6 +8,7 @@
   <body>
     <h1>Developer application</h1>
     <form onsubmit="return false;">
+      <label for="em">Email</label> <input id="em" type="email" />
       <fieldset>
         <legend>Are you willing to relocate for this position?</legend>
         <label><input type="radio" name="reloc" value="1" /> I am willing to relocate</label>
@@ -26,7 +27,10 @@
     </form>
     <script>
       document.querySelector("form").addEventListener("change", (e) => {
-        if (e.target.name === "reloc") document.getElementById("follow").hidden = e.target.value !== "1";
+        if (e.target.name !== "reloc") return;
+        document.getElementById("follow").hidden = e.target.value !== "1";
+        // Like SmartRecruiters re-rendering after its résumé parse: a field filled earlier comes back empty.
+        document.getElementById("em").value = "";
       });
     </script>
   </body>

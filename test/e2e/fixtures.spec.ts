@@ -89,6 +89,7 @@ test("followup: a question revealed by an answer is filled in a second pass", as
   await fillPage(page, sw);
   await expect(page.locator("#prov")).toHaveValue("British Columbia");
   await waitDone(page);
+  await expect(page.locator("#em")).toHaveValue("ada@example.com");
   await expect(badge(page, "Which province do you prefer?")).toHaveAttribute("data-color", "blue");
 });
 
