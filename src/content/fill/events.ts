@@ -76,11 +76,13 @@ export function isForbiddenClick(el: Element): boolean {
   const b = el.closest<HTMLElement>("button,a,input[type=submit],input[type=image],[role=button],[role=link]");
   if (!b) return false;
   if (b instanceof HTMLInputElement) return true;
+  // Toggles (aria-pressed: Ashby's Yes/No pills) and popup openers submit nothing, whatever their type says.
   if (
     b instanceof HTMLButtonElement &&
     b.type === "submit" &&
     !b.hasAttribute("aria-haspopup") &&
-    !b.hasAttribute("aria-expanded")
+    !b.hasAttribute("aria-expanded") &&
+    !b.hasAttribute("aria-pressed")
   )
     return true;
   if (b instanceof HTMLAnchorElement) {

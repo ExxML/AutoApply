@@ -185,19 +185,30 @@ describe("native selects too long to scan", () => {
   });
 });
 
+const deps = () => ({
+  documents: [],
+  getDocument: async () => null,
+  choose: async () => null,
+  checkedByUs: new Set<Element>(),
+  harvested: new Map<string, string[]>(),
+  signal: new AbortController().signal,
+});
+
 describe("fill engine", () => {
+  it("clicks Yes/No toggle pills even though they default to type=submit (Ashby)", async () => {
+    setBody(`<div><label>Willing to relocate?</label><div>
+      <button aria-pressed="false">Yes</button><button aria-pressed="false">No</button></div></div>`);
+    for (const b of document.querySelectorAll("button"))
+      b.addEventListener("click", () => b.setAttribute("aria-pressed", "true"));
+    const h = scan(newScanState()).handles[0];
+    expect(await fill(h, { type: "options", texts: ["Yes"] }, deps())).toMatchObject({ outcome: "ok" });
+    expect(document.querySelector("button")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("a refused click fails that field instead of rejecting the whole fill", async () => {
     setBody(`<div role="radiogroup" aria-label="Relocate?">
       <a href="/next"><span role="radio" aria-checked="false">Yes</span></a><span role="radio" aria-checked="false">No</span></div>`);
     const h = scan(newScanState()).handles[0];
-    const deps = {
-      documents: [],
-      getDocument: async () => null,
-      choose: async () => null,
-      checkedByUs: new Set<Element>(),
-      harvested: new Map<string, string[]>(),
-      signal: new AbortController().signal,
-    };
-    await expect(fill(h, { type: "options", texts: ["Yes"] }, deps)).resolves.toMatchObject({ outcome: "failed" });
+    await expect(fill(h, { type: "options", texts: ["Yes"] }, deps())).resolves.toMatchObject({ outcome: "failed" });
   });
 });
