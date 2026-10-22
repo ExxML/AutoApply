@@ -304,7 +304,9 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   const accept = mode === "accept";
   // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
   const options = h.desc.options ?? harvested.get(h.id);
-  const pair = d ? d.optionIndexes : options && consentPair(options);
+  // The AI may answer "consent" without naming the two options (Ramp's SMS question): read them locally then.
+  const pair =
+    d?.optionIndexes?.length === 2 ? d.optionIndexes : ((options && consentPair(options)) ?? d?.optionIndexes);
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
   const op: FillOp | null =
     h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;

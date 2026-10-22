@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { consentPair, newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
+import { RE_OPTIONAL_CONSENT } from "../../src/shared/constants";
 import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 
 beforeAll(stubLayout);
@@ -178,6 +179,13 @@ describe("grouping (§11.5)", () => {
     expect(consentPair(["Do Not Acknowledge", "Acknowledge"])).toEqual([1, 0]);
     expect(consentPair(["Select…", "Yes, I agree", "No, I do not agree"])).toEqual([1, 2]);
     expect(consentPair(["Yes", "No"])).toBeNull();
+    expect(consentPair(["Yes - I consent to texts", "No - I do not consent to texts"])).toEqual([0, 1]);
+    // Ramp: an SMS opt-in is a consent question, and an optional one.
+    setBody(`<fieldset><legend>I agree to receive text message updates regarding my application. Privacy Policy</legend>
+      <label><input type="radio" name="sms"> Yes - I consent to receiving text messages</label>
+      <label><input type="radio" name="sms"> No - I do not consent to receiving text messages</label></fieldset>`);
+    expect(fields()[0].consent).toBe(true);
+    expect(RE_OPTIONAL_CONSENT.test(fields()[0].desc.label)).toBe(true);
   });
 });
 
