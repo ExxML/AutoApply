@@ -131,8 +131,9 @@ export const DROPDOWN_TRIGGER_SELECTORS = [
   ".select2-selection",
   ".vs__dropdown-toggle",
   '[class*="dropdown-toggle"]',
-  '[data-automation-id*="select" i]',
-  '[data-testid*="select" i]',
+  // Not "select-files" upload buttons (Workday): clicking one opens the OS file picker.
+  '[data-automation-id*="select" i]:not([data-automation-id*="file" i])',
+  '[data-testid*="select" i]:not([data-testid*="file" i])',
 ].join(",");
 
 export const OPTION_SELECTORS = [

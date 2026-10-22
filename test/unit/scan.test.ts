@@ -186,6 +186,15 @@ describe("widget classification (Appendix C.3)", () => {
     expect(hs[0].desc.optionsKnown).toBe(false);
   });
 
+  it("a 'Select files' upload button is not a dropdown (Workday: clicking it opens the file picker)", () => {
+    setBody(
+      `<div><label>Resume/CV</label><div data-automation-id="file-upload-drop-zone">Drop files here or ` +
+        `<button type="button" data-automation-id="select-files">Select files</button></div>` +
+        `<input type="file" data-automation-id="file-upload-input-ref" style="display:none"></div>`,
+    );
+    expect(fields().map((h) => h.desc.kind)).toEqual(["file"]);
+  });
+
   it("question button with aria-expanded/aria-controls → dropdown", () => {
     setBody(
       `<div><p>Which term are you available?</p><button type="button" aria-expanded="false" aria-controls="m">Pick</button></div>`,
