@@ -272,7 +272,17 @@ async function drainChoose() {
 function rescan(): FieldHandle[] {
   const { handles: hs } = scan(scanState);
   const all = [...hs, ...findDropzones(hs, scanState)];
-  for (const h of all) handles.set(h.id, h);
+  for (const h of all) {
+    // Dropzone.js (Teamtailor) swaps in a new hidden input after each upload: it is the same, uploaded field.
+    const old =
+      h.desc.kind === "file" && !states.has(h.id)
+        ? [...handles.values()].find(
+            (o) => o.desc.kind === "file" && o.desc.label === h.desc.label && !o.el.isConnected && states.has(o.id),
+          )
+        : undefined;
+    if (old) states.set(h.id, states.get(old.id)!);
+    handles.set(h.id, h);
+  }
   return all;
 }
 

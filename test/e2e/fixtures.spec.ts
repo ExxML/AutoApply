@@ -91,6 +91,8 @@ test("followup: a question revealed by an answer is filled in a second pass", as
   await expect(page.locator("#prov")).toHaveValue("British Columbia");
   await waitDone(page);
   await expect(page.locator("#em")).toHaveValue("ada@example.com");
+  // The swapped-in file input is the same, already uploaded field.
+  expect(await page.evaluate(() => (window as unknown as { uploads: number }).uploads)).toBe(1);
   await expect(badge(page, "Which province do you prefer?")).toHaveAttribute("data-color", "blue");
 });
 

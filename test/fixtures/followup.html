@@ -23,9 +23,20 @@
           <option>British Columbia</option>
         </select>
       </div>
+      <div id="cvzone"><label for="cv">Resume</label> <input id="cv" type="file" /></div>
       <button type="submit">Submit application</button>
     </form>
     <script>
+      // Like Dropzone.js (Teamtailor): each upload swaps in a fresh, empty file input.
+      window.uploads = 0;
+      document.getElementById("cvzone").addEventListener("change", (e) => {
+        if (e.target.type !== "file") return;
+        window.uploads++;
+        const fresh = document.createElement("input");
+        fresh.type = "file";
+        fresh.id = "cv";
+        e.target.replaceWith(fresh);
+      });
       document.querySelector("form").addEventListener("change", (e) => {
         if (e.target.name !== "reloc") return;
         document.getElementById("follow").hidden = e.target.value !== "1";
