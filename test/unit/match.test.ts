@@ -117,6 +117,11 @@ describe("fill formatting (§14.2, §14.3)", () => {
     expect(formatDateFor(input("text", "DD-MM-YYYY"), "2027-05-03")).toBe("03-05-2027");
     expect(formatDateFor(input("text", "MM/YYYY"), "2027-05")).toBe("05/2027");
     expect(formatDateFor(input("text"), "2027-05-03")).toBe("2027-05-03");
+    // react-datepicker (Ashby) reads ISO as UTC (a day early in the Americas): use its MM/DD/YYYY default.
+    const wrap = document.createElement("div");
+    wrap.className = "react-datepicker__input-container";
+    const picker = wrap.appendChild(input("text", "Pick date..."));
+    expect(formatDateFor(picker, "2028-05")).toBe("05/01/2028");
   });
   it("truncates to maxLength at a word boundary", () => {
     expect(fitLength("hello wonderful world", 15)).toBe("hello wonderful");

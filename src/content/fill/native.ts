@@ -40,8 +40,9 @@ export function formatDateFor(el: HTMLInputElement, value: string): string {
   if (!p) return value;
   if (el.type === "date") return `${p.y}-${pad(p.m)}-${pad(p.d ?? 1)}`;
   if (el.type === "month") return `${p.y}-${pad(p.m)}`;
-  const ph = (el.placeholder || "").trim();
-  const f = RE_DATE_PH.exec(ph);
+  // react-datepicker (Ashby) reads ISO dates as UTC, a day early west of Greenwich; its default format is MM/DD/YYYY.
+  const picker = el.closest(".react-datepicker__input-container") ? "MM/DD/YYYY" : "";
+  const f = RE_DATE_PH.exec((el.placeholder || "").trim()) ?? RE_DATE_PH.exec(picker);
   if (!f) return value;
   const parts: Record<string, string> = {
     mm: pad(p.m),
