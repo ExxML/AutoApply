@@ -26,7 +26,8 @@ export function dropdownText(h: FieldHandle): string {
     const o = h.hiddenSelect.options[h.hiddenSelect.selectedIndex];
     if (!isPlaceholderOption(o, h.hiddenSelect.selectedIndex)) return collapse(o.text);
   }
-  return h.searchInput?.value ?? "";
+  // A read-only input opening the list (Workable) shows the pick as its own value.
+  return (h.searchInput ?? (h.el instanceof HTMLInputElement ? h.el : undefined))?.value ?? "";
 }
 
 export function readValue(h: FieldHandle): string {

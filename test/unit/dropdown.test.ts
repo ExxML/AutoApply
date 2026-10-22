@@ -212,3 +212,26 @@ describe("fill engine", () => {
     await expect(fill(h, { type: "options", texts: ["Yes"] }, deps())).resolves.toMatchObject({ outcome: "failed" });
   });
 });
+
+describe("read-only input dropdowns (Workable)", () => {
+  it("verifies the pick from the trigger input's own value", async () => {
+    setBody(`<div><label><span id="l">Notice period</span>
+      <input role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="lb" aria-labelledby="l" readonly placeholder="Select an option…"></label>
+      <ul id="lb" role="listbox" hidden></ul></div>`);
+    const input = document.querySelector("input")!;
+    const lb = document.getElementById("lb")!;
+    input.addEventListener("mousedown", () => {
+      input.setAttribute("aria-expanded", "true");
+      lb.hidden = false;
+      lb.innerHTML = `<li role="option">Available immediately</li><li role="option">1 week</li>`;
+      for (const o of lb.children)
+        o.addEventListener("click", () => {
+          input.value = o.textContent!;
+          lb.hidden = true;
+        });
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc.kind).toBe("dropdown");
+    expect(await fillDropdown(h, ["Available immediately"])).toMatchObject({ outcome: "ok" });
+  });
+});
