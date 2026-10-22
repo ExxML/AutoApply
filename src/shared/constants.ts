@@ -212,7 +212,7 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/portfolio|personal (web)?site|website/i, "portfolio"],
   [/^city|\btown\b/i, "city"],
   [/postal|zip/i, "postalCode"],
-  [/pronouns?/i, "pronouns"],
+  [/\bpronouns?\b/i, "pronouns"],
   [/^address( line)? ?1|street address/i, "line1"],
   [/address( line)? ?2|\bapt\b|\bsuite\b|\bunit\b/i, "line2"],
   [/\b(province|state|region)\b/i, "region"],

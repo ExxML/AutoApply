@@ -70,6 +70,8 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Email address", { kind: "email" }), p)?.value).toBe("ada@example.com");
     expect(deterministicValue(f("LinkedIn profile"), p)?.value).toBe("https://linkedin.com/in/ada");
     expect(deterministicValue(f("Province / State"), p)?.value).toBe("British Columbia");
+    // Lever: "Name Pronunciation | How do you pronounce your name?" is not a pronouns question.
+    expect(deterministicValue(f("Name Pronunciation | How do you pronounce your name?"), p)).toBeNull();
   });
   it("returns empty values for recognized fields unset in the profile", () => {
     expect(deterministicValue(f("GitHub"), p)).toEqual({ value: "", path: "personal.links.github" });
