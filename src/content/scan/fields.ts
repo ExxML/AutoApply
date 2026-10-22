@@ -146,7 +146,8 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         ? groupLabel(u.groupEl ?? null) || precedingText(container, members![0], memberLabels)
         : ownLabel(el, u, owner) ||
           (u.searchInput ? controlLabel(u.searchInput) : "") ||
-          precedingText(container, el, memberLabels)) || fallbackLabel(u.searchInput ?? el);
+          precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
+      fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
     const nameId = `${el.getAttribute("name") ?? ""} ${el.id}`;
     if (RE_SKIP_LABEL.test(label) || RE_SKIP_LABEL.test(nameId)) continue;

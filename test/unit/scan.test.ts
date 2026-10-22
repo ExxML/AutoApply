@@ -338,6 +338,12 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("labels an upload named only 'Choose a file or drop it here' by its context (SmartRecruiters)", () => {
+    setBody(`<form><div><h3>Resume</h3><label for="u">Choose a file or drop it here</label><input type="file" id="u"></div>
+      <div><label for="n">Name</label><input id="n"></div></form>`);
+    expect(fields()[0].desc.label).toBe("Resume");
+  });
+
   it("skips a résumé uploader that only autofills the form (Ashby)", () => {
     setBody(`<div><input type="file" aria-describedby="h"><p id="h">Upload your resume here to autofill key application fields.</p></div>
       <div><label for="r">Resume</label><input type="file" id="r"></div>`);
