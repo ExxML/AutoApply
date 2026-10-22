@@ -61,6 +61,17 @@ describe("response validation (§10.8.1)", () => {
     expect(out[0].optionIndexes).toEqual([1]);
   });
 
+  it("a skipped required field becomes a flag", () => {
+    const out = validateDecisions(
+      [field("d", { required: true }), field("o")],
+      [
+        { fieldId: "d", action: "skip", confidence: "high" },
+        { fieldId: "o", action: "skip", confidence: "high" },
+      ],
+    );
+    expect(out.map((d) => d.action)).toEqual(["flag", "skip"]);
+  });
+
   it("low confidence becomes a flag with the suggestion kept", () => {
     const out = validateDecisions(fields, [{ fieldId: "f2", action: "fill", optionIndexes: [0], confidence: "low" }]);
     expect(out[1]).toMatchObject({ action: "flag", suggestion: "Yes" });

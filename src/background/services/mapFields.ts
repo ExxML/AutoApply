@@ -88,6 +88,8 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
         d.optionIndexes = [idx[0]];
       }
     }
+    // A required field left blank blocks the application: the user must see it.
+    if (d.action === "skip" && f.required) d = flag(f.id, r.note || "Required field", suggestionOf(r, f));
     if (d.action === "fill" && d.confidence === "low") d = flag(f.id, r.note || "Low confidence", suggestionOf(r, f));
     if (d.action === "flag" && !d.suggestion && r.action !== "flag") d.suggestion = suggestionOf(r, f);
     out.set(f.id, d);

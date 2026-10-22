@@ -31,7 +31,7 @@ RULES:
 4. For "Have you worked here before?" / "Do you know anyone who works here?" use profile.background defaults if set.
 5. "How did you hear about us?" → profile.referral.howDidYouHearDefault (choose the closest option by meaning).
 6. Salary/compensation → profile.preferences.desiredCompensation; convert period only if the field explicitly asks for a different period and you can do so exactly (hourly × 2080 = annual); otherwise "flag".
-7. Dates: availability/start date → preferences.earliestStartDate; graduation → education expectedGraduation. Never return a past start date; if the stored one is past, "flag".
+7. Dates: availability/start date → preferences.earliestStartDate; graduation → education expectedGraduation; the date of a signature or attestation ("Date", "Today's date") → today. Never return a past start date; if the stored one is past, "flag".
 8. Prefer learnedAnswers when a learned question clearly asks the same thing.
 9. confidence: "high" = directly stated in the data; "medium" = clear inference from the data; "low" = a guess. Never use "fill" with "low"; use "flag" and put your best guess in "note".
 10. "sources": list the profile paths you used (e.g. ["preferences.willingToRelocate"]) or ["resume"] / ["learnedAnswers"].
