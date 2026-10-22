@@ -147,6 +147,7 @@ export const OPTION_SELECTORS = [
   ".select2-results__option",
   ".vs__dropdown-option",
   "li[data-value]",
+  ".dropdown-location", // Lever's location suggestions
   '[data-automation-id*="promptOption" i]',
 ].join(",");
 

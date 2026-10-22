@@ -35,7 +35,18 @@ export function isTypeaheadInput(input: HTMLInputElement, label: string): boolea
   const cls = typeof input.className === "string" ? input.className : "";
   return (
     (RE_TYPEAHEAD_HINT.test(label) || RE_TYPEAHEAD_HINT.test(cls)) &&
-    (input.hasAttribute("aria-controls") || input.hasAttribute("aria-owns"))
+    (input.hasAttribute("aria-controls") || input.hasAttribute("aria-owns") || keepsPick(input))
+  );
+}
+
+/** A hidden sibling input stores the picked suggestion (Lever: "location" → "selectedLocation"). */
+function keepsPick(input: HTMLInputElement): boolean {
+  const name = input.name.toLowerCase();
+  return (
+    !!name &&
+    [...(input.parentElement?.children ?? [])].some(
+      (s) => s instanceof HTMLInputElement && s.type === "hidden" && s.name.toLowerCase().includes(name),
+    )
   );
 }
 

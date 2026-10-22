@@ -251,12 +251,21 @@ describe("widget classification (Appendix C.3)", () => {
     expect(findOptionsContainer(h, before)).toBe(document.querySelector("ul"));
   });
 
-  it("typeaheads: combobox inputs, aria-autocomplete, and location inputs with aria-controls", () => {
+  it("typeaheads: combobox inputs, aria-autocomplete, and location inputs with aria-controls or a picked-value input", () => {
     setBody(`<div><label for="a">School</label><input id="a" role="combobox"></div>
       <div><label for="b">Skills</label><input id="b" aria-autocomplete="list"></div>
       <div><label for="c">Location</label><input id="c" aria-controls="sugg"></div>
-      <div><label for="d">Nickname</label><input id="d" aria-controls="x"></div>`);
-    expect(fields().map((h) => h.desc.kind)).toEqual(["typeahead", "typeahead", "typeahead", "text"]);
+      <div><label for="d">Nickname</label><input id="d" aria-controls="x"></div>
+      <div><label for="e">Current location</label><input id="e" name="location"><input type="hidden" name="selectedLocation"></div>
+      <div><label for="f">City</label><input id="f" name="city"><input type="hidden" name="token"></div>`);
+    expect(fields().map((h) => h.desc.kind)).toEqual([
+      "typeahead",
+      "typeahead",
+      "typeahead",
+      "text",
+      "typeahead",
+      "text",
+    ]);
   });
 
   it("an open dropdown's popup listbox and search box are not separate fields", () => {
