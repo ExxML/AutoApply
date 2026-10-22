@@ -297,6 +297,14 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(scan(state).handles.map((h) => h.id)).toEqual(a.map((h) => h.id));
   });
 
+  it("treats a leading empty-valued option as a prompt, not a prefilled answer (Lever)", () => {
+    setBody(`<label>School <select><option value="">Click Here (If you encounter an issue, …)</option>
+      <option>Aalborg University</option><option value="">None</option></select></label>`);
+    const [h] = fields();
+    expect(h.prefilled).toBe(false);
+    expect(h.desc.options).toEqual(["Aalborg University", "None"]);
+  });
+
   it("flags payment and government-id fields as sensitive", () => {
     setBody(
       `<label>Card number <input autocomplete="cc-number"></label><label>Social Insurance Number <input></label>`,

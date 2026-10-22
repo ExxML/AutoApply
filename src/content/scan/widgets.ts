@@ -43,6 +43,8 @@ export function isPlaceholderOption(o: HTMLOptionElement, index: number): boolea
   const text = collapse(o.text);
   if (!text) return true;
   if (!o.value && RE_PLACEHOLDER_OPTION.test(text)) return true;
+  // A leading option with an explicitly empty value is a prompt, whatever it says (Lever: "Click Here (If you …").
+  if (index === 0 && o.value === "" && o.hasAttribute("value")) return true;
   return index === 0 && o.disabled && o.defaultSelected;
 }
 
