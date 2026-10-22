@@ -9,8 +9,9 @@ const DECISION_PROPS = {
   fieldId: { type: "STRING" },
   action: { type: "STRING", enum: ["fill", "essay", "consent", "skip", "flag"] },
   text: nullableStr,
-  optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
+  // Before optionIndexes: the model picks the right index more often once it has written the option it means.
   intendedAnswer: nullableStr,
+  optionIndexes: { type: "ARRAY", items: { type: "INTEGER" }, nullable: true },
   searchQuery: nullableStr,
   checked: { type: "BOOLEAN", nullable: true },
   documentId: nullableStr,

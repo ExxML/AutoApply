@@ -53,6 +53,14 @@ describe("response validation (§10.8.1)", () => {
     expect(out[3].optionIndexes).toEqual([0, 2]);
   });
 
+  it("a single-choice decision follows the option the model names over its index", () => {
+    const out = validateDecisions(
+      [field("y", { kind: "select", options: ["2024", "2028"] })],
+      [{ fieldId: "y", action: "fill", intendedAnswer: "2028", optionIndexes: [0], confidence: "high" }],
+    );
+    expect(out[0].optionIndexes).toEqual([1]);
+  });
+
   it("low confidence becomes a flag with the suggestion kept", () => {
     const out = validateDecisions(fields, [{ fieldId: "f2", action: "fill", optionIndexes: [0], confidence: "low" }]);
     expect(out[1]).toMatchObject({ action: "flag", suggestion: "Yes" });

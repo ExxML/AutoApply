@@ -8,6 +8,7 @@ import type {
   Profile,
   Settings,
 } from "../../shared/types";
+import { normalize } from "../../shared/normalize";
 import { todayIso } from "../../shared/time";
 import type { Gemini } from "../gemini/client";
 import { BadOutputError, BlockedError } from "../gemini/errors";
@@ -74,6 +75,10 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
     if (!f || out.has(r.fieldId)) continue;
     let d: Decision = { ...r };
     if (d.action === "fill" && CHOICE_KINDS.has(f.kind) && f.optionsKnown && f.options?.length) {
+      // The option the model names beats its index, which it gets wrong in numeric lists (meant 2028, sent "2: 2024").
+      const said = d.intendedAnswer && !isMulti(f) ? normalize(d.intendedAnswer) : "";
+      const named = said ? f.options.findIndex((o) => normalize(o) === said) : -1;
+      if (named >= 0) d.optionIndexes = [named];
       const idx = d.optionIndexes;
       if (!idx?.length) {
         if (!(f.kind === "dropdown" && d.intendedAnswer)) d = flag(f.id, "No option chosen", suggestionOf(r, f));
@@ -155,7 +160,9 @@ export async function mapFields(
       if (!(e instanceof BadOutputError || e instanceof BlockedError)) throw e;
       if (chunk.length > 1) {
         const mid = Math.ceil(chunk.length / 2);
-        return (await Promise.all([runChunk(chunk.slice(0, mid), retried), runChunk(chunk.slice(mid), retried)])).flat();
+        return (
+          await Promise.all([runChunk(chunk.slice(0, mid), retried), runChunk(chunk.slice(mid), retried)])
+        ).flat();
       }
       if (e instanceof BadOutputError && !retried) return runChunk(chunk, true);
       return [flag(chunk[0].id, e instanceof BlockedError ? "AI declined this field" : "AI response was invalid")];
