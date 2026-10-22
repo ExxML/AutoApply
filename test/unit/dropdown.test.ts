@@ -3,6 +3,7 @@ import { setBody, stubLayout } from "./dom";
 import { newScanState, scan } from "../../src/content/scan/fields";
 import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
+import { fill } from "../../src/content/fill/engine";
 
 beforeAll(() => {
   stubLayout();
@@ -155,5 +156,31 @@ describe("remote dropdowns (Select2 AJAX)", () => {
       "University of Northern British Columbia",
     ]);
     expect(ul.hidden).toBe(true);
+  });
+});
+
+describe("native selects too long to scan", () => {
+  it("a 300+ option select is filled from the AI's choice among the options containing the query (Lever)", async () => {
+    const schools = Array.from({ length: 400 }, (_, i) => `<option>School ${i}</option>`).join("");
+    setBody(`<label>School <select><option value="">Click Here</option>${schools}
+      <option>University of British Columbia - UBC</option><option>University of Northern British Columbia - UNBC</option>
+      </select></label>`);
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc).toMatchObject({ kind: "select", optionsKnown: false });
+    const offered: string[][] = [];
+    const deps = {
+      documents: [],
+      getDocument: async () => null,
+      choose: async (_: unknown, __: string, options: string[]) => (offered.push(options), [0]),
+      checkedByUs: new Set<Element>(),
+      harvested: new Map<string, string[]>(),
+      signal: new AbortController().signal,
+    };
+    const op = { type: "intended", answer: "University of British Columbia", query: "British Columbia" } as const;
+    expect(await fill(h, op, deps)).toMatchObject({ outcome: "ok" });
+    expect(offered).toEqual([
+      ["University of British Columbia - UBC", "University of Northern British Columbia - UNBC"],
+    ]);
+    expect((h.el as HTMLSelectElement).value).toBe("University of British Columbia - UBC");
   });
 });

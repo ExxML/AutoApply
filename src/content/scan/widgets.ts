@@ -48,10 +48,10 @@ export function isPlaceholderOption(o: HTMLOptionElement, index: number): boolea
   return index === 0 && o.disabled && o.defaultSelected;
 }
 
-/** Non-placeholder options of a native select. More than 300 → unknown (§11.5). */
-export function nativeOptions(sel: HTMLSelectElement): { texts: string[]; els: HTMLOptionElement[] } | null {
+/** Non-placeholder options of a native select. More than `max` (default 300) → unknown (§11.5). */
+export function nativeOptions(sel: HTMLSelectElement, max = 300): { texts: string[]; els: HTMLOptionElement[] } | null {
   const els = Array.from(sel.options).filter((o, i) => !isPlaceholderOption(o, i));
-  if (els.length > 300) return null;
+  if (els.length > max) return null;
   return { texts: els.map((o) => collapse(o.text)), els };
 }
 

@@ -1,8 +1,9 @@
 // §14.2–14.4 native controls: text-like, date, select, radio, checkbox, contenteditable.
-import { normalize } from "../../shared/normalize";
+import { collapse, normalize } from "../../shared/normalize";
 import type { FieldHandle } from "../scan/fields";
 import { labelElementFor } from "../scan/labels";
 import { isVisible } from "../scan/visibility";
+import { nativeOptions } from "../scan/widgets";
 import { blur, dispatching, focus, realClick, setNativeValue, sleep, typeText } from "./events";
 import { isOn, readValue, sameValue } from "./verify";
 
@@ -116,9 +117,10 @@ const indexOfText = (h: FieldHandle, text: string) =>
 
 export async function fillSelect(h: FieldHandle, texts: string[]): Promise<FillResult> {
   const sel = h.el as HTMLSelectElement;
-  const idx = texts.map((t) => indexOfText(h, t));
-  if (idx.some((i) => i < 0) || !h.optionEls) return { outcome: "failed", note: "Option not found" };
-  const opts = idx.map((i) => h.optionEls![i] as HTMLOptionElement);
+  // A select too long to scan has no option list: look the texts up among all its options.
+  const els = (h.optionEls as HTMLOptionElement[] | undefined) ?? nativeOptions(sel, Infinity)?.els ?? [];
+  const opts = texts.map((t) => els.find((o) => normalize(collapse(o.text)) === normalize(t)));
+  if (!opts.every((o) => o !== undefined)) return { outcome: "failed", note: "Option not found" };
   dispatching(() => {
     if (sel.multiple) opts.forEach((o) => (o.selected = true));
     else sel.selectedIndex = opts[0].index;

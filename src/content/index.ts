@@ -231,7 +231,7 @@ function opFromDecision(h: FieldHandle, d: Decision): FillOp | null {
     return value ? { type: "text", value } : null;
   }
   const answer = d.intendedAnswer ?? d.text;
-  return answer ? { type: "intended", answer } : null;
+  return answer ? { type: "intended", answer, query: d.searchQuery } : null;
 }
 
 // ---------- choose-options batching (§14.6 step 3) ----------

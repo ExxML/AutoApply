@@ -3,6 +3,7 @@ import { normalize } from "../../shared/normalize";
 import type { DocumentMeta } from "../../shared/types";
 import { localMatch, localMatchAll } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
+import { nativeOptions } from "../scan/widgets";
 import { fillDropdown, harvestOptions, searchOptions } from "./dropdown";
 import { holdScroll } from "./events";
 import { compatibleDoc, fillFile } from "./file";
@@ -75,6 +76,21 @@ function textsFor(op: FillOp, options: string[]): string[] | null {
   return idx ? idx.map((i) => options[i]) : null;
 }
 
+/**
+ * A native select too long to send to the AI (Lever: 3,300 schools): match its options locally, else let the AI
+ * choose among the few that contain the search query.
+ */
+async function longSelectTexts(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<string[] | null> {
+  const options = nativeOptions(h.el as HTMLSelectElement, Infinity)?.texts ?? [];
+  const local = textsFor(op, options);
+  if (local) return local;
+  const q = normalize((op.type === "intended" && op.query) || answerOf(op));
+  const hits = q ? options.filter((o) => normalize(o).includes(q)).slice(0, 50) : [];
+  if (!hits.length) return null;
+  const idx = await deps.choose(h, answerOf(op), hits);
+  return idx?.length ? idx.map((i) => hits[i]) : null;
+}
+
 async function dispatch(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<FillResult> {
   try {
     const kind = h.desc.kind;
@@ -96,7 +112,7 @@ async function dispatch(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<F
       case "multiselect":
       case "radio_group":
       case "checkbox_group": {
-        const texts = textsFor(op, h.desc.options ?? []);
+        const texts = h.desc.options ? textsFor(op, h.desc.options) : await longSelectTexts(h, op, deps);
         if (!texts) return flag(`Suggested: ${answerOf(op)}`);
         if (kind === "radio_group") return fillRadio(h, texts[0]);
         if (kind === "checkbox_group") return fillCheckboxGroup(h, texts, deps.checkedByUs);
