@@ -5,10 +5,15 @@ import { cleanLabel, clip, collapse, humanize } from "../../shared/normalize";
 
 const NON_LABEL = "input,select,textarea,option,[role=option],[role=listbox],button,script,style";
 
-/** Text content without nested controls/options. */
+/** Text content without nested controls/options, or descendants hidden in a shown element (Lever's status text). */
 export function textOf(el: Element, exclude = NON_LABEL): string {
-  if (!el.querySelector(exclude)) return collapse(el.textContent ?? "");
+  const all = el.querySelectorAll("*");
+  const shown = typeof el.checkVisibility === "function" && all.length && el.checkVisibility();
+  const hidden = shown ? [...all].map((n) => !n.checkVisibility()) : [];
+  if (!el.querySelector(exclude) && !hidden.includes(true)) return collapse(el.textContent ?? "");
   const clone = el.cloneNode(true) as Element;
+  const copies = clone.querySelectorAll("*");
+  hidden.forEach((h, i) => h && copies[i].remove());
   clone.querySelectorAll(exclude).forEach((n) => n.remove());
   return collapse(clone.textContent ?? "");
 }
