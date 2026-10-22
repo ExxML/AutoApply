@@ -28,7 +28,7 @@ describe("label extraction (§11.5)", () => {
   it("ignores hidden status text inside a wrapping <label> (Lever)", () => {
     setBody(`<label><div>Current location ✱</div><div><input name="location" required>
       <div style="display:none">No location found. Try entering a different location</div></div></label>`);
-    expect(fields()[0].desc.label).toBe("Current location ✱");
+    expect(fields()[0].desc.label).toBe("Current location");
   });
 
   it("prefers aria-labelledby", () => {

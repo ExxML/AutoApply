@@ -28,10 +28,10 @@ export const ellipsize = (s: string, n: number): string => (s.length > n ? `${cl
 
 export const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
-/** Strip trailing "*", "(required)", "(optional)" markers and collapse whitespace. */
+/** Strip trailing "*" / "✱" (Lever), "(required)", "(optional)" markers and collapse whitespace. */
 export function cleanLabel(s: string): string {
   let t = collapse(s);
-  for (let i = 0; i < 3; i++) t = t.replace(/\s*(\*|\(required\)|\(optional\))\s*:?$/i, "").trim();
+  for (let i = 0; i < 3; i++) t = t.replace(/\s*(\*|✱|\(required\)|\(optional\))\s*:?$/i, "").trim();
   return t
     .replace(/^\*\s*/, "")
     .replace(/:$/, "")
