@@ -2,7 +2,15 @@
 import { normalize } from "../../shared/normalize";
 import { localMatch } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
-import { closeDropdown, findOptionsContainer, optText, optionElements, snapshot } from "./dropdown";
+import {
+  closeDropdown,
+  findOptionsContainer,
+  optText,
+  optionElements,
+  settle,
+  snapshot,
+  submitSearch,
+} from "./dropdown";
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, sameValue } from "./verify";
@@ -21,7 +29,10 @@ export async function fillTypeahead(
     focus(input);
     setNativeValue(input, "");
     await typeText(input, query || intended);
-    return waitFor(() => findOptionsContainer(h, before), 2000);
+    if (h.searchInput) submitSearch(input);
+    const c = await waitFor(() => findOptionsContainer(h, before), 2000);
+    if (c) await settle(c);
+    return c;
   };
   const c = await suggest();
   if (!c) {

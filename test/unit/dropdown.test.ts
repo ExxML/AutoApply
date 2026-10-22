@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan } from "../../src/content/scan/fields";
-import { harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
+import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 
 beforeAll(() => {
@@ -87,6 +87,52 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     const r = await fillTypeahead(h, "Vancouver", "Vancouver", async () => (close(), 0));
     expect(r).toEqual({ outcome: "ok", shown: "Vancouver, British Columbia, Canada" });
     expect(h.el.textContent!.trim()).toBe("Vancouver, British Columbia, Canada");
+  });
+
+  it("a Workday prompt reads as empty, opens from its search box, searches on Enter and picks via the row label", async () => {
+    // Another field's chips (Skills) are a listbox too; they must not be mistaken for this prompt's results.
+    setBody(`<ul role="listbox" aria-label="Skills"><li role="option">Python</li></ul>
+      <div><label for="fos">Field of Study</label><div data-automation-id="multiSelectContainer" tabindex="-1">
+        <div data-automation-id="multiselectInputContainer">
+          <input id="fos" placeholder="Search" enterkeyhint="search" aria-describedby="fos-sr">
+          <div id="fos-sr" aria-hidden="true">0 items selected</div></div></div></div>`);
+    const h = scan(newScanState()).handles.find((x) => x.desc.label === "Field of Study")!;
+    expect(h.desc.kind).toBe("dropdown");
+    expect(h.prefilled).toBe(false);
+    expect(h.desc.currentValue).toBeUndefined();
+
+    const all = ["Accounting", "Acting", "Computer Engineering", "Computer Science"];
+    const input = h.searchInput!;
+    let popup: HTMLElement | null = null;
+    const show = (rows: string[]) => {
+      popup?.remove();
+      popup = document.createElement("div");
+      popup.setAttribute("role", "listbox");
+      popup.innerHTML = rows
+        .map(
+          (t) =>
+            `<div role="option" aria-setsize="${rows.length}"><div data-automation-id="promptOption">${t}</div></div>`,
+        )
+        .join("");
+      document.body.append(popup);
+    };
+    // Only the search box opens it; only the row's label takes a pick; Enter re-renders the popup with the hits.
+    input.addEventListener("click", () => show(all.slice(0, 2)));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") popup?.remove();
+      if (e.key !== "Enter") return;
+      popup?.remove();
+      setTimeout(() => show(all.filter((t) => t.includes(input.value))), 100);
+    });
+    document.addEventListener("click", (e) => {
+      const label = (e.target as Element).closest?.('[data-automation-id="promptOption"]');
+      if (!label) return;
+      input.insertAdjacentHTML("afterend", `<div>${label.textContent}</div>`);
+      popup?.remove();
+    });
+
+    expect(await searchOptions(h, "Computer")).toEqual(["Computer Engineering", "Computer Science"]);
+    expect(await fillDropdown(h, ["Computer Science"])).toEqual({ outcome: "ok", shown: "Computer Science" });
   });
 
   it("a list too long to harvest is searched from its popup search box", async () => {

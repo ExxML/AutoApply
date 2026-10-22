@@ -16,7 +16,8 @@ const isRealOption = (o: HTMLElement) => {
 };
 
 export function optionElements(c: Element): HTMLElement[] {
-  let els = [...c.querySelectorAll<HTMLElement>(OPTION_SELECTORS)];
+  // Innermost match only: Workday's [role=option] row ignores clicks; its promptOption label inside takes them.
+  let els = [...c.querySelectorAll<HTMLElement>(OPTION_SELECTORS)].filter((o) => !o.querySelector(OPTION_SELECTORS));
   if (!els.length && c.getAttribute("role") === "listbox") els = [...c.querySelectorAll<HTMLElement>(":scope > *")];
   return els.filter((o) => isVisible(o) && isRealOption(o));
 }
@@ -81,13 +82,38 @@ export async function openDropdown(h: FieldHandle): Promise<HTMLElement | null> 
     await closeDropdown(h, popups[0]);
     return null;
   }
+  // Workday's prompt opens from its search box, not from the wrapper the trigger selectors match. Not when the
+  // widget says it is open: a second click would toggle a slow-loading list shut.
+  if (!c && h.searchInput && ![t, h.searchInput].some((e) => e.getAttribute("aria-expanded") === "true")) {
+    realClick(h.searchInput);
+    c = await waitFor(() => findOptionsContainer(h, before), 300);
+  }
   if (!c) {
     const target = h.searchInput ?? t;
     focus(target);
     key(target, "ArrowDown");
     c = await waitFor(() => findOptionsContainer(h, before), 900);
   }
+  if (c) await settle(c);
   return c;
+}
+
+/**
+ * False while a virtualized list (Workday) shows fewer rows than it declares and is still laying out: its popup
+ * collapsed (1px tall) or with room left for rows it has yet to paint.
+ */
+function painted(c: HTMLElement): boolean {
+  const els = optionElements(c);
+  const last = els.at(-1);
+  if (!last || !(Number(last.closest("[aria-setsize]")?.getAttribute("aria-setsize")) > els.length)) return true;
+  const r = last.getBoundingClientRect();
+  const box = c.getBoundingClientRect();
+  return box.height >= r.height && r.bottom + r.height > box.bottom;
+}
+
+/** Workday paints two rows of a fresh list first and the rest up to ~300 ms later; reading early loses options. */
+export async function settle(c: HTMLElement) {
+  if (!painted(c)) await waitFor(() => painted(c), 1000);
 }
 
 export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
@@ -129,9 +155,15 @@ const BUSY = "[aria-busy=true],[class*=loading i],[class*=spinner i]";
 const busy = (roots: Element[]) =>
   roots.some((r) => [r, ...r.querySelectorAll(BUSY)].some((el) => el.matches(BUSY) && isVisible(el)));
 
+// Workday loads its list in pages as it scrolls, with no spinner, so rows can be skipped; its rows declare the
+// list's size (aria-setsize), so a short harvest is known to be incomplete.
+const declared = (seen: Map<string, HTMLElement>) =>
+  Number([...seen.values()].at(-1)?.closest("[aria-setsize]")?.getAttribute("aria-setsize"));
+
 /**
  * Collect option texts, scrolling virtualized lists until nothing new appears twice and the list stays quiet at
- * the bottom. Returns null if `deadline` passes before the list is complete, or for 500+ options.
+ * the bottom. Returns null if `deadline` passes before the list is complete, if it found fewer options than the list
+ * declares, or for 500+ options.
  */
 export async function collectOptions(
   c: HTMLElement,
@@ -174,7 +206,7 @@ export async function collectOptions(
       if (busy([c, widget])) {
         quiet = now;
         if (now > deadline || now - start > PAGE_MAX_MS) return null;
-      } else if (now - quiet >= QUIET_MS) return seen;
+      } else if (now - quiet >= QUIET_MS) return declared(seen) > seen.size ? null : seen;
       await sleep(50);
     }
     idle = 0;
@@ -202,6 +234,11 @@ function searchBoxOf(h: FieldHandle, c: HTMLElement): HTMLInputElement | undefin
   return h.searchInput ?? (a && isTextInput(a) && !a.readOnly && controlledBy([a]).includes(c) ? a : undefined);
 }
 
+/** Workday's prompts search only on Enter, as their box declares; in filter-as-you-type boxes Enter picks an option. */
+export function submitSearch(search: HTMLInputElement) {
+  if (search.getAttribute("enterkeyhint") === "search") key(search, "Enter");
+}
+
 /** Types `query` into the open list's search box; waits until `want` finds something in the (re-rendered) list. */
 async function searchList<T>(
   h: FieldHandle,
@@ -210,19 +247,24 @@ async function searchList<T>(
   query: string,
   want: (box: HTMLElement) => T | undefined,
 ): Promise<{ box: HTMLElement; hit: T | undefined }> {
+  // A list re-rendered for the search is new; other fields' lists on the page are not it (Workday's skills chips).
+  const before = snapshot();
   focus(search);
   setNativeValue(search, "");
   await typeText(search, query, 0);
+  submitSearch(search);
   let box = c;
   const found = () => {
-    const b = box.isConnected ? box : findOptionsContainer(h, { boxes: new Set(), options: new Set() });
+    const b = box.isConnected ? box : findOptionsContainer(h, before);
     if (b) box = b;
     return b ? want(b) : undefined;
   };
+  // Remote search (Select2 AJAX, Workday) can take over a second: keep waiting while the list's spinner shows or
+  // its popup is gone, still to be replaced.
+  const pending = () => !box.isConnected || busy([box, h.el]);
   let hit: T | undefined = (await waitFor(found, 800)) ?? undefined;
-  // Remote search (Select2 AJAX) can take over a second: keep waiting until the list's spinner goes.
-  if (!hit && busy([box, h.el])) {
-    await waitFor(() => found() || !busy([box, h.el]), PAGE_MAX_MS);
+  if (!hit && pending()) {
+    await waitFor(() => found() || !pending(), PAGE_MAX_MS);
     hit = found();
   }
   return { box, hit };
@@ -247,8 +289,10 @@ export async function searchOptions(h: FieldHandle, query: string): Promise<stri
     if (!els.length && busy([b, h.el])) return undefined;
     return els.length !== stale.size || els.some((o) => !stale.has(o)) ? els : undefined;
   });
+  if (hit?.length) await settle(box);
+  const texts = hit?.length ? optionElements(box).map(optText) : [];
   await closeDropdown(h, box);
-  return hit?.length ? hit.map(optText) : null;
+  return texts.length ? texts : null;
 }
 
 const shows = (h: FieldHandle, text: string) => sameValue(text, dropdownText(h), "contains");

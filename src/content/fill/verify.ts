@@ -17,6 +17,9 @@ export function dropdownText(h: FieldHandle): string {
       .join(" | ");
   const clone = h.el.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('input,select,[class*="placeholder" i],script,style').forEach((n) => n.remove());
+  // Screen-reader descriptions are not the value: Workday's empty prompt describes itself as "0 items selected".
+  for (const id of [h.el, h.searchInput].flatMap((n) => n?.getAttribute("aria-describedby")?.split(/\s+/) ?? []))
+    if (id) clone.querySelector(`#${CSS.escape(id)}`)?.remove();
   const text = collapse(clone.textContent ?? "");
   if (text) return text;
   if (h.hiddenSelect && h.hiddenSelect.selectedIndex >= 0) {
