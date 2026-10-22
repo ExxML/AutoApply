@@ -315,6 +315,19 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   else setStatus(h, "needs", "Needs your confirmation");
 }
 
+/** Filled by us, then emptied by the page itself. Not uploads: re-uploading a résumé re-runs its parser. */
+function emptied(h: FieldHandle): boolean {
+  const s = states.get(h.id);
+  return (
+    !!s?.value &&
+    !s.userOwned &&
+    h.desc.kind !== "file" &&
+    ["filled", "ai", "draft", "check"].includes(s.status) &&
+    h.el.isConnected &&
+    !readValue(h)
+  );
+}
+
 async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   if (running) {
     queued = { rerun: !!opts.rerun || !!queued?.rerun };
@@ -459,10 +472,14 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     }
     await Promise.all(jobs);
     mark("done");
-    // Answers can reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race): fill those in another pass.
+    // Answers can reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race), and résumé parsers
+    // (SmartRecruiters) re-render the form, emptying fields filled before: fill both in another pass.
     const depth = opts.depth ?? 0;
-    if (!ctrl.signal.aborted && depth < 2 && rescan().some((h) => !states.has(h.id)))
-      queued ??= { rerun: false, depth: depth + 1 };
+    if (!ctrl.signal.aborted && depth < 2) {
+      const again = rescan().filter((h) => !states.has(h.id) || emptied(h));
+      for (const h of again) if (states.has(h.id)) setStatus(h, "pending");
+      if (again.length) queued ??= { rerun: false, depth: depth + 1 };
+    }
   } catch (e) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
