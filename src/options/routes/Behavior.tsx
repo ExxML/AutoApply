@@ -61,9 +61,9 @@ export function Behavior() {
                 help="Consents you can skip (contact about other jobs, talent community, marketing)."
                 value={s.optionalConsents}
                 options={[
-                  ["ask", "Flag for me"],
-                  ["accept", "Auto-accept"],
                   ["decline", "Auto-decline"],
+                  ["accept", "Auto-accept"],
+                  ["ask", "Flag for me"],
                 ]}
                 onChange={(v) => set({ optionalConsents: v as Settings["optionalConsents"] })}
               />

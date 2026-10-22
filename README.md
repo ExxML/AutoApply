@@ -12,7 +12,7 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 [![Gemini API](https://img.shields.io/badge/Gemini_API-2496ED?logo=google&logoColor=white)](https://ai.google.dev/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-orange.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-### Check it out! [AutoApply on Chrome Web Store]()
+### Check it out! [AutoApply on Chrome Web Store](https://chromewebstore.google.com/detail/autoapply/bhonoldmpmcmajclbndlpkijmnklgnlf)
 
 </div>
 
@@ -116,7 +116,7 @@ The newest Gemini models are often under heavy load, and rejected requests may s
 | Orange **Check**     | The page shows something different from what was entered                                                                               |
 | Red **Failed**       | Could not be filled                                                                                                                    |
 
-Consent and attestation boxes are **flagged, not ticked**, unless you turn on _Auto-accept required consents_ (privacy notice, terms, attestations) in **Behavior**. _Optional consents_ (contact about other jobs, talent community, marketing) are set separately: flag for you (default), auto-accept, or auto-decline.
+Required consent and attestation boxes (privacy notice, terms, attestations) are **ticked automatically** by default; turn off _Auto-accept required consents_ in **Behavior** to have them flagged instead. _Optional consents_ (contact about other jobs, talent community, marketing) are set separately: auto-decline (default), auto-accept, or flag for you.
 
 ## Privacy
 

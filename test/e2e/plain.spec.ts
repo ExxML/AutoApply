@@ -5,7 +5,7 @@ test("plain form: deterministic, AI, essay, file and consent fields are filled, 
   sw,
   mock,
 }) => {
-  await seed(sw);
+  await seed(sw, { settings: { autoAcceptAcknowledgements: false } });
   await page.goto(BASE + "plain.html");
   await fillPage(page, sw);
   await waitDone(page);

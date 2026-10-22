@@ -7,7 +7,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 - Gemini via raw REST `generateContent`. No SDK, for full control of rotation.
 - Model "added" order is tracked locally via `firstSeenAt`, because the API exposes no timestamp.
 - No per-site adapters. A generic engine plus class-name heuristics only.
-- Consents are flagged by default. Essays are drafted by default. Never submit.
+- Required consents are auto-accepted and optional consents auto-declined by default. Essays are drafted by default. Never submit.
 
 ## Toolchain
 

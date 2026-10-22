@@ -160,8 +160,11 @@ test("no trigger: an application page is left alone and no UI appears", async ({
   expect(mock.calls).toHaveLength(0);
 });
 
-test("consent: acknowledgements are flagged, not ticked, by default", async ({ page, sw }) => {
-  await seed(sw);
+test("consent: with required consents off and optional on flag, acknowledgements are flagged, not ticked", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw, { settings: { autoAcceptAcknowledgements: false, optionalConsents: "ask" } });
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
@@ -178,11 +181,8 @@ test("consent: acknowledgements are flagged, not ticked, by default", async ({ p
   await expect(page.locator("autoapply-root .needs")).toContainText("Needs your confirmation");
 });
 
-test("consent: with required consents on, required boxes are ticked and badged blue, optional left", async ({
-  page,
-  sw,
-}) => {
-  await seed(sw, { settings: { autoAcceptAcknowledgements: true } });
+test("consent: by default required boxes are ticked and badged blue, optional left", async ({ page, sw }) => {
+  await seed(sw);
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
@@ -194,7 +194,7 @@ test("consent: with required consents on, required boxes are ticked and badged b
 });
 
 test("consent: with optional consents on accept, only the optional box is ticked", async ({ page, sw }) => {
-  await seed(sw, { settings: { optionalConsents: "accept" } });
+  await seed(sw, { settings: { autoAcceptAcknowledgements: false, optionalConsents: "accept" } });
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
@@ -208,7 +208,7 @@ test("consent: with optional consents on decline, the optional box is left untic
   page,
   sw,
 }) => {
-  await seed(sw, { settings: { optionalConsents: "decline" } });
+  await seed(sw, { settings: { autoAcceptAcknowledgements: false, optionalConsents: "decline" } });
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
