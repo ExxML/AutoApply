@@ -48,6 +48,8 @@ function keyFor(d: FieldDescriptor): DetKey | null {
   const tokens = (d.autocomplete ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const ac = AUTOCOMPLETE_MAP[tokens[tokens.length - 1] ?? ""];
   if (ac) return ac === "dateOfBirth" && !/birth/i.test(d.label) ? null : ac;
+  // A conditional question ("If located in the US, in what city and state…") may not apply: the AI decides.
+  if (/^if\b/i.test(d.label)) return null;
   const keys = new Set(LABEL_RULES.filter(([re]) => re.test(d.label)).map(([, k]) => k));
   return keys.size === 1 ? [...keys][0] : null;
 }
