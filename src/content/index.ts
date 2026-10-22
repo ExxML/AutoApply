@@ -276,8 +276,12 @@ function rescan(): FieldHandle[] {
   return all;
 }
 
+/** The last fill applied to each field, to re-apply as is if the page empties it. */
+const applied = new Map<string, [FillOp, Status, string]>();
+
 async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: string, ctrl: AbortController) {
   if (states.get(h.id)?.userOwned) return;
+  applied.set(h.id, [op, okStatus, tooltip]);
   setStatus(h, "working");
   const r = await fill(h, op, {
     documents: config.documentsIndex,
@@ -321,6 +325,7 @@ function emptied(h: FieldHandle): boolean {
   return (
     !!s?.value &&
     !s.userOwned &&
+    applied.has(h.id) &&
     h.desc.kind !== "file" &&
     ["filled", "ai", "draft", "check"].includes(s.status) &&
     h.el.isConnected &&
@@ -472,13 +477,13 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     }
     await Promise.all(jobs);
     mark("done");
-    // Answers can reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race), and résumé parsers
-    // (SmartRecruiters) re-render the form, emptying fields filled before: fill both in another pass.
+    // Résumé parsers (SmartRecruiters) re-render the form, emptying fields filled before: re-apply those answers.
+    // Answers can also reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race): fill them in another pass.
     const depth = opts.depth ?? 0;
     if (!ctrl.signal.aborted && depth < 2) {
-      const again = rescan().filter((h) => !states.has(h.id) || emptied(h));
-      for (const h of again) if (states.has(h.id)) setStatus(h, "pending");
-      if (again.length) queued ??= { rerun: false, depth: depth + 1 };
+      const fresh = rescan();
+      await Promise.all(fresh.filter(emptied).map((h) => doFill(h, ...applied.get(h.id)!, ctrl)));
+      if (fresh.some((h) => !states.has(h.id))) queued ??= { rerun: false, depth: depth + 1 };
     }
   } catch (e) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
