@@ -9,6 +9,13 @@ export const isOn = (el: Element): boolean =>
   (el as HTMLInputElement).checked === true ||
   ["aria-checked", "aria-pressed", "aria-selected"].some((a) => el.getAttribute(a) === "true");
 
+/** Text as rendered: <slot>s show their assigned nodes. */
+function slottedText(n: Node): string {
+  if (n instanceof HTMLSlotElement) return n.assignedNodes({ flatten: true }).map(slottedText).join("");
+  if (n instanceof Element) return [...n.childNodes].map(slottedText).join("");
+  return n.nodeType === Node.TEXT_NODE ? (n.textContent ?? "") : "";
+}
+
 /** Visible text of a custom dropdown, ignoring placeholder elements and the search box. */
 export function dropdownText(h: FieldHandle): string {
   if (h.listbox)
@@ -20,7 +27,8 @@ export function dropdownText(h: FieldHandle): string {
   // Screen-reader descriptions are not the value: Workday's empty prompt describes itself as "0 items selected".
   for (const id of [h.el, h.searchInput].flatMap((n) => n?.getAttribute("aria-describedby")?.split(/\s+/) ?? []))
     if (id) clone.querySelector(`#${CSS.escape(id)}`)?.remove();
-  const text = collapse(clone.textContent ?? "");
+  // A trigger inside a shadow root shows its value through a <slot> (SmartRecruiters' phone country: "+1").
+  const text = collapse(clone.textContent ?? "") || (h.el.querySelector("slot") ? collapse(slottedText(h.el)) : "");
   if (text) return text;
   if (h.hiddenSelect && h.hiddenSelect.selectedIndex >= 0) {
     const o = h.hiddenSelect.options[h.hiddenSelect.selectedIndex];

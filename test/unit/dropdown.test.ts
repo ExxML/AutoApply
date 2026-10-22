@@ -302,3 +302,14 @@ describe("typeahead verification", () => {
     expect(r.outcome).toBe("mismatch");
   });
 });
+
+describe("slotted dropdown values", () => {
+  it("reads a shadow-root trigger's value through its slot (SmartRecruiters' phone country)", () => {
+    setBody(`<x-select><span slot="p">+1</span></x-select>`);
+    const host = document.querySelector("x-select")!;
+    host.attachShadow({ mode: "open" }).innerHTML =
+      `<button role="combobox" aria-haspopup="listbox" aria-label="Country code"><!--lit--><slot name="p"></slot></button>`;
+    const [h] = scan(newScanState()).handles;
+    expect(h.desc).toMatchObject({ kind: "dropdown", label: "Country code", currentValue: "+1" });
+  });
+});
