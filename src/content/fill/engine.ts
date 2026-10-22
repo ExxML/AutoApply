@@ -37,7 +37,6 @@ export interface EngineDeps {
   signal: AbortSignal;
 }
 
-const SERIAL = new Set(["dropdown", "typeahead"]);
 // Remote lists can page very slowly (EA skills: 3 options per request); past this, searching beats paging.
 const HARVEST_MS = 3000;
 let chain: Promise<unknown> = Promise.resolve();
@@ -45,10 +44,12 @@ let chain: Promise<unknown> = Promise.resolve();
 export function fill(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<FillResult> {
   const run = () =>
     deps.signal.aborted ? Promise.resolve<FillResult>({ outcome: "flag", note: "Stopped" }) : dispatch(h, op, deps);
-  return SERIAL.has(h.desc.kind) ? serial(run) : holdScroll(run);
+  // One at a time: every fill moves focus, and a widget left mid-search closes when focus leaves it (Ashby's location
+  // emptied while its date picker opened). Text fills take milliseconds, so the queue costs little.
+  return serial(run);
 }
 
-/** Runs `fn` after every queued dropdown/typeahead operation (one popup open at a time). */
+/** Runs `fn` after every queued fill or harvest (one focus owner and one popup open at a time). */
 export function serial<T>(fn: () => Promise<T>): Promise<T> {
   const held = () => holdScroll(fn);
   const p = chain.then(held, held);
