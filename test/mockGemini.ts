@@ -1,5 +1,7 @@
 // Playwright route handler that fakes the Gemini REST API. Decisions are deterministic, keyed by field label.
 import type { BrowserContext, Route } from "@playwright/test";
+import { canonicalCountry, canonicalRegion } from "../src/shared/constants";
+import { normalize } from "../src/shared/normalize";
 
 type Json = Record<string, unknown>;
 export type CallKind = "list" | "validate" | "map" | "choose" | "essay" | "resume";
@@ -69,6 +71,14 @@ export const FAILURES = {
 type Failure = { status: number; body: unknown };
 
 const unnumber = (o: string) => o.replace(/^\d+: /, "");
+
+/** "Vancouver, British Columbia, Canada" means "Vancouver, BC, Canada", part by part. */
+function samePlace(a: string, b: string): boolean {
+  const [x, y] = [a.split(","), b.split(",")];
+  const same = (p: string, q: string) =>
+    normalize(p) === normalize(q) || [canonicalRegion, canonicalCountry].some((c) => c(p) !== null && c(p) === c(q));
+  return x.length === y.length && x.every((p, k) => same(p, y[k]));
+}
 
 const pick = (f: Field, re: RegExp) => {
   const i = (f.options ?? []).findIndex((o) => re.test(unnumber(o)));
@@ -186,7 +196,11 @@ export class MockGemini {
     if (kind === "choose") {
       const items = payload.items as { fieldId: string; intendedAnswer: string; options: string[] }[];
       const choices = items.map((i) => {
-        const idx = i.options.findIndex((o) => unnumber(o).toLowerCase().includes(i.intendedAnswer.toLowerCase()));
+        const idx = i.options.findIndex(
+          (o) =>
+            unnumber(o).toLowerCase().includes(i.intendedAnswer.toLowerCase()) ||
+            samePlace(i.intendedAnswer, unnumber(o)),
+        );
         return { fieldId: i.fieldId, optionIndexes: idx >= 0 ? [idx] : null, confidence: idx >= 0 ? "high" : "low" };
       });
       return send(200, reply({ choices }), call);

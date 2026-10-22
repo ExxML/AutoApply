@@ -174,6 +174,7 @@ export type DetKey =
   | "postalCode"
   | "country"
   | "countryCode"
+  | "location"
   | "url"
   | "linkedin"
   | "github"
@@ -215,6 +216,7 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/github/i, "github"],
   [/portfolio|personal (web)?site|website/i, "portfolio"],
   [/^city|\btown\b/i, "city"],
+  [/^(current )?location( \(city\))?$|^where are you (currently )?(located|based)\b/i, "location"],
   [/postal|zip/i, "postalCode"],
   [/\bpronouns?\b/i, "pronouns"],
   [/^address( line)? ?1|street address/i, "line1"],

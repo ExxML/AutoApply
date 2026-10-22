@@ -26,6 +26,7 @@ const PATHS: Record<DetKey, string> = {
   postalCode: "personal.address.postalCode",
   country: "personal.address.country",
   countryCode: "personal.address.countryCode",
+  location: "personal.address.city + region + country",
   url: "personal.links",
   linkedin: "personal.links.linkedin",
   github: "personal.links.github",
@@ -57,6 +58,8 @@ function keyFor(d: FieldDescriptor): DetKey | null {
 export interface DetResult {
   value: string;
   path: string;
+  /** Typeaheads: what to type to find `value` among the suggestions. */
+  query?: string;
 }
 
 export function deterministicValue(
@@ -64,9 +67,12 @@ export function deterministicValue(
   p: DeterministicProfile["personal"],
   hasCountryCodeField = false,
 ): DetResult | null {
-  if (!TEXT_KINDS.has(d.kind)) return null;
+  const typeahead = d.kind === "typeahead";
+  if (!TEXT_KINDS.has(d.kind) && !typeahead) return null;
   const key = keyFor(d);
   if (!key) return null;
+  // A city/location typeahead lists places ("Langley, BC, Canada"): the AI mixed up the résumé's city for it.
+  if (typeahead && key !== "city" && key !== "location") return null;
   if (d.kind === "email" && key !== "email") return null;
   if (d.kind === "tel" && !key.startsWith("phone")) return null;
   const a = p.address;
@@ -97,6 +103,7 @@ export function deterministicValue(
     postalCode: () => a.postalCode,
     country: () => a.country,
     countryCode: () => a.countryCode,
+    location: () => [a.city, a.region, a.country].filter(Boolean).join(", "),
     url: () => l.portfolio || l.website || l.linkedin,
     linkedin: () => l.linkedin,
     github: () => l.github,
@@ -104,6 +111,7 @@ export function deterministicValue(
     dateOfBirth: () => p.dateOfBirth,
   };
   // An empty value still returns: the field is recognized but unset in the profile, so it needs the user, not the AI.
+  if (typeahead) return a.city ? { value: values.location(), path: PATHS.location, query: a.city } : null;
   return { value: values[key]().trim(), path: PATHS[key] };
 }
 

@@ -75,6 +75,15 @@ describe("deterministic matching (§13.2)", () => {
     // Stripe: a Canadian resident must not answer a US-only question with their province.
     expect(deterministicValue(f("If located in the US, in what city and state do you reside?"), p)).toBeNull();
   });
+  it("answers city and location typeaheads with the full place, searched by city", () => {
+    const q = { ...p, address: { ...p.address, city: "Langley", region: "British Columbia", country: "Canada" } };
+    const loc = { value: "Langley, British Columbia, Canada", path: "personal.address.city + region + country" };
+    expect(deterministicValue(f("Current Location", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
+    expect(deterministicValue(f("City", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
+    expect(deterministicValue(f("Location (City)"), q)?.value).toBe(loc.value);
+    expect(deterministicValue(f("Office location", { kind: "typeahead" }), q)).toBeNull();
+    expect(deterministicValue(f("School", { kind: "typeahead" }), q)).toBeNull();
+  });
   it("returns empty values for recognized fields unset in the profile", () => {
     expect(deterministicValue(f("GitHub"), p)).toEqual({ value: "", path: "personal.links.github" });
     expect(deterministicValue(f("Address 1"), p)).toEqual({ value: "", path: "personal.address.line1" });

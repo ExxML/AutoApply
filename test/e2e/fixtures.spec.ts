@@ -52,7 +52,8 @@ test("typeahead: types a query, waits for suggestions and picks the matching one
   await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#loc")).toHaveValue("Vancouver, BC, Canada");
-  await expect(badge(page, "Location")).toHaveAttribute("data-color", "blue");
+  // The profile's address answers it; the suggestion is chosen by meaning ("British Columbia" = "BC").
+  await expect(badge(page, "Location")).toHaveAttribute("data-color", "green");
 });
 
 test("buttons-group: aria-pressed pills and a role=radiogroup are selected", async ({ page, sw }) => {

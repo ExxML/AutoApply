@@ -396,7 +396,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       }
       const d = deterministicValue(h.desc, det.personal, hasCountryCode);
       if (d) {
-        if (d.value) jobs.push(doFill(h, { type: "text", value: d.value }, "filled", d.path, ctrl));
+        const op: FillOp = d.query
+          ? { type: "intended", answer: d.value, query: d.query }
+          : { type: "text", value: d.value };
+        if (d.value) jobs.push(doFill(h, op, "filled", d.path, ctrl));
         else setStatus(h, "needs", "Not set in your Profile");
         continue;
       }
