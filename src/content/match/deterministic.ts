@@ -37,6 +37,8 @@ const PATHS: Record<DetKey, string> = {
 /** Format digits into a placeholder such as "(555) 555-5555" or "###-###-####". */
 export function formatPhone(number: string, placeholder?: string): string {
   const d = digitsOnly(number);
+  // An international example ("+47 40 61 23 45", Teamtailor) holds another country's code, not a template.
+  if (placeholder?.trim().startsWith("+")) return number;
   const slots = placeholder ? (placeholder.match(/[#\dXx_]/g) ?? []).length : 0;
   if (!placeholder || slots < 7 || !/[\s()\-.]/.test(placeholder)) return number;
   const digits = d.length > slots && d.startsWith("1") ? d.slice(1) : d;

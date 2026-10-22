@@ -102,6 +102,7 @@ describe("deterministic matching (§13.2)", () => {
     );
     expect(formatPhone("+1 604 555 1234", "###-###-####")).toBe("604-555-1234");
     expect(formatPhone("6045551234", "Phone")).toBe("6045551234");
+    expect(formatPhone("2365180162", "+47 40 61 23 45")).toBe("2365180162");
   });
   it("matches learned answers by normalized question and compatible kind", () => {
     const learned = [
