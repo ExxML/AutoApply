@@ -113,6 +113,8 @@ export const RE_UPLOAD_BUTTON = /upload|attach|browse|choose file|select file/i;
 /** A control label that only names the upload action ("Attach"), not the question. */
 export const RE_ACTION_LABEL = /^(attach|upload|browse|choose|select)( (a )?files?)?$/i;
 export const RE_DROPZONE = /drag|drop|upload|attach/i;
+/** Uploaders that parse a résumé to prefill the form rather than attach it. */
+export const RE_AUTOFILL_UPLOAD = /\bauto-?fill/i;
 export const RE_TYPEAHEAD_HINT =
   /location|city|school|university|college|company|employer|search|autocomplete|typeahead/i;
 export const RE_PLACEHOLDER_OPTION = /^(select|choose|please select|--|—|-)(\b|\s|$)/i;

@@ -320,6 +320,12 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("skips a résumé uploader that only autofills the form (Ashby)", () => {
+    setBody(`<div><input type="file" aria-describedby="h"><p id="h">Upload your resume here to autofill key application fields.</p></div>
+      <div><label for="r">Resume</label><input type="file" id="r"></div>`);
+    expect(fields().map((h) => h.desc.label)).toEqual(["Resume"]);
+  });
+
   it("flags payment and government-id fields as sensitive", () => {
     setBody(
       `<label>Card number <input autocomplete="cc-number"></label><label>Social Insurance Number <input></label>`,

@@ -1,6 +1,7 @@
 // §11.4 FieldDescriptor extraction. Element references stay in the content script (FieldHandle).
 import {
   RE_ACTION_LABEL,
+  RE_AUTOFILL_UPLOAD,
   RE_CONSENT,
   RE_CONSENT_NO,
   RE_CONSENT_YES,
@@ -228,6 +229,8 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     )
       d.maxLength = el.maxLength;
     if (el instanceof HTMLInputElement && el.type === "file" && el.accept) d.accept = el.accept;
+    // Ashby's "Autofill from resume" uploader is no answer: it parses the file and re-renders the form, wiping fills.
+    if (kind === "file" && RE_AUTOFILL_UPLOAD.test(`${label} ${d.hint ?? ""}`)) continue;
 
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
     const text = `${label} ${d.hint ?? ""}`;
