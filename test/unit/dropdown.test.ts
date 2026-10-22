@@ -184,3 +184,20 @@ describe("native selects too long to scan", () => {
     expect((h.el as HTMLSelectElement).value).toBe("University of British Columbia - UBC");
   });
 });
+
+describe("fill engine", () => {
+  it("a refused click fails that field instead of rejecting the whole fill", async () => {
+    setBody(`<div role="radiogroup" aria-label="Relocate?">
+      <a href="/next"><span role="radio" aria-checked="false">Yes</span></a><span role="radio" aria-checked="false">No</span></div>`);
+    const h = scan(newScanState()).handles[0];
+    const deps = {
+      documents: [],
+      getDocument: async () => null,
+      choose: async () => null,
+      checkedByUs: new Set<Element>(),
+      harvested: new Map<string, string[]>(),
+      signal: new AbortController().signal,
+    };
+    await expect(fill(h, { type: "options", texts: ["Yes"] }, deps)).resolves.toMatchObject({ outcome: "failed" });
+  });
+});
