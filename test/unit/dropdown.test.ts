@@ -259,3 +259,19 @@ describe("slow typeahead suggestions", () => {
     expect(r).toMatchObject({ outcome: "ok", shown: "Langley, BC, CAN" });
   }, 10_000);
 });
+
+describe("text fills", () => {
+  it("accepts a date the widget reformats (SmartRecruiters)", async () => {
+    setBody(`<label>To <input id="to"></label>`);
+    const input = document.querySelector("input")!;
+    input.addEventListener("input", () => {
+      const m = /^(\d{4})-(\d{2})$/.exec(input.value);
+      if (m) input.value = `${m[2]}/${m[1]}`;
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(await fill(h, { type: "text", value: "2026-08" }, deps())).toMatchObject({
+      outcome: "ok",
+      shown: "08/2026",
+    });
+  });
+});

@@ -32,6 +32,12 @@ export function parseDate(v: string): { y: number; m: number; d?: number } | nul
   return null;
 }
 
+function sameDate(a: string, b: string): boolean {
+  const x = parseDate(a);
+  const y = parseDate(b);
+  return !!x && !!y && x.y === y.y && x.m === y.m && (x.d === undefined || y.d === undefined || x.d === y.d);
+}
+
 const RE_DATE_PH = /^(mm|dd|yyyy|yy)([/.-])(mm|dd|yyyy|yy)(?:\2(mm|dd|yyyy|yy))?$/i;
 
 /** Converts a value to what the input accepts: ISO for type=date/month, else the placeholder's format. */
@@ -79,6 +85,8 @@ export async function fillText(h: FieldHandle, raw: string): Promise<FillResult>
   blur(el);
   await sleep(0);
   if (sameValue(value, el.value, mode)) return ok(value);
+  // Date widgets reformat what they are given (SmartRecruiters: "2026-08" → "08/2026").
+  if (sameDate(value, el.value)) return ok(el.value);
   // Probably an input mask: clear and type it.
   focus(el);
   setNativeValue(el, "");
