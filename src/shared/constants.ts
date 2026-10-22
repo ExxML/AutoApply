@@ -94,7 +94,7 @@ export const RE_SKIP_LABEL = /captcha|honeypot|leave this (field )?(blank|empty)
 export const RE_COOKIE_CONTAINER = /cookie|consent-banner|onetrust|gdpr/i;
 export const RE_NEWSLETTER = /newsletter|subscribe/i;
 export const RE_SENSITIVE_LABEL =
-  /card number|cvv|cvc|expiry|iban|routing|\bsin\b|social insurance|social security|ssn|passport (number|no)/i;
+  /card number|\bcvv\b|\bcvc\b|expiry|iban|routing|\bsin\b|social insurance|social security|ssn|passport (number|no)/i;
 export const RE_CONSENT =
   /i (agree|acknowledge|certify|confirm|understand|accept)|consent|terms|privacy (policy|notice)|attest/i;
 /** Consent that is not needed to apply: future/other roles, talent pools, marketing. */

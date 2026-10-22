@@ -290,4 +290,9 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     );
     expect(fields().map((h) => h.sensitive)).toEqual([true, true]);
   });
+
+  it("does not flag a résumé upload whose label runs into status text as sensitive (Lever)", () => {
+    setBody(`<label>Resume/CV ✱ ATTACH RESUME/CV<input type="file"><span>Couldn't auto-read resume.</span></label>`);
+    expect(fields()[0].sensitive).toBe(false);
+  });
 });
