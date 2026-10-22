@@ -85,7 +85,9 @@ export async function fillTypeahead(
       ? { outcome: "ok", shown: want }
       : { outcome: "mismatch", note: `Expected "${want}", shows "${dropdownText(h)}"` };
   const v = normalize(input.value || h.el.textContent || "");
-  return v && (v.includes(normalize(want)) || normalize(want).includes(v))
+  // Our own query left in the box ("Langley" of "Langley, BC") means the pick did not register.
+  const picked = v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(query || intended));
+  return v && picked
     ? { outcome: "ok", shown: want }
     : { outcome: "mismatch", note: `Expected "${want}", shows "${input.value}"` };
 }

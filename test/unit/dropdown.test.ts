@@ -289,3 +289,16 @@ describe("clicks", () => {
     expect(clicked).toBe(1);
   });
 });
+
+describe("typeahead verification", () => {
+  it("does not take the typed query left in the box for the pick", async () => {
+    setBody(`<div><label for="c">City</label><input id="c" role="combobox"><div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    input.addEventListener("input", () => {
+      document.getElementById("res")!.innerHTML = `<div role="option">Langley, BC, Canada</div>`;
+    });
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Langley", "Langley, BC, Canada", async () => 0);
+    expect(r.outcome).toBe("mismatch");
+  });
+});
