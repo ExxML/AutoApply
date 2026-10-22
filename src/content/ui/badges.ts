@@ -65,8 +65,7 @@ export function setBadge(
   if (!b) {
     const box = el("div");
     const tag = el("button", { type: "button" });
-    uiLayer(true).append(box);
-    uiLayer().append(tag);
+    uiLayer(true).append(box, tag);
     b = { target, box, tag, release: anchorTo(target, box, tag) };
     badges.set(id, b);
     if (!b.release) {

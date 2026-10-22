@@ -32,3 +32,23 @@ test("badges: outlines stay on their fields through window and inner-container s
   expect(offsets.length).toBe(9);
   for (const o of offsets) expect(o).toEqual([-3, -3, 6, 6]);
 });
+
+test("badges: page popups paint over both the outline and the tag", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "plain.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  const tag = badge(page, "Email");
+  await expect(tag).toHaveAttribute("data-color", "green");
+  const box = (await tag.boundingBox())!;
+  const top = await page.evaluate(
+    ({ x, y }) => {
+      const pop = Object.assign(document.createElement("div"), { id: "popup" });
+      pop.style.cssText = "position: fixed; inset: 0; z-index: 10; background: #fff";
+      document.body.append(pop);
+      return document.elementFromPoint(x, y)?.id;
+    },
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+  expect(top).toBe("popup");
+});
