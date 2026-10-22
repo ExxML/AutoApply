@@ -176,8 +176,10 @@ export function buildUnits(c: Collected): Unit[] {
     if (members.length && isVisible(rg))
       take({ kind: "radio_group", el: members[0], members, groupEl: rg, buttonStyle: true });
   }
+  // Workable wraps each native radio in a role=radio div: the radios already make that question.
+  const wrapsTaken = (e: Element) => [...e.querySelectorAll("input")].some((i) => taken.has(i));
   const looseChoices = cands.filter(
-    (e) => !taken.has(e) && (e.getAttribute("role") === "radio" || e.matches("button[aria-pressed]")),
+    (e) => !taken.has(e) && (e.getAttribute("role") === "radio" || e.matches("button[aria-pressed]")) && !wrapsTaken(e),
   );
   for (const members of groupBy(looseChoices, (e) => e.parentElement)) {
     if (members.length < 2 || !members.some(isVisible)) continue;

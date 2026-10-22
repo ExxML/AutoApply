@@ -141,6 +141,15 @@ describe("grouping (§11.5)", () => {
     ]);
   });
 
+  it("native radios wrapped in role=radio divs make one question (Workable)", () => {
+    const opt = (v: string) =>
+      `<div role="radio" aria-checked="false"><label><input type="radio" name="q" aria-hidden="true"><span>${v}</span></label></div>`;
+    setBody(
+      `<span id="ql">Are you eligible to work?</span><fieldset role="radiogroup" aria-labelledby="ql">${opt("YES")}${opt("NO")}</fieldset>`,
+    );
+    expect(fields().map((h) => [h.desc.kind, h.desc.options])).toEqual([["radio_group", ["YES", "NO"]]]);
+  });
+
   it("lone checkbox vs checkbox group", () => {
     setBody(`<label><input type="checkbox" name="terms"> I agree to the terms</label>
       <fieldset><legend>Skills</legend><label><input type="checkbox" name="s"> Python</label><label><input type="checkbox" name="s"> Go</label></fieldset>`);
