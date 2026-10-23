@@ -4,7 +4,7 @@ import { canonicalCountry, canonicalRegion } from "../src/shared/constants";
 import { normalize } from "../src/shared/normalize";
 
 type Json = Record<string, unknown>;
-export type CallKind = "list" | "validate" | "map" | "choose" | "essay" | "resume";
+export type CallKind = "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume";
 export interface Call {
   kind: CallKind;
   key: string;
@@ -185,7 +185,9 @@ export class MockGemini {
           ? "choose"
           : system.startsWith("You write answers")
             ? "essay"
-            : "resume";
+            : system.startsWith("You audit")
+              ? "audit"
+              : "resume";
     const payload = kind === "resume" ? { text } : (JSON.parse(text) as Json);
     const call = { kind, key, model, payload };
     const gc = body.generationConfig as Json;
@@ -199,6 +201,11 @@ export class MockGemini {
 
     if (kind === "validate") return send(200, reply({ ok: true }), call);
     if (kind === "map") return send(200, reply({ decisions: (payload.fields as Field[]).map(decide) }), call);
+    // The decision table above only answers from the profile: every fill it makes is supported.
+    if (kind === "audit") {
+      const verdicts = (payload.items as { fieldId: string }[]).map((i) => ({ fieldId: i.fieldId, supported: true }));
+      return send(200, reply({ verdicts }), call);
+    }
     if (kind === "choose") {
       const items = payload.items as { fieldId: string; intendedAnswer: string; options: string[] }[];
       const choices = items.map((i) => {

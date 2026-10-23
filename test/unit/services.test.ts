@@ -164,6 +164,43 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(sizes[0]).toBe(4);
   });
 
+  it("audits the AI's fills: an answer the candidate's data does not support is left blank", async () => {
+    const audited: string[][] = [];
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: { fieldId: string }[] } }) => {
+        if (s.system.startsWith("You audit")) {
+          audited.push(s.payload.items!.map((i) => i.fieldId));
+          return { data: { verdicts: [{ fieldId: "funding", supported: false }] }, usedModel: "m", keyLabel: "k" };
+        }
+        const decisions = s.payload.fields!.map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          text: "No",
+          checked: true,
+          confidence: "high",
+          sources: ["profile.education"],
+        }));
+        return { data: { decisions }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const fields = [
+      field("school"),
+      field("funding", { label: "Do you receive active funding?" }),
+      field("terms", { kind: "checkbox", label: "I agree to the terms" }),
+    ];
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(audited).toEqual([["school", "funding"]]);
+    expect(r.decisions.map((d) => [d.fieldId, d.action])).toEqual([
+      ["school", "fill"],
+      ["funding", "flag"],
+      ["terms", "fill"],
+    ]);
+    expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {

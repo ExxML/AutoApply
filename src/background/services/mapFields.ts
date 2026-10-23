@@ -14,8 +14,8 @@ import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
 import type { Gemini } from "../gemini/client";
 import { BadOutputError, BlockedError } from "../gemini/errors";
-import { MAP_FIELDS_PROMPT } from "../gemini/prompts";
-import { MAPPING_SCHEMA, MappingZ, type RawDecision } from "../gemini/schemas";
+import { AUDIT_PROMPT, MAP_FIELDS_PROMPT } from "../gemini/prompts";
+import { AUDIT_SCHEMA, AuditZ, MAPPING_SCHEMA, MappingZ, type RawDecision } from "../gemini/schemas";
 
 export interface ServiceCtx {
   gemini: Gemini;
@@ -68,6 +68,8 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
   ...(suggestion ? { suggestion } : {}),
 });
 
+const NOT_IN_PROFILE = "Not in your profile";
+
 /** Sources an answer may rest on: the candidate's profile sections, résumé and learned answers. */
 const CANDIDATE_DATA = new Set([...Object.keys(emptyProfile()).filter((k) => k !== "resumeText"), "resume"]);
 const citesCandidate = (source: string) => CANDIDATE_DATA.has(source.replace(/^profile\./, "").split(/[.[]/)[0]);
@@ -86,8 +88,52 @@ function isToday(text = ""): boolean {
  * posting. Those are guesses: leave them to the user. Consents, uploads and signature dates need no profile source.
  */
 function guessed(d: Decision, f: FieldDescriptor): boolean {
-  if (d.action !== "fill" || d.sources?.some(citesCandidate) || f.kind === "file" || isToday(d.text)) return false;
-  return !RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
+  if (d.action !== "fill" || d.sources?.some(citesCandidate) || isToday(d.text)) return false;
+  return !needsNoSource(f);
+}
+
+const needsNoSource = (f: FieldDescriptor) =>
+  f.kind === "file" || RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
+
+/**
+ * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
+ * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
+ */
+async function auditFills(
+  ctx: ServiceCtx,
+  fields: FieldDescriptor[],
+  base: ReturnType<typeof mappingPayloadBase>,
+  decisions: Decision[],
+): Promise<Decision[]> {
+  const byId = new Map(fields.map((f) => [f.id, f]));
+  const items = decisions.flatMap((d) => {
+    const f = byId.get(d.fieldId);
+    return d.action === "fill" && f && !needsNoSource(f)
+      ? [{ fieldId: f.id, question: f.label, answer: suggestionOf(d, f) ?? "" }]
+      : [];
+  });
+  if (!items.length) return decisions;
+  try {
+    const { profile, resume, learnedAnswers, job, today } = base;
+    const r = await ctx.gemini.call(
+      {
+        system: AUDIT_PROMPT,
+        payload: { items, profile, resume, learnedAnswers, job, today },
+        schema: AUDIT_SCHEMA,
+        validate: (d) => AuditZ.parse(d),
+        timeoutMs: ctx.settings.requestTimeoutMs,
+        signal: ctx.signal,
+      },
+      { model: ctx.model, fallback: ctx.fallback },
+    );
+    const unsupported = new Set(r.data.verdicts.filter((v) => !v.supported).map((v) => v.fieldId));
+    return decisions.map((d) =>
+      d.action === "fill" && unsupported.has(d.fieldId) ? flag(d.fieldId, NOT_IN_PROFILE) : d,
+    );
+  } catch (e) {
+    if (ctx.signal?.aborted) throw e;
+    return decisions;
+  }
 }
 
 /** Validates AI decisions against what was sent (§10.8.1, §18.3). */
@@ -117,7 +163,7 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
     if (d.action === "fill" && d.confidence === "low") d = flag(f.id, r.note || "Low confidence", suggestionOf(r, f));
     if (d.action === "flag" && !d.suggestion && r.action !== "flag") d.suggestion = suggestionOf(r, f);
     // No suggestion either: it would only be the guess.
-    if (guessed(d, f)) d = flag(f.id, "Not in your profile");
+    if (guessed(d, f)) d = flag(f.id, NOT_IN_PROFILE);
     out.set(f.id, d);
   }
   return fields.map((f) => out.get(f.id) ?? flag(f.id, "No AI decision"));
@@ -201,5 +247,5 @@ export async function mapFields(
   const chunks: FieldDescriptor[][] = [];
   for (let i = 0; i < input.fields.length; i += size) chunks.push(input.fields.slice(i, i + size));
   const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
-  return { decisions, usedModel };
+  return { decisions: await auditFills(ctx, input.fields, base, decisions), usedModel };
 }

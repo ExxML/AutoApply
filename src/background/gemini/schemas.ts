@@ -38,6 +38,21 @@ export const MAPPING_SCHEMA = {
   required: ["decisions"],
 };
 
+export const AUDIT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    verdicts: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { fieldId: { type: "STRING" }, supported: { type: "BOOLEAN" } },
+        required: ["fieldId", "supported"],
+      },
+    },
+  },
+  required: ["verdicts"],
+};
+
 export const CHOOSE_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -99,6 +114,8 @@ export const MappingZ = z.object({
   ),
 });
 export type RawDecision = Omit<Decision, "suggestion">;
+
+export const AuditZ = z.object({ verdicts: z.array(z.object({ fieldId: z.string(), supported: z.boolean() })) });
 
 export const ChooseZ = z.object({
   choices: z.array(
