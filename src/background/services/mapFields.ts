@@ -161,6 +161,24 @@ function workCountry(label: string, home: string, job: string | undefined): stri
   );
 }
 
+const entryFor = (country: string, entries: Profile["workAuthorization"]["entries"]) =>
+  entries.find((x) => (canonicalCountry(x.country) ?? normalize(x.country)) === country);
+
+/**
+ * An AI answer of "None"/"No" to a sponsorship question for a country where the profile needs sponsorship (no entry,
+ * or one requiring it). Notion's "will you require any of the below sponsorship? J1 / F1 / None / Other" got "None".
+ */
+function deniesNeededSponsorship(
+  f: FieldDescriptor,
+  answer: string,
+  country: string | undefined,
+  entries: Profile["workAuthorization"]["entries"],
+): boolean {
+  if (!country || !RE_SPONSOR_Q.test(f.label) || !/^(none|no|n\/?a|not applicable)\b/i.test(answer)) return false;
+  const e = entryFor(country, entries);
+  return !e || e.requiresSponsorshipNow === "yes" || e.requiresSponsorshipFuture === "yes";
+}
+
 /**
  * Yes/no "authorized to work?" / "require sponsorship?" questions with a known country, answered from the profile.
  * The model, even told the country, still answered from the home country's entry (Okta, Dublin: "require
@@ -184,7 +202,7 @@ function workAuthDecision(
   const yes = only(/^yes\b/i);
   const no = only(/^no\b/i);
   if (yes < 0 || no < 0) return null;
-  const e = entries.find((x) => (canonicalCountry(x.country) ?? normalize(x.country)) === country);
+  const e = entryFor(country, entries);
   // No entry for the country: not authorized there, so sponsorship needed.
   const says = !e
     ? [sponsor ? "yes" : "no"]
@@ -459,5 +477,15 @@ export async function mapFields(
   const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
   const withCountry = asked.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
   const answered = new Map((await auditFills(ctx, withCountry, base, decisions)).map((d) => [d.fieldId, d]));
-  return { decisions: input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!), usedModel };
+  const entries = input.profile.workAuthorization.entries;
+  return {
+    decisions: input.fields.map((f) => {
+      const d = local.get(f.id) ?? answered.get(f.id)!;
+      const answer = d.action === "fill" ? (suggestionOf(d, f) ?? "") : "";
+      return deniesNeededSponsorship(f, answer, countries.get(f.id), entries)
+        ? flag(f.id, "Sponsorship needed in this country", answer)
+        : d;
+    }),
+    usedModel,
+  };
 }

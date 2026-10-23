@@ -297,6 +297,46 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it('flags an AI "None" to sponsorship where the candidate needs it', async () => {
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          optionIndexes: [2],
+          confidence: "high",
+          sources: ["workAuthorization"],
+        }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    const label = "For this specific internship, will you require any of the below sponsorship for employment?";
+    const ask = (location: string) =>
+      mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        {
+          fields: [field("v", { label, kind: "radio_group", options: ["J1", "F1", "None", "Other"] })],
+          profile,
+          documents: [],
+          job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
+        },
+      );
+    expect((await ask("San Francisco, CA")).decisions[0]).toMatchObject({ action: "flag", suggestion: "None" });
+    profile.workAuthorization.entries = [
+      {
+        country: "Canada",
+        authorized: "yes",
+        status: "",
+        requiresSponsorshipNow: "no",
+        requiresSponsorshipFuture: "no",
+        notes: "",
+      },
+    ];
+    expect((await ask("Toronto, ON")).decisions[0]).toMatchObject({ action: "fill" });
+  });
+
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
     const asked: string[] = [];
     const gemini = {
