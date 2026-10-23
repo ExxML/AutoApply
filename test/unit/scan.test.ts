@@ -190,6 +190,18 @@ describe("grouping (§11.5)", () => {
     expect(fields()[0].desc.label).toBe("Race");
   });
 
+  it("groups nameless radios wrapped one by one under their question (Gem)", () => {
+    const opt = (t: string, i: number) =>
+      `<div><input type="radio" id="${t}${i}"><label for="${t}${i}">${t}</label></div>`;
+    const q = (title: string, i: number) =>
+      `<div><div>${title}</div><div>${["Yes", "No", "N/A"].map((t) => opt(t, i)).join("")}</div></div>`;
+    setBody(q("Will you require sponsorship?", 1) + q("Have you worked here before?", 2));
+    expect(fields().map((h) => [h.desc.kind, h.desc.label, h.desc.options])).toEqual([
+      ["radio_group", "Will you require sponsorship?", ["Yes", "No", "N/A"]],
+      ["radio_group", "Have you worked here before?", ["Yes", "No", "N/A"]],
+    ]);
+  });
+
   it("keeps same-named option boxes of different questions apart (Ashby survey)", () => {
     const q = (title: string, opt: string, i: number) => `<fieldset><label>${title}</label>
         <label><input type="checkbox" id="o${i}" name="${opt}">${opt}</label>

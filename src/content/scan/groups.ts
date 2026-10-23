@@ -71,6 +71,13 @@ function groupBy<T>(items: T[], key: (t: T) => unknown): T[][] {
 
 const scopeOf = (el: HTMLElement) => (el as HTMLInputElement).form ?? el.getRootNode();
 
+/** The nearest ancestor holding another of `peers`: Gem wraps each nameless Yes / No / N/A radio on its own. */
+function sharedParent(el: HTMLElement, peers: HTMLElement[]): Element | null {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement)
+    if (peers.some((o) => o !== el && p.contains(o))) return p;
+  return el.parentElement;
+}
+
 export function isQuestionContainer(parent: Element, first: Element): boolean {
   if (parent.getAttribute("aria-label") || parent.getAttribute("aria-labelledby")) return true;
   let c: Element | null = parent;
@@ -131,15 +138,13 @@ export function buildUnits(c: Collected): Unit[] {
   // 2. Native radios grouped by name within the same form/root, else by radiogroup/fieldset.
   const radios = cands.filter((e): e is HTMLInputElement => e instanceof HTMLInputElement && e.type === "radio");
   const freeRadios = radios.filter((r) => !taken.has(r));
+  const nameless = freeRadios.filter((r) => !r.name);
   const radioGroups = [
     ...groupBy(
       freeRadios.filter((r) => r.name),
       scopeOf,
     ).flatMap((g) => groupBy(g, (r) => r.name)),
-    ...groupBy(
-      freeRadios.filter((r) => !r.name),
-      (r) => r.closest("[role=radiogroup],fieldset") ?? r.parentElement,
-    ),
+    ...groupBy(nameless, (r) => r.closest("[role=radiogroup],fieldset") ?? sharedParent(r, nameless)),
   ];
   for (const members of radioGroups) {
     if (members.some(choiceVisible))
