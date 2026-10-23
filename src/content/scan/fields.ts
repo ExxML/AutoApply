@@ -1,5 +1,6 @@
 // §11.4 FieldDescriptor extraction. Element references stay in the content script (FieldHandle).
 import {
+  canonicalCountry,
   RE_ACTION_LABEL,
   RE_AUTOFILL_UPLOAD,
   RE_CONSENT,
@@ -166,6 +167,13 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const nameId = `${el.getAttribute("name") ?? ""} ${el.id}`;
     if (RE_SKIP_LABEL.test(label) || RE_SKIP_LABEL.test(nameId)) continue;
     if (excludedContext(el, label, mainForm)) continue;
+    // A phone's country picker named only by its value ("Netherlands", Recruitee) follows the dial code we type.
+    if (
+      u.kind === "dropdown" &&
+      (canonicalCountry(label) || /calling code/i.test(label)) &&
+      el.parentElement?.parentElement?.querySelector("input[type=tel]")
+    )
+      continue;
 
     let kind = u.kind;
     if (kind === "text" && el instanceof HTMLInputElement && isTypeaheadInput(el, label)) kind = "typeahead";

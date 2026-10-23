@@ -378,6 +378,13 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(scan(state).handles.map((h) => h.id)).toEqual(a.map((h) => h.id));
   });
 
+  it("skips a phone's country picker named only by its value (Recruitee)", () => {
+    setBody(`<label for="t">Phone number</label><div><div><button type="button" aria-haspopup="listbox" aria-expanded="false"
+      aria-label="Select country calling code: Netherlands" aria-controls="m">Netherlands</button>
+      <div id="m" role="listbox" aria-labelledby="b"></div></div><input type="tel" id="t" name="candidate.phone"></div>`);
+    expect(fields().map((h) => h.desc.label)).toEqual(["Phone number"]);
+  });
+
   it("treats a phone box holding only a dial code as empty (Recruitee)", () => {
     setBody(
       `<label>Phone number <input type="tel" value="+31"></label><label>Mobile <input type="tel" value="+1 604 555 1234"></label>`,
