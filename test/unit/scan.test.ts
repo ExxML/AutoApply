@@ -183,6 +183,17 @@ describe("grouping (§11.5)", () => {
     ]);
   });
 
+  it("keeps same-named option boxes of different questions apart (Ashby survey)", () => {
+    const q = (title: string, opt: string, i: number) => `<fieldset><label>${title}</label>
+        <label><input type="checkbox" id="o${i}" name="${opt}">${opt}</label>
+        <label><input type="checkbox" id="p${i}" name="I prefer not to answer">I prefer not to answer</label></fieldset>`;
+    setBody(q("Sexual orientation", "Gay", 1) + q("Ethnicity", "White", 2));
+    expect(fields().map((h) => [h.desc.label, h.desc.options])).toEqual([
+      ["Sexual orientation", ["Gay", "I prefer not to answer"]],
+      ["Ethnicity", ["White", "I prefer not to answer"]],
+    ]);
+  });
+
   it("consent radio groups (Avature/EA) are consent fields; background-check and Yes/No ones are not", () => {
     setBody(`<fieldset><legend>By selecting "Consent", you consent that EA will process your personal data as described in the Candidate Privacy Notice. *</legend>
         <div role="radiogroup" aria-required="true"><label><input type="radio" name="p"> Consent</label><label><input type="radio" name="p"> Do Not Consent</label></div></fieldset>

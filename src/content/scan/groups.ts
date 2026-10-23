@@ -150,10 +150,12 @@ export function buildUnits(c: Collected): Unit[] {
   const boxes = cands.filter(
     (e): e is HTMLInputElement => e instanceof HTMLInputElement && e.type === "checkbox" && !taken.has(e),
   );
+  // Split by question too: Ashby names boxes after their option, so each survey question's "I prefer not to answer"
+  // shares one name (Sierra).
   const named = groupBy(
     boxes.filter((b) => b.name),
     (b) => b.name,
-  ).flatMap((g) => groupBy(g, scopeOf));
+  ).flatMap((g) => groupBy(g, (b) => b.closest("fieldset,[role=group]") ?? scopeOf(b)));
   for (const g of named.filter((g) => g.length >= 2)) {
     if (g.some(choiceVisible))
       take({ kind: "checkbox_group", el: g[0], members: g, groupEl: g[0].closest("fieldset,[role=group]") });
