@@ -3,7 +3,7 @@ import { RE_DROPZONE, RE_RESUME_FILE, RE_UPLOAD_BUTTON } from "../../shared/cons
 import { collapse, normalize } from "../../shared/normalize";
 import type { DocumentMeta } from "../../shared/types";
 import type { FieldHandle, ScanState } from "../scan/fields";
-import { deepQueryAll } from "../scan/traverse";
+import { deepQueryAll, shadowOf } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 import { dispatching, isForbiddenClick, realClick, waitFor } from "./events";
 import type { FillResult } from "./native";
@@ -26,10 +26,18 @@ export function compatibleDoc(meta: DocumentMeta, docs: DocumentMeta[], accept?:
 const fileInputIn = (el: Element) =>
   el instanceof HTMLInputElement && el.type === "file" ? el : el.querySelector<HTMLInputElement>("input[type=file]");
 
+/** Text including shadow roots: SmartRecruiters lists the uploaded file inside its dropzone's shadow root. */
+function deepText(n: Node): string {
+  if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
+  if (n instanceof Element && n.matches("style,script")) return "";
+  const sr = n instanceof Element ? shadowOf(n) : null;
+  return [...(sr ? [sr] : []), ...n.childNodes].map(deepText).join(" ");
+}
+
 function uploadedIn(h: FieldHandle, name: string): boolean {
   const input = fileInputIn(h.el) ?? fileInputIn(h.container);
   if (input?.files?.[0]?.name === name) return true;
-  const text = collapse(h.container.textContent ?? "");
+  const text = collapse(deepText(h.container));
   return normalize(text).includes(normalize(name)) || /uploaded|attached|✓/i.test(text);
 }
 

@@ -5,6 +5,7 @@ import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../..
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
+import { fillFile } from "../../src/content/fill/file";
 
 beforeAll(() => {
   stubLayout();
@@ -311,5 +312,33 @@ describe("slotted dropdown values", () => {
       `<button role="combobox" aria-haspopup="listbox" aria-label="Country code"><!--lit--><slot name="p"></slot></button>`;
     const [h] = scan(newScanState()).handles;
     expect(h.desc).toMatchObject({ kind: "dropdown", label: "Country code", currentValue: "+1" });
+  });
+});
+
+describe("file uploads", () => {
+  it("count as done when the widget lists the file inside its shadow root (SmartRecruiters)", async () => {
+    setBody(`<div><label for="r">Resume</label><x-drop><input type="file" id="r"></x-drop></div>`);
+    const drop = document.querySelector("x-drop")!;
+    const list = drop.attachShadow({ mode: "open" });
+    list.innerHTML = `<style>.ok::after{content:"uploaded"}</style><slot></slot>`;
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    // The widget takes the file, empties its input and shows the name in its shadow root.
+    input.addEventListener("change", () => {
+      const name = input.files![0].name;
+      input.value = "";
+      list.append(Object.assign(document.createElement("span"), { textContent: name }));
+    });
+    const h = scan(newScanState()).handles[0];
+    const meta = {
+      id: "cv",
+      label: "CV",
+      kind: "resume",
+      fileName: "Ada.pdf",
+      mimeType: "application/pdf",
+      size: 1,
+      isPrimaryResume: true,
+      uploadedAt: 0,
+    } as const;
+    expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
   });
 });
