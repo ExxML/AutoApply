@@ -382,13 +382,14 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           field("GitHub or personal website"),
           field("Link to your Kaggle"),
           field("What is your GitLab username?"),
+          field("X"),
         ],
         profile: emptyProfile(),
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag", "flag"]);
+    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag", "flag", "flag"]);
   });
 
   it("picks the lowest experience bracket when even the total experience is under it", async () => {

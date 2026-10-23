@@ -212,7 +212,8 @@ const SITES: [RegExp, string[]][] = [
   ...["github", "gitlab", "bitbucket", "linkedin", "replit", "kaggle", "leetcode", "devpost", "huggingface"].map(
     (s): [RegExp, string[]] => [new RegExp(`\\b${s}\\b`, "i"), [s]],
   ),
-  [/\b(twitter|x\.com)\b/i, ["twitter", "x.com"]],
+  // Linear labels its Twitter field just "X".
+  [/\b(twitter|x\.com)\b|^x( profile)?( url)?$/i, ["twitter", "x.com"]],
   [/\bhugging face\b/i, ["huggingface"]],
 ];
 
