@@ -348,6 +348,29 @@ function experienceDecision(f: FieldDescriptor, months: number): Decision | null
   };
 }
 
+const WORD_NUMBERS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10 };
+
+/**
+ * "Do you have at least one year of experience as a software engineer?" (Yes/No) when even the candidate's total
+ * experience falls short: "No". Squarespace got "Yes" for 11 months. Enough total experience stays with the model.
+ */
+function minYearsDecision(f: FieldDescriptor, months: number): Decision | null {
+  const m = f.label.match(
+    /\b(?:at least|minimum of|over|more than)\s+(\d+(?:\.\d+)?|[a-z]+)\s+years?\b|\b(\d+(?:\.\d+)?)\+\s*years?\b/i,
+  );
+  const years = m && (m[2] ? Number(m[2]) : Number(m[1]) || WORD_NUMBERS[m[1].toLowerCase()]);
+  const no = f.options && !isMulti(f) ? f.options.findIndex((o) => /^no\b/i.test(o)) : -1;
+  if (!years || no < 0 || !/experience/i.test(f.label) || months / 12 >= years) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [no],
+    intendedAnswer: f.options![no],
+    confidence: "high",
+    sources: ["experience"],
+  };
+}
+
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const SEASONS: [RegExp, number[]][] = [
   [/\bspring\b/i, [3, 4, 5]],
@@ -511,6 +534,7 @@ export async function mapFields(
     const d =
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
+      minYearsDecision(f, months) ??
       graduationDecision(f, input.profile.education);
     if (d) local.set(f.id, d);
   }

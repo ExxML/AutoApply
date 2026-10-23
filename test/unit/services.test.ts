@@ -438,6 +438,17 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           field("a", { label, kind: "select", options: ["Less than 2", "2,4", "4,6", "12+"] }),
           field("b", { label, kind: "select", options: ["None", "1-2 years", "3-5 years"] }),
           field("c", { label, kind: "select", options: ["0-0.5", "0.5-1", "1-3"] }),
+          field("d", {
+            label: "Do you have at least one year of experience as a software engineer?",
+            kind: "select",
+            options: ["Yes", "No"],
+          }),
+          field("e", {
+            label: "Do you have 4.5+ years of experience as a backend engineer?",
+            kind: "radio_group",
+            options: ["Yes", "No"],
+          }),
+          field("f", { label: "Do you have at least 6 months of experience?", kind: "select", options: ["Yes", "No"] }),
         ],
         profile,
         documents: [],
@@ -445,8 +456,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     );
     // 11 months: under 2; below "1-2" (with "None" offered) and over 0.5 stay with the model.
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Less than 2", "flag", "flag"]);
-    expect(asked).toEqual(["b", "c"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
+      "Less than 2",
+      "flag",
+      "flag",
+      "No",
+      "No",
+      "flag",
+    ]);
+    expect(asked).toEqual(["b", "c", "f"]);
   });
 
   it("matches the graduation date to an option by year and month or season", async () => {
