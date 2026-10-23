@@ -135,13 +135,21 @@ export function hintFor(el: HTMLElement, container: Element): string {
   return "";
 }
 
-/** Nearest preceding h1–h6 / legend / [role=heading] in traversal order. */
+/**
+ * Nearest preceding h1–h6 / [role=heading] in traversal order, or the legend of a fieldset holding the field.
+ * Greenhouse's phone fieldset legend ("Phone") used to title every later field. A heading-less block classed
+ * "education…"/"employment…" (Greenhouse's .education--container) names its fields' section.
+ */
 export function sectionFor(el: Element, order: Map<Element, number>, headings: HTMLElement[]): string {
   const pos = order.get(el) ?? 0;
   let best: HTMLElement | null = null;
   for (const h of headings) {
-    if ((order.get(h) ?? Infinity) < pos) best = h;
-    else break;
+    if ((order.get(h) ?? Infinity) >= pos) break;
+    if (h.tagName !== "LEGEND" || h.parentElement?.contains(el)) best = h;
+  }
+  for (let n = el.parentElement; n && !(best && n.contains(best)); n = n.parentElement) {
+    const m = `${n.id} ${typeof n.className === "string" ? n.className : ""}`.match(/(?:^|\s)(education|employment)/i);
+    if (m) return m[1][0].toUpperCase() + m[1].slice(1).toLowerCase();
   }
   return best ? clip(textOf(best) || collapse(shownText(best)), 120) : "";
 }

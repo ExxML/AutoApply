@@ -316,6 +316,16 @@ describe("widget classification (Appendix C.3)", () => {
   });
 });
 
+describe("sections (§11.5)", () => {
+  it("scopes a legend to its fieldset and names heading-less education blocks (Greenhouse)", () => {
+    setBody(`<h2>Apply for this job</h2>
+      <fieldset><legend>Phone</legend><label>Country <input name="c"></label></fieldset>
+      <label>LinkedIn <input name="l"></label>
+      <div class="education--container"><label>End date year <input name="y"></label></div>`);
+    expect(fields().map((h) => h.desc.section)).toEqual(["Phone", "Apply for this job", "Education"]);
+  });
+});
+
 describe("skipping and visibility (§11.3, §11.6)", () => {
   it("skips hidden, disabled, readonly, password, search, captcha, nav and cookie-banner fields", () => {
     setBody(`<nav><input placeholder="Search jobs"></nav>
