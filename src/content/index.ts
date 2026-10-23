@@ -1,6 +1,6 @@
 // Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
 // Fills only when the user triggers it. Never sees API keys; never clicks submit/next.
-import { RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
+import { RE_CONSENT, RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
 import type {
@@ -327,8 +327,21 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
       ? d.optionIndexes
       : ((options && (consentPair(options) ?? yesNoPair(options))) ?? (options?.length === 1 ? [0] : d?.optionIndexes));
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
+  // A box per consent (Gemini: privacy statement + background check): tick each one that isn't an optional extra.
+  const boxes =
+    h.desc.kind === "checkbox_group" &&
+    accept &&
+    options?.every((o) => RE_CONSENT.test(o) || RE_OPTIONAL_CONSENT.test(o))
+      ? options.filter((o) => optional || optionalConsents === "accept" || !RE_OPTIONAL_CONSENT.test(o))
+      : [];
   const op: FillOp | null =
-    h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;
+    h.desc.kind === "checkbox"
+      ? { type: "checked", value: accept }
+      : boxes.length
+        ? { type: "options", texts: boxes }
+        : pick
+          ? { type: "options", texts: [pick] }
+          : null;
   const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${optional ? " (optional)" : ""}`;
   if (mode !== "ask" && op) jobs.push(doFill(h, op, "ai", tooltip, ctrl));
   else setStatus(h, "needs", "Needs your confirmation");

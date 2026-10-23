@@ -204,6 +204,8 @@ test("consent: by default required boxes are ticked and badged blue, optional le
   await expect(page.locator("#c3")).not.toBeChecked();
   await expect(page.locator("#r1")).toBeChecked(); // "Consent" / "Do Not Consent" radios are required consent
   await expect(page.locator("#pp")).toHaveValue("I agree"); // a lone option can only accept
+  await expect(page.locator("#g1")).toBeChecked(); // a box per consent (Gemini)
+  await expect(page.locator("#g2")).toBeChecked();
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "blue");
 });
 
