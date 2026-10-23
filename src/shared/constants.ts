@@ -215,7 +215,8 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/linkedin/i, "linkedin"],
   [/github/i, "github"],
   [/portfolio|personal (web)?site|website/i, "portfolio"],
-  [/^city|\btown\b/i, "city"],
+  // "Your current city, state, and country" also matches region, so it is ambiguous and goes to the AI.
+  [/^city|\btown\b|\bcity\b.*\b(state|province|region|country)\b/i, "city"],
   [/^(current )?location( \(city\))?$|^where are you (currently )?(located|based)\b/i, "location"],
   [/postal|zip/i, "postalCode"],
   [/\bpronouns?\b/i, "pronouns"],

@@ -96,6 +96,7 @@ describe("deterministic matching (§13.2)", () => {
   });
   it("skips ambiguous labels and non-text kinds", () => {
     expect(deterministicValue(f("City, State"), p)).toBeNull();
+    expect(deterministicValue(f("Please indicate your current city, state, and country."), p)).toBeNull();
     expect(deterministicValue(f("Personal statement", { kind: "textarea" }), p)).toBeNull();
     expect(deterministicValue(f("First name", { kind: "select" }), p)).toBeNull();
   });
