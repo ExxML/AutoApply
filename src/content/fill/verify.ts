@@ -69,7 +69,11 @@ export function readValue(h: FieldHandle): string {
 
 /** Compare normalized; phone and masked fields by digits/alphanumerics only. */
 export function sameValue(expected: string, actual: string, mode: "text" | "digits" | "alnum" | "contains" = "text") {
-  if (mode === "digits") return digitsOnly(expected) === digitsOnly(actual) && digitsOnly(expected) !== "";
+  if (mode === "digits") {
+    const [e, a] = [digitsOnly(expected), digitsOnly(actual)];
+    // A phone widget may move the country code into its own picker ("+1 2365180162" shows "236-518-0162", Workable).
+    return e !== "" && (e === a || (a.length >= 7 && e.length - a.length <= 3 && e.endsWith(a)));
+  }
   if (mode === "alnum") return alnum(expected) === alnum(actual);
   if (mode === "contains") return normalize(actual).includes(normalize(expected));
   return normalize(expected) === normalize(actual);

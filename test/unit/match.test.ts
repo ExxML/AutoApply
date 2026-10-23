@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { localMatch, localMatchAll } from "../../src/content/match/localMatch";
 import { deterministicValue, formatPhone, matchLearned } from "../../src/content/match/deterministic";
 import { fitLength, formatDateFor } from "../../src/content/fill/native";
+import { sameValue } from "../../src/content/fill/verify";
 import { emptyProfile } from "../../src/shared/profileSchema";
 import type { FieldDescriptor } from "../../src/shared/types";
 import { stubLayout } from "./dom";
@@ -48,6 +49,15 @@ const f = (label: string, extra: Partial<FieldDescriptor> = {}): FieldDescriptor
   required: false,
   optionsKnown: true,
   ...extra,
+});
+
+describe("phone verification", () => {
+  it("accepts a phone shown without the country code a picker took over (Workable)", () => {
+    expect(sameValue("+1 2365180162", "236-518-0162", "digits")).toBe(true);
+    expect(sameValue("+1 2365180162", "(236) 518-0162", "digits")).toBe(true);
+    expect(sameValue("+1 2365180162", "518-0162", "digits")).toBe(false);
+    expect(sameValue("+1 2365180162", "+1 2365180163", "digits")).toBe(false);
+  });
 });
 
 describe("deterministic matching (§13.2)", () => {
