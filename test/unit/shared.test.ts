@@ -34,6 +34,8 @@ describe("consent patterns", () => {
     'By selecting "Consent", you consent that EA will process your personal data as described in the Candidate Privacy Notice.',
     "I certify that the information provided is accurate and complete, and understand false statements may disqualify me from this and other positions.",
     "I agree to the Terms of Service",
+    // Hugging Face (Workable), YES / NO.
+    "Can you confirm that everything in this application is true and your own, including your experience and identity?",
   ];
   const optional = [
     "I want EA recruiters to contact me in relation to other relevant job opportunities, including related events. I understand that I can withdraw my consent at any time by clicking unsubscribe on any emails received from EA.",
