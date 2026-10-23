@@ -321,8 +321,11 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
   const options = h.desc.options ?? harvested.get(h.id);
   // The AI may answer "consent" without naming the two options (Ramp's SMS question): read them locally then.
+  // A lone option (Reddit's "I agree" dropdown) can only accept.
   const pair =
-    d?.optionIndexes?.length === 2 ? d.optionIndexes : ((options && consentPair(options)) ?? d?.optionIndexes);
+    d?.optionIndexes?.length === 2
+      ? d.optionIndexes
+      : ((options && consentPair(options)) ?? (options?.length === 1 ? [0] : d?.optionIndexes));
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
   const op: FillOp | null =
     h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;
