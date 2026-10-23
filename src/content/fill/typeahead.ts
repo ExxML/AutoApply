@@ -26,11 +26,12 @@ export async function fillTypeahead(
   const input = (h.searchInput ?? h.el) as HTMLInputElement;
   if (normalize(input.value) && normalize(input.value) === normalize(intended))
     return { outcome: "ok", shown: input.value };
+  let typed = query || intended;
   const suggest = async () => {
     const before = snapshot();
     focus(input);
     setNativeValue(input, "");
-    await typeText(input, query || intended);
+    await typeText(input, typed);
     if (h.searchInput) submitSearch(input);
     let c = await waitFor(() => findOptionsContainer(h, before), 2000);
     // A slow suggestion search (Lever's location lookup) shows its spinner meanwhile: wait it out.
@@ -41,7 +42,17 @@ export async function fillTypeahead(
     if (c) await settle(c);
     return c;
   };
-  const c = await suggest();
+  let c = await suggest();
+  // A place search may find nothing for "Vancouver, BC" and plenty for "Vancouver" (SmartRecruiters).
+  const head = typed.split(",")[0].trim();
+  const lists = (box: HTMLElement | null) =>
+    !!box && optionElements(box).some((o) => normalize(optText(o)).includes(normalize(head)));
+  if (head !== typed.trim() && !lists(c)) {
+    // Closed first, so the reopened list reads as new.
+    await closeDropdown(h, c);
+    typed = head;
+    c = await suggest();
+  }
   if (!c) {
     // A dropdown's search box only filters its list: text left there selects nothing.
     if (h.desc.kind === "dropdown") {
@@ -56,7 +67,7 @@ export async function fillTypeahead(
   }
   const els = optionElements(c);
   const texts = els.map(optText);
-  const q = normalize(query || intended);
+  const q = normalize(typed);
   let i = localMatch(intended, texts);
   if (i === null && texts.length === 1 && normalize(texts[0]).startsWith(q)) i = 0;
   if (i === null) i = await choose(texts);
@@ -86,7 +97,7 @@ export async function fillTypeahead(
       : { outcome: "mismatch", note: `Expected "${want}", shows "${dropdownText(h)}"` };
   const v = normalize(input.value || h.el.textContent || "");
   // Our own query left in the box ("Langley" of "Langley, BC") means the pick did not register.
-  const picked = v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(query || intended));
+  const picked = v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(typed));
   return v && picked
     ? { outcome: "ok", shown: want }
     : { outcome: "mismatch", note: `Expected "${want}", shows "${input.value}"` };

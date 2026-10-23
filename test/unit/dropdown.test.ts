@@ -360,3 +360,22 @@ describe("file uploads", () => {
     expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
   });
 });
+
+describe("place typeaheads", () => {
+  it("search again by the place name when the full place finds nothing (SmartRecruiters)", async () => {
+    setBody(`<div><label for="o">Office location</label><input id="o" role="combobox"><div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    const res = document.getElementById("res")!;
+    input.addEventListener("input", () => {
+      res.innerHTML =
+        input.value === "Vancouver"
+          ? `<div role="option">Vancouver, British Columbia, Canada</div>`
+          : `<div role="option">Cannot find your city? Click here to fill in manually</div>`;
+    });
+    res.addEventListener("click", (e) => (input.value = (e.target as HTMLElement).textContent!));
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Vancouver, BC", "Vancouver, BC", async () => 0);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Vancouver, British Columbia, Canada" });
+    expect(input.value).toBe("Vancouver, British Columbia, Canada");
+  });
+});
