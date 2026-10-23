@@ -399,6 +399,12 @@ describe("job context (§11.7)", () => {
     expect(jc.header).not.toContain("Not part of the header");
   });
 
+  it('finds a description titled "What we are looking for" (MongoDB)', () => {
+    setBody(`<form><input placeholder="Search"></form><h1>Software Engineer Intern, Dublin</h1>
+      <div><p>${"We build databases. ".repeat(12)}</p><h3>What we are looking for in you (qualifications)</h3><p>Java</p></div>`);
+    expect(extractJobContext(document, location).text).toContain("What we are looking for");
+  });
+
   it("reads the job's location from its JSON-LD", () => {
     const ld = (posting: object) =>
       setBody(

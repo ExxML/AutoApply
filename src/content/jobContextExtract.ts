@@ -4,7 +4,9 @@ import { collapse } from "../shared/normalize";
 import type { JobContext } from "../shared/types";
 import { isVisible } from "./scan/visibility";
 
-const RE_DESC = /responsibilit|qualification|requirement|about (the|this) (role|job|position)|what you('|’)ll do/gi;
+// MongoDB: "What we are looking for in you (qualifications)".
+const RE_DESC =
+  /responsibilit|qualification|requirement|about (the|this) (role|job|position)|what you('|’)ll do|what we('|’)re looking for|what we are looking for|who you are/gi;
 
 const meta = (doc: Document, prop: string) =>
   doc.querySelector<HTMLMetaElement>(`meta[property="${prop}"],meta[name="${prop}"]`)?.content?.trim() ?? "";
