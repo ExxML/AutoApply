@@ -88,7 +88,13 @@ const pick = (f: Field, re: RegExp) => {
 /** Label → decision table standing in for the model's semantic judgement. */
 function decide(f: Field): Json {
   const L = f.label;
-  const fill = (extra: Json) => ({ fieldId: f.id, action: "fill", confidence: "high", sources: ["profile"], ...extra });
+  const fill = (extra: Json) => ({
+    fieldId: f.id,
+    action: "fill",
+    confidence: "high",
+    sources: ["personal.address"],
+    ...extra,
+  });
   const choose = (re: RegExp, source: string) => {
     const idx = pick(f, re);
     return idx

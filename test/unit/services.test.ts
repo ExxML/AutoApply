@@ -7,6 +7,7 @@ import type { Gemini } from "../../src/background/gemini/client";
 import type { FieldDescriptor } from "../../src/shared/types";
 import { defaultSettings } from "../../src/shared/settings";
 import { emptyProfile } from "../../src/shared/profileSchema";
+import { todayIso } from "../../src/shared/time";
 
 const field = (id: string, extra: Partial<FieldDescriptor> = {}): FieldDescriptor => ({
   id,
@@ -27,8 +28,8 @@ describe("response validation (§10.8.1)", () => {
 
   it("drops unknown ids and flags missing ones", () => {
     const out = validateDecisions(fields, [
-      { fieldId: "nope", action: "fill", text: "x", confidence: "high" },
-      { fieldId: "f1", action: "fill", text: "Ada", confidence: "high" },
+      { fieldId: "nope", action: "fill", text: "x", confidence: "high", sources: ["personal"] },
+      { fieldId: "f1", action: "fill", text: "Ada", confidence: "high", sources: ["personal"] },
     ]);
     expect(out.map((d) => d.fieldId)).toEqual(["f1", "f2", "f3", "f4"]);
     expect(out[0]).toMatchObject({ action: "fill", text: "Ada" });
@@ -37,8 +38,8 @@ describe("response validation (§10.8.1)", () => {
 
   it("turns out-of-range or non-integer indexes into flags", () => {
     const out = validateDecisions(fields, [
-      { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high" },
-      { fieldId: "f3", action: "fill", optionIndexes: [1.5], confidence: "high" },
+      { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high", sources: ["personal"] },
+      { fieldId: "f3", action: "fill", optionIndexes: [1.5], confidence: "high", sources: ["personal"] },
     ]);
     expect(out[1].action).toBe("flag");
     expect(out[2].action).toBe("flag");
@@ -46,8 +47,8 @@ describe("response validation (§10.8.1)", () => {
 
   it("keeps only the first index for single-choice fields but all for multi", () => {
     const out = validateDecisions(fields, [
-      { fieldId: "f3", action: "fill", optionIndexes: [2, 0], confidence: "high" },
-      { fieldId: "f4", action: "fill", optionIndexes: [0, 2], confidence: "high" },
+      { fieldId: "f3", action: "fill", optionIndexes: [2, 0], confidence: "high", sources: ["personal"] },
+      { fieldId: "f4", action: "fill", optionIndexes: [0, 2], confidence: "high", sources: ["personal"] },
     ]);
     expect(out[2].optionIndexes).toEqual([2]);
     expect(out[3].optionIndexes).toEqual([0, 2]);
@@ -56,7 +57,16 @@ describe("response validation (§10.8.1)", () => {
   it("a single-choice decision follows the option the model names over its index", () => {
     const out = validateDecisions(
       [field("y", { kind: "select", options: ["2024", "2028"] })],
-      [{ fieldId: "y", action: "fill", intendedAnswer: "2028", optionIndexes: [0], confidence: "high" }],
+      [
+        {
+          fieldId: "y",
+          action: "fill",
+          intendedAnswer: "2028",
+          optionIndexes: [0],
+          confidence: "high",
+          sources: ["personal"],
+        },
+      ],
     );
     expect(out[0].optionIndexes).toEqual([1]);
   });
@@ -70,6 +80,31 @@ describe("response validation (§10.8.1)", () => {
       ],
     );
     expect(out.map((d) => d.action)).toEqual(["flag", "skip"]);
+  });
+
+  it("a fill citing none of the candidate's data is a guess, left for the user", () => {
+    const today = todayIso().split("-");
+    const out = validateDecisions(
+      [
+        field("q1", { kind: "radio_group", options: ["Yes", "No"], label: "Offer deadlines?" }),
+        field("q2", { label: "Preferred office" }),
+        field("q3", { label: "School" }),
+        field("q4", { kind: "file", label: "Transcript" }),
+        field("q5", { kind: "checkbox", label: "I agree to the terms" }),
+        field("q6", { label: "Date" }),
+      ],
+      [
+        { fieldId: "q1", action: "fill", optionIndexes: [1], confidence: "high", sources: [] },
+        { fieldId: "q2", action: "fill", text: "Toronto", confidence: "high", sources: ["job.descriptionExcerpt"] },
+        { fieldId: "q3", action: "fill", text: "UBC", confidence: "high", sources: ["profile.education"] },
+        { fieldId: "q4", action: "fill", documentId: "t", confidence: "high" },
+        { fieldId: "q5", action: "fill", checked: true, confidence: "high" },
+        { fieldId: "q6", action: "fill", text: `${today[1]}/${today[2]}/${today[0]}`, confidence: "high" },
+      ],
+    );
+    expect(out.map((d) => d.action)).toEqual(["flag", "flag", "fill", "fill", "fill", "fill"]);
+    expect(out[0]).toMatchObject({ note: "Not in your profile" });
+    expect(out[0].suggestion).toBeUndefined();
   });
 
   it("low confidence becomes a flag with the suggestion kept", () => {
@@ -106,7 +141,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         sizes.push(fs.length);
         if (fs.some((f) => f.id === "bad")) throw new BadOutputError("MAX_TOKENS", true);
         return {
-          data: { decisions: fs.map((f) => ({ fieldId: f.id, action: "fill", text: "x", confidence: "high" })) },
+          data: {
+            decisions: fs.map((f) => ({
+              fieldId: f.id,
+              action: "fill",
+              text: "x",
+              confidence: "high",
+              sources: ["personal"],
+            })),
+          },
           usedModel: "m",
           keyLabel: "k",
         };
@@ -129,7 +172,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         sent.push(ids);
         const answer = sent.length === 1 ? ids.filter((id) => id !== "b") : ids;
         return {
-          data: { decisions: answer.map((fieldId) => ({ fieldId, action: "fill", text: "x", confidence: "high" })) },
+          data: {
+            decisions: answer.map((fieldId) => ({
+              fieldId,
+              action: "fill",
+              text: "x",
+              confidence: "high",
+              sources: ["personal"],
+            })),
+          },
           usedModel: "m",
           keyLabel: "k",
         };
@@ -152,7 +203,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         if (sent.length === 2) throw new BadOutputError("Invalid JSON from model");
         const answer = sent.length === 1 ? ["a"] : [];
         return {
-          data: { decisions: answer.map((fieldId) => ({ fieldId, action: "fill", text: "x", confidence: "high" })) },
+          data: {
+            decisions: answer.map((fieldId) => ({
+              fieldId,
+              action: "fill",
+              text: "x",
+              confidence: "high",
+              sources: ["personal"],
+            })),
+          },
           usedModel: "m",
           keyLabel: "k",
         };

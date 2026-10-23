@@ -8,7 +8,9 @@ import type {
   Profile,
   Settings,
 } from "../../shared/types";
+import { RE_CONSENT } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
+import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
 import type { Gemini } from "../gemini/client";
 import { BadOutputError, BlockedError } from "../gemini/errors";
@@ -66,6 +68,28 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
   ...(suggestion ? { suggestion } : {}),
 });
 
+/** Sources an answer may rest on: the candidate's profile sections, résumé and learned answers. */
+const CANDIDATE_DATA = new Set([...Object.keys(emptyProfile()).filter((k) => k !== "resumeText"), "resume"]);
+const citesCandidate = (source: string) => CANDIDATE_DATA.has(source.replace(/^profile\./, "").split(/[.[]/)[0]);
+
+/** A signature date: the answer holds today's year, month and day. */
+function isToday(text = ""): boolean {
+  const nums = (text.match(/\d+/g) ?? []).map(Number);
+  return todayIso()
+    .split("-")
+    .map(Number)
+    .every((n) => nums.includes(n));
+}
+
+/**
+ * The model answers questions the data never covers ("offer deadlines?" → "No") citing nothing, or only the job
+ * posting. Those are guesses: leave them to the user. Consents, uploads and signature dates need no profile source.
+ */
+function guessed(d: Decision, f: FieldDescriptor): boolean {
+  if (d.action !== "fill" || d.sources?.some(citesCandidate) || f.kind === "file" || isToday(d.text)) return false;
+  return !RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
+}
+
 /** Validates AI decisions against what was sent (§10.8.1, §18.3). */
 export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[]): Decision[] {
   const byId = new Map(fields.map((f) => [f.id, f]));
@@ -92,6 +116,8 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
     if (d.action === "skip" && f.required) d = flag(f.id, r.note || "Required field", suggestionOf(r, f));
     if (d.action === "fill" && d.confidence === "low") d = flag(f.id, r.note || "Low confidence", suggestionOf(r, f));
     if (d.action === "flag" && !d.suggestion && r.action !== "flag") d.suggestion = suggestionOf(r, f);
+    // No suggestion either: it would only be the guess.
+    if (guessed(d, f)) d = flag(f.id, "Not in your profile");
     out.set(f.id, d);
   }
   return fields.map((f) => out.get(f.id) ?? flag(f.id, "No AI decision"));
