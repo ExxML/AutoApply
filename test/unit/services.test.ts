@@ -179,7 +179,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         const decisions = s.payload.fields!.map((f) => ({
           fieldId: f.id,
           action: "fill",
-          text: f.id === "heard" ? "Other" : "No",
+          text: f.id === "heard" ? "Other" : f.id === "status" ? "I require sponsorship" : "No",
           checked: true,
           confidence: "high",
           sources: ["profile.education"],
@@ -193,6 +193,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       field("terms", { kind: "checkbox", label: "I agree to the terms" }),
       field("auth", { label: "Are you authorized to work in the country where you are applying?" }),
       field("heard", { label: "Where did you first hear about this job?" }),
+      field("status", { label: "Your work authorization status in the United States" }),
     ];
     const r = await mapFields(
       { gemini, settings: defaultSettings(), model: "m", fallback: null },
@@ -205,6 +206,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ["terms", "fill"],
       ["auth", "fill"],
       ["heard", "fill"],
+      ["status", "fill"],
     ]);
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
@@ -238,8 +240,16 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Are you authorized to work in the U.S.?",
       "Do you require us to sponsor a visa?",
       "First name",
+      "Do you currently receive any active funding (e.g., grants, sponsorships)?",
     );
-    expect(sent.map((f) => f.workCountry)).toEqual(["canada", "ireland", "united states", "ireland", undefined]);
+    expect(sent.map((f) => f.workCountry)).toEqual([
+      "canada",
+      "ireland",
+      "united states",
+      "ireland",
+      undefined,
+      undefined,
+    ]);
     sent.length = 0;
     await ask("San Francisco, CA; Toronto, ON", "Will you require sponsorship?");
     await ask("San Francisco, CA", "Will you require sponsorship?");
@@ -269,13 +279,18 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           yn("Will you now or in the future require Visa Sponsorship?", ["No, I will not", "Yes, I will"]),
           yn("Are you authorized to work in Canada without sponsorship?"),
           yn("Do you not require sponsorship?"),
+          {
+            ...yn("Do you require sponsorship in the United States?"),
+            kind: "checkbox_group" as const,
+            multiple: true,
+          },
         ],
         profile,
         documents: [],
         job: { url: "", title: "", company: "", jobTitle: "", text: "", location: "Dublin, Ireland", capturedAt: 0 },
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Yes", "Yes, I will", "flag", "flag"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Yes", "Yes, I will", "flag", "flag", "Yes"]);
     expect(sent.map((f) => f.id)).toEqual([
       "Are you authorized to work in Canada without sponsorship?",
       "Do you not require sponsorship?",

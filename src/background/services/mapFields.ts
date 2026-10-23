@@ -70,7 +70,10 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
 
 const NOT_IN_PROFILE = "Not in your profile";
 
-const RE_WORK_AUTH = /\b(authori[sz]|sponsor|visa\b|work permit|right to work|eligible to work)/i;
+// A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
+const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
+const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit|right to work|eligible to work)/i;
+const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_SPONSOR_Q.test(label);
 const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence)\b/i;
 
 /** Sources an answer may rest on: the candidate's profile sections, résumé and learned answers. */
@@ -103,10 +106,12 @@ const needsNoSource = (f: FieldDescriptor) =>
   RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
 
 /**
- * A yes/no work authorization or sponsorship answer: the mapping prompt derives it from the job's country, which the
- * audit won't weigh ("authorized in the country where you are applying?" → "No" for a US job got flagged).
+ * A work authorization answer for a known country, or a yes/no one: the mapping prompt derives it from the job's
+ * country, which the audit won't weigh ("authorized in the country where you are applying?" → "No" for a US job,
+ * Waymo's "I require … sponsorship" for Warsaw got flagged).
  */
-const workAuthYesNo = (f: FieldDescriptor, answer: string) => RE_WORK_AUTH.test(f.label) && /^(yes|no)\b/i.test(answer);
+const workAuthAnswer = (f: FieldDescriptor & { workCountry?: string }, answer: string) =>
+  isWorkAuth(f.label) && (!!f.workCountry || /^(yes|no)\b/i.test(answer));
 
 /** "Other" for how they heard: no option matches the profile's source; the audit flagged it (Match Group, Vercel). */
 const heardOther = (f: FieldDescriptor, answer: string) =>
@@ -150,7 +155,7 @@ function jobCountry(location: string): string | undefined {
  * else the job's. The model mixed these up ("authorized in the country you reside?" → the job's country).
  */
 function workCountry(label: string, home: string, job: string | undefined): string | undefined {
-  if (!RE_WORK_AUTH.test(label)) return undefined;
+  if (!isWorkAuth(label)) return undefined;
   return (
     countryIn(label) ?? ((RE_RESIDENCE.test(label) ? (canonicalCountry(home) ?? normalize(home)) : job) || undefined)
   );
@@ -166,9 +171,12 @@ function workAuthDecision(
   country: string | undefined,
   entries: Profile["workAuthorization"]["entries"],
 ): Decision | null {
-  if (!country || !f.options || isMulti(f) || /\bnot\b|n['’]t\b/i.test(f.label)) return null;
-  const sponsor = /sponsor/i.test(f.label);
-  if (sponsor === /authori[sz]ed|eligible to work|right to work/i.test(f.label)) return null;
+  // Lever asks yes/no as a two-box checkbox group (Zoox).
+  if (!country || !f.options || (isMulti(f) && f.options.length !== 2) || /\bnot\b|n['’]t\b/i.test(f.label))
+    return null;
+  const sponsor = RE_SPONSOR_Q.test(f.label);
+  const authorized = /authori[sz]ed|eligible to work|right to work/i.test(f.label);
+  if (sponsor === authorized || (authorized && /sponsor/i.test(f.label))) return null;
   const only = (re: RegExp) => {
     const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
@@ -287,7 +295,7 @@ async function auditFills(
     return d.action === "fill" &&
       f &&
       !needsNoSource(f) &&
-      !workAuthYesNo(f, answer ?? "") &&
+      !workAuthAnswer(f, answer ?? "") &&
       !heardOther(f, answer ?? "")
       ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
       : [];
@@ -449,6 +457,7 @@ export async function mapFields(
   const chunks: FieldDescriptor[][] = [];
   for (let i = 0; i < asked.length; i += size) chunks.push(asked.slice(i, i + size));
   const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
-  const answered = new Map((await auditFills(ctx, asked, base, decisions)).map((d) => [d.fieldId, d]));
+  const withCountry = asked.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
+  const answered = new Map((await auditFills(ctx, withCountry, base, decisions)).map((d) => [d.fieldId, d]));
   return { decisions: input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!), usedModel };
 }
