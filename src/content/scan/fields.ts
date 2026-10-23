@@ -112,10 +112,12 @@ const isDisabled = (el: Element) =>
 function excludedContext(el: HTMLElement, label: string, mainForm: HTMLFormElement | null): boolean {
   if (el.closest("nav,[role=navigation],[role=search]")) return true;
   const form = el.closest("form");
-  if (el.closest("header") && !form) return true;
+  // Site chrome: Samsara's footer language picker.
+  if (el.closest("header,footer") && !form) return true;
   if (!form) {
     for (let n: Element | null = el; n; n = parentOf(n)) {
-      const idc = `${n.id} ${typeof n.className === "string" ? n.className : ""}`;
+      // Evidon's banner is named only by aria-label="Cookie notice banner" (Roblox).
+      const idc = `${n.id} ${typeof n.className === "string" ? n.className : ""} ${n.getAttribute("aria-label") ?? ""}`;
       if (RE_COOKIE_CONTAINER.test(idc)) return true;
     }
   }
