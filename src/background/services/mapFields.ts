@@ -8,7 +8,7 @@ import type {
   Profile,
   Settings,
 } from "../../shared/types";
-import { canonicalCountry, RE_CONSENT, regionCountry } from "../../shared/constants";
+import { canonicalCountry, RE_CONSENT, RE_INTERVIEW_RECORDING, regionCountry } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
@@ -348,6 +348,17 @@ function experienceDecision(f: FieldDescriptor, months: number): Decision | null
   };
 }
 
+/** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
+function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
+  if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["background"] };
+  if (f.kind === "checkbox") return { ...base, checked: consent === "yes" };
+  const re =
+    consent === "yes" ? /^(yes\b|i (consent|agree|accept)|opt.?in)/i : /^(no\b|i (do not|don['’]t)|opt.?out|decline)/i;
+  const hits = !f.options || isMulti(f) ? [] : f.options.flatMap((o, i) => (re.test(o) ? [i] : []));
+  return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options![hits[0]] } : null;
+}
+
 const WORD_NUMBERS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10 };
 
 /**
@@ -535,7 +546,8 @@ export async function mapFields(
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
-      graduationDecision(f, input.profile.education);
+      graduationDecision(f, input.profile.education) ??
+      recordingDecision(f, input.profile.background.consentToInterviewRecording);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

@@ -100,6 +100,9 @@ export const RE_CONSENT =
 /** Consent that is not needed to apply: future/other roles, talent pools, marketing. */
 export const RE_OPTIONAL_CONSENT =
   /\b(future|other|additional|similar|relevant)\b(\s+\w+){0,2}\s+(opportunit\w*|openings|vacancies)|considered for (other|future)|talent (community|pool|network)|job alerts?|newsletter|marketing (e-?mails?|communications?|messages|materials)|unsubscribe|keep me (informed|updated|posted)|text messag\w*|\bsms\b|alerts? for (similar|new|other|relevant|future) (jobs?|roles?|positions?|openings)|stay (up to date|in touch|informed|connected)\b|\b(retain|retention)\b[^.]*\b(additional|further|extra|extended|longer)\b/i;
+/** Opt-in to AI notetakers or recorded interviews: answered from the profile, not as a consent. Not "transcript". */
+export const RE_INTERVIEW_RECORDING =
+  /\bnote-?tak|\b(record|transcrib)\w*\b[^.]*\b(interview|conversation|meeting)s?\b|\b(interview|conversation|meeting)s?\b[^.]*\b(record|transcrib)\w*/i;
 /** Answer choices of a consent question ("Consent" / "Do Not Consent"). */
 export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowledge|accept)/i;
 export const RE_CONSENT_NO = /^(no[\s,:–—-]+)?(i )?(do not|don['’]t|decline|disagree|refuse|withhold)\b/i;

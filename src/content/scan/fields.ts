@@ -7,6 +7,7 @@ import {
   RE_CONSENT_NO,
   RE_CONSENT_YES,
   RE_COOKIE_CONTAINER,
+  RE_INTERVIEW_RECORDING,
   RE_NEWSLETTER,
   RE_OPTIONAL_CONSENT,
   RE_PLACEHOLDER_OPTION,
@@ -259,14 +260,16 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
     const text = `${label} ${d.hint ?? ""}`;
     // Choice consents ("Consent" / "Do Not Consent") are answered locally; background/drug checks follow the profile.
+    // Interview recording opt-ins (Palantir's AI notetakers) follow the profile's preference, so the AI path answers them.
     h.consent =
-      kind === "checkbox"
+      !RE_INTERVIEW_RECORDING.test(text) &&
+      (kind === "checkbox"
         ? RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text)
         : !d.multiple &&
           !!d.options &&
           ((RE_CONSENT.test(text) && !/background|drug/i.test(text) && !!consentPair(d.options)) ||
             // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings.
-            (RE_OPTIONAL_CONSENT.test(text) && !!yesNoPair(d.options)));
+            (RE_OPTIONAL_CONSENT.test(text) && !!yesNoPair(d.options))));
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);

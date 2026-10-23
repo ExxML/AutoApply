@@ -113,6 +113,7 @@ export const ProfileSchema = o({
     over18: yn(),
   }),
   education: arr(EducationSchema),
+  highSchool: o({ name: s(), graduationYear: s() }),
   coop: o({
     inCoopProgram: yn(),
     programName: s(),
@@ -158,6 +159,10 @@ export const ProfileSchema = o({
     previouslyEmployedHereDefault: yn(),
     relativesEmployedHereDefault: yn(),
     nonCompeteOrRestrictions: s(),
+    offerDeadlines: s(),
+    outsideActivities: s(),
+    governmentTies: s(),
+    consentToInterviewRecording: yn(),
   }),
   referral: o({ howDidYouHearDefault: s(), referrerName: s() }),
   demographics: o({
@@ -170,6 +175,8 @@ export const ProfileSchema = o({
     disability: ynd(),
     indigenous: ynd(),
     visibleMinority: ynd(),
+    firstGenProfessional: ynd(),
+    lgbtq: ynd(),
   }),
   essayGuidance: o({
     aboutMe: s(),

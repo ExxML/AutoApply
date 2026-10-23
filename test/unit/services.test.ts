@@ -397,6 +397,40 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag", "flag", "flag"]);
   });
 
+  it("answers interview-recording opt-ins from the profile", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const label = "As part of our interview process, we may use AI notetakers to transcribe conversations.";
+    const fields = [
+      field("a", { label, kind: "radio_group", options: ["Yes, I consent", "No, I do not consent"] }),
+      field("b", { label: "If you are invited to an interview, it may be recorded.", kind: "checkbox" }),
+      field("c", { label: "Undergraduate transcript", kind: "file" }),
+    ];
+    const run = () =>
+      mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+    profile.background.consentToInterviewRecording = "no";
+    const r = await run();
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.checked ?? d.action)).toEqual([
+      "No, I do not consent",
+      false,
+      "flag",
+    ]);
+    profile.background.consentToInterviewRecording = "";
+    await run();
+    expect(asked).toEqual(["c", "a", "b", "c"]);
+  });
+
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
     const asked: string[] = [];
     const gemini = {

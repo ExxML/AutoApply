@@ -159,6 +159,8 @@ export const PROFILE_GROUPS: GroupSpec[] = [
           t("relevantCourses", "Relevant courses", "Press Enter after each course.", "tags"),
         ],
       },
+      t("highSchool.name", "High school", "Asked by some internship forms; kept apart from your degrees."),
+      t("highSchool.graduationYear", "High school graduation year", "e.g. 2024."),
     ],
   },
   {
@@ -330,6 +332,27 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         "Non-compete / restrictions",
         "Describe any agreements; leave empty if none.",
       ),
+      t(
+        "background.offerDeadlines",
+        "Offer deadlines",
+        "Answers “Do you have any upcoming offer deadlines?”. Write “None” if you have none; empty leaves it to you.",
+      ),
+      t(
+        "background.outsideActivities",
+        "Outside business activities",
+        "Advisory, consulting or board roles, side businesses you'd keep. Write “None” if none.",
+      ),
+      t(
+        "background.governmentTies",
+        "Government employment / officials",
+        "Current or past government work, or close ties to government officials. Write “None” if none.",
+      ),
+      t(
+        "background.consentToInterviewRecording",
+        "Consent to interview recording",
+        "Answers opt-ins to AI notetakers or recorded / transcribed interviews.",
+        "yn",
+      ),
     ],
   },
   {
@@ -369,6 +392,13 @@ export const PROFILE_GROUPS: GroupSpec[] = [
       t("demographics.disability", "Disability", "Answers disability self-identification.", "ynd"),
       t("demographics.indigenous", "Indigenous", "Canadian self-identification question.", "ynd"),
       t("demographics.visibleMinority", "Visible minority", "Canadian self-identification question.", "ynd"),
+      t(
+        "demographics.firstGenProfessional",
+        "First-generation professional",
+        "Answers “I identify as a first-generation professional”.",
+        "ynd",
+      ),
+      t("demographics.lgbtq", "LGBTQ+ community", "Answers LGBTQ+ / 2SLGBTQIA+ community questions.", "ynd"),
     ],
   },
   {

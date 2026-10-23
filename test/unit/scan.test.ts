@@ -385,6 +385,12 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(fields().map((h) => h.desc.label)).toEqual(["Phone number"]);
   });
 
+  it("leaves interview-recording opt-ins to the profile, not the consent settings (Palantir)", () => {
+    setBody(`<fieldset><legend>We may use AI notetakers to transcribe conversations. Do you consent?</legend>
+      <label><input type="radio" name="n"> Yes, I consent</label><label><input type="radio" name="n"> No, I do not consent</label></fieldset>`);
+    expect(fields()[0].consent).toBe(false);
+  });
+
   it("treats a phone box holding only a dial code as empty (Recruitee)", () => {
     setBody(
       `<label>Phone number <input type="tel" value="+31"></label><label>Mobile <input type="tel" value="+1 604 555 1234"></label>`,
