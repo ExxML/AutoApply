@@ -108,6 +108,10 @@ const needsNoSource = (f: FieldDescriptor) =>
  */
 const workAuthYesNo = (f: FieldDescriptor, answer: string) => RE_WORK_AUTH.test(f.label) && /^(yes|no)\b/i.test(answer);
 
+/** "Other" for how they heard: no option matches the profile's source; the audit flagged it (Match Group, Vercel). */
+const heardOther = (f: FieldDescriptor, answer: string) =>
+  /\b(hear|heard|learn(ed)?) (about|of)\b/i.test(f.label) && /^other\b/i.test(answer);
+
 /** A country the text names. Short codes only as written ("US", "U.S."), never the pronoun "us". */
 function countryIn(text: string): string | undefined {
   if (/\bU\.?S\.?(A\.?)?(?![a-z])|\bUnited States\b/.test(text)) return "united states";
@@ -206,7 +210,11 @@ async function auditFills(
   const items = decisions.flatMap((d) => {
     const f = byId.get(d.fieldId);
     const answer = f && suggestionOf(d, f);
-    return d.action === "fill" && f && !needsNoSource(f) && !workAuthYesNo(f, answer ?? "")
+    return d.action === "fill" &&
+      f &&
+      !needsNoSource(f) &&
+      !workAuthYesNo(f, answer ?? "") &&
+      !heardOther(f, answer ?? "")
       ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
       : [];
   });

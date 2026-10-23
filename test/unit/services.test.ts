@@ -179,7 +179,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         const decisions = s.payload.fields!.map((f) => ({
           fieldId: f.id,
           action: "fill",
-          text: "No",
+          text: f.id === "heard" ? "Other" : "No",
           checked: true,
           confidence: "high",
           sources: ["profile.education"],
@@ -192,6 +192,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       field("funding", { label: "Do you receive active funding?" }),
       field("terms", { kind: "checkbox", label: "I agree to the terms" }),
       field("auth", { label: "Are you authorized to work in the country where you are applying?" }),
+      field("heard", { label: "Where did you first hear about this job?" }),
     ];
     const r = await mapFields(
       { gemini, settings: defaultSettings(), model: "m", fallback: null },
@@ -203,6 +204,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ["funding", "flag"],
       ["terms", "fill"],
       ["auth", "fill"],
+      ["heard", "fill"],
     ]);
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
