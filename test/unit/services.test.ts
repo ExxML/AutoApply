@@ -256,7 +256,17 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     await ask("Remote (Canada)", "Will you require sponsorship?");
     await ask("Toronto, ON, CA", "Will you require sponsorship?");
     await ask("Atlanta, Georgia", "Will you require sponsorship?");
-    expect(sent.map((f) => f.workCountry)).toEqual([undefined, "united states", "canada", "canada", "united states"]);
+    await ask("Hybrid - San Francisco", "Will you require sponsorship?");
+    await ask("Vancouver, WA", "Will you require sponsorship?");
+    expect(sent.map((f) => f.workCountry)).toEqual([
+      undefined,
+      "united states",
+      "canada",
+      "canada",
+      "united states",
+      "united states",
+      "united states",
+    ]);
 
     // Yes/no questions with a known country are answered from the profile, not asked.
     profile.workAuthorization.entries = [

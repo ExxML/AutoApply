@@ -130,21 +130,67 @@ function countryIn(text: string): string | undefined {
     }
 }
 
+const US = "united states";
+const HUBS: Record<string, string> = {
+  "san francisco": US,
+  "sf bay area": US,
+  "bay area": US,
+  "new york": US,
+  "new york city": US,
+  nyc: US,
+  seattle: US,
+  austin: US,
+  boston: US,
+  chicago: US,
+  "los angeles": US,
+  "palo alto": US,
+  "mountain view": US,
+  "menlo park": US,
+  sunnyvale: US,
+  "san jose": US,
+  "foster city": US,
+  "redwood city": US,
+  denver: US,
+  atlanta: US,
+  toronto: "canada",
+  vancouver: "canada",
+  montreal: "canada",
+  waterloo: "canada",
+  ottawa: "canada",
+  london: "united kingdom",
+  dublin: "ireland",
+  berlin: "germany",
+  munich: "germany",
+  paris: "france",
+  amsterdam: "netherlands",
+  zurich: "switzerland",
+  stockholm: "sweden",
+  bangalore: "india",
+  bengaluru: "india",
+  hyderabad: "india",
+  tokyo: "japan",
+  sydney: "australia",
+  "tel aviv": "israel",
+};
+
 /**
  * The one country a job's location names, if just one. Each part narrows the candidates, a state or province first:
  * "San Francisco, CA" → united states, "Toronto, ON, CA" → canada, "Atlanta, Georgia" → united states.
- * shortcut: a lone code that is also a state ("Bengaluru, IN") reads as the US state; needs a city list to fix.
+ * With neither, a tech hub's name alone ("Hybrid - San Francisco", Vercel).
+ * shortcut: a lone code that is also a state ("Bengaluru, IN") reads as the US state, and hubs are a short list;
+ * a full city list would fix both.
  */
 function jobCountry(location: string): string | undefined {
   const countries = new Set(
     location.split(";").map((place) => {
       let pick: string[] = [];
-      for (const p of place.split(/[,()]| - /)) {
+      const parts = place.split(/[,()/]| - /);
+      for (const p of parts) {
         const options = [regionCountry(p), canonicalCountry(p)].filter((c): c is string => !!c);
         const both = pick.filter((c) => options.includes(c));
         pick = pick.length ? (both.length ? both : pick) : options;
       }
-      return pick[0] ?? null;
+      return pick[0] ?? parts.map((p) => HUBS[normalize(p)]).find(Boolean) ?? null;
     }),
   );
   return countries.size === 1 ? ([...countries][0] ?? undefined) : undefined;
