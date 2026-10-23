@@ -8,7 +8,7 @@ import type {
   Profile,
   Settings,
 } from "../../shared/types";
-import { RE_CONSENT } from "../../shared/constants";
+import { canonicalCountry, RE_CONSENT, regionCountry } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
@@ -70,6 +70,9 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
 
 const NOT_IN_PROFILE = "Not in your profile";
 
+const RE_WORK_AUTH = /\b(authori[sz]|sponsor|visa\b|work permit|right to work|eligible to work)/i;
+const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence)\b/i;
+
 /** Sources an answer may rest on: the candidate's profile sections, résumé and learned answers. */
 const CANDIDATE_DATA = new Set([...Object.keys(emptyProfile()).filter((k) => k !== "resumeText"), "resume"]);
 const citesCandidate = (source: string) => CANDIDATE_DATA.has(source.replace(/^profile\./, "").split(/[.[]/)[0]);
@@ -103,9 +106,91 @@ const needsNoSource = (f: FieldDescriptor) =>
  * A yes/no work authorization or sponsorship answer: the mapping prompt derives it from the job's country, which the
  * audit won't weigh ("authorized in the country where you are applying?" → "No" for a US job got flagged).
  */
-const workAuthYesNo = (f: FieldDescriptor, answer: string) =>
-  /\b(authori[sz]|sponsor|visa\b|work permit|right to work|eligible to work)/i.test(f.label) &&
-  /^(yes|no)\b/i.test(answer);
+const workAuthYesNo = (f: FieldDescriptor, answer: string) => RE_WORK_AUTH.test(f.label) && /^(yes|no)\b/i.test(answer);
+
+/** A country the text names. Short codes only as written ("US", "U.S."), never the pronoun "us". */
+function countryIn(text: string): string | undefined {
+  if (/\bU\.?S\.?(A\.?)?(?![a-z])|\bUnited States\b/.test(text)) return "united states";
+  if (/\bUK\b/.test(text)) return "united kingdom";
+  const words = normalize(text).split(" ");
+  for (let n = 3; n >= 1; n--)
+    for (let i = 0; i + n <= words.length; i++) {
+      const s = words.slice(i, i + n).join(" ");
+      const c = s.length > 3 ? canonicalCountry(s) : null;
+      if (c) return c;
+    }
+}
+
+/**
+ * The one country a job's location names, if just one. Each part narrows the candidates, a state or province first:
+ * "San Francisco, CA" → united states, "Toronto, ON, CA" → canada, "Atlanta, Georgia" → united states.
+ * shortcut: a lone code that is also a state ("Bengaluru, IN") reads as the US state; needs a city list to fix.
+ */
+function jobCountry(location: string): string | undefined {
+  const countries = new Set(
+    location.split(";").map((place) => {
+      let pick: string[] = [];
+      for (const p of place.split(/[,()]| - /)) {
+        const options = [regionCountry(p), canonicalCountry(p)].filter((c): c is string => !!c);
+        const both = pick.filter((c) => options.includes(c));
+        pick = pick.length ? (both.length ? both : pick) : options;
+      }
+      return pick[0] ?? null;
+    }),
+  );
+  return countries.size === 1 ? ([...countries][0] ?? undefined) : undefined;
+}
+
+/**
+ * The country a work authorization question is about: the one it names, the candidate's own for "where you live",
+ * else the job's. The model mixed these up ("authorized in the country you reside?" → the job's country).
+ */
+function workCountry(label: string, home: string, job: string | undefined): string | undefined {
+  if (!RE_WORK_AUTH.test(label)) return undefined;
+  return (
+    countryIn(label) ?? ((RE_RESIDENCE.test(label) ? (canonicalCountry(home) ?? normalize(home)) : job) || undefined)
+  );
+}
+
+/**
+ * Yes/no "authorized to work?" / "require sponsorship?" questions with a known country, answered from the profile.
+ * The model, even told the country, still answered from the home country's entry (Okta, Dublin: "require
+ * sponsorship?" → "No"). Negated or combined questions ("authorized without sponsorship?") stay with the model.
+ */
+function workAuthDecision(
+  f: FieldDescriptor,
+  country: string | undefined,
+  entries: Profile["workAuthorization"]["entries"],
+): Decision | null {
+  if (!country || !f.options || isMulti(f) || /\bnot\b|n['’]t\b/i.test(f.label)) return null;
+  const sponsor = /sponsor/i.test(f.label);
+  if (sponsor === /authori[sz]ed|eligible to work|right to work/i.test(f.label)) return null;
+  const only = (re: RegExp) => {
+    const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
+    return hits.length === 1 ? hits[0] : -1;
+  };
+  const yes = only(/^yes\b/i);
+  const no = only(/^no\b/i);
+  if (yes < 0 || no < 0) return null;
+  const e = entries.find((x) => (canonicalCountry(x.country) ?? normalize(x.country)) === country);
+  // No entry for the country: not authorized there, so sponsorship needed.
+  const says = !e
+    ? [sponsor ? "yes" : "no"]
+    : sponsor
+      ? [e.requiresSponsorshipNow, ...(/future/i.test(f.label) ? [e.requiresSponsorshipFuture] : [])]
+      : [e.authorized];
+  const answer = says.includes("yes") ? true : says.every((s) => s === "no") ? false : null;
+  if (answer === null) return null;
+  const i = answer ? yes : no;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
 
 /**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
@@ -209,6 +294,7 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">) {
       company: input.job?.company,
       title: input.job?.jobTitle,
       url: input.job?.url,
+      location: input.job?.location,
       descriptionExcerpt: input.job?.text.slice(0, 3000) || input.job?.header,
     }),
     today: todayIso(),
@@ -220,6 +306,22 @@ export async function mapFields(
   input: MapInput,
 ): Promise<{ decisions: Decision[]; usedModel: string }> {
   const base = mappingPayloadBase(input);
+  const home = input.profile.personal.address.country;
+  const job = input.job?.location ? jobCountry(input.job.location) : undefined;
+  const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job)]));
+  const local = new Map<string, Decision>();
+  for (const f of input.fields) {
+    const d = workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries);
+    if (d) local.set(f.id, d);
+  }
+  const sent = (f: FieldDescriptor) => {
+    const country = countries.get(f.id);
+    return {
+      ...f,
+      ...(f.options ? { options: numbered(f.options) } : {}),
+      ...(country ? { workCountry: country } : {}),
+    };
+  };
   let usedModel = ctx.model;
 
   async function runChunk(chunk: FieldDescriptor[], retried = false): Promise<Decision[]> {
@@ -227,7 +329,7 @@ export async function mapFields(
       const r = await ctx.gemini.call(
         {
           system: MAP_FIELDS_PROMPT,
-          payload: { fields: chunk.map((f) => (f.options ? { ...f, options: numbered(f.options) } : f)), ...base },
+          payload: { fields: chunk.map(sent), ...base },
           schema: MAPPING_SCHEMA,
           validate: (d) => MappingZ.parse(d),
           timeoutMs: ctx.settings.requestTimeoutMs,
@@ -257,8 +359,10 @@ export async function mapFields(
   }
 
   const size = ctx.settings.maxFieldsPerRequest;
+  const asked = input.fields.filter((f) => !local.has(f.id));
   const chunks: FieldDescriptor[][] = [];
-  for (let i = 0; i < input.fields.length; i += size) chunks.push(input.fields.slice(i, i + size));
+  for (let i = 0; i < asked.length; i += size) chunks.push(asked.slice(i, i + size));
   const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
-  return { decisions: await auditFills(ctx, input.fields, base, decisions), usedModel };
+  const answered = new Map((await auditFills(ctx, asked, base, decisions)).map((d) => [d.fieldId, d]));
+  return { decisions: input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!), usedModel };
 }

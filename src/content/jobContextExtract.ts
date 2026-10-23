@@ -14,10 +14,38 @@ function htmlToText(html: string): string {
   return collapse(d.body?.textContent ?? "");
 }
 
+type Named = string | { name?: string } | null | undefined;
+interface PostalAddress {
+  addressLocality?: string | null;
+  addressRegion?: string | null;
+  addressCountry?: Named;
+}
+
 interface JobPosting {
   description?: string;
   title?: string;
   hiringOrganization?: { name?: string } | string;
+  jobLocation?: { address?: string | PostalAddress } | { address?: string | PostalAddress }[];
+  jobLocationType?: string;
+  applicantLocationRequirements?: Named | Named[];
+}
+
+const nameOf = (n: Named) => (typeof n === "string" ? n : (n?.name ?? ""));
+
+/** "Dublin, Ireland; Remote (USA)": every place the posting names. */
+function ldLocation(ld: JobPosting): string {
+  const places = [ld.jobLocation ?? []]
+    .flat()
+    .map(({ address: a }) =>
+      typeof a === "string"
+        ? a
+        : [a?.addressLocality, a?.addressRegion, nameOf(a?.addressCountry)].filter(Boolean).join(", "),
+    );
+  if (ld.jobLocationType === "TELECOMMUTE") {
+    const where = [ld.applicantLocationRequirements ?? []].flat().map(nameOf).filter(Boolean).join(", ");
+    places.push(where ? `Remote (${where})` : "Remote");
+  }
+  return collapse([...new Set(places.filter(Boolean))].join("; ")).slice(0, 300);
 }
 
 function jsonLdJobPosting(doc: Document): JobPosting | null {
@@ -82,11 +110,22 @@ function headerText(doc: Document): string {
   return collapse(parts.join(" ")).slice(0, 1000);
 }
 
+/** A short visible location label outside forms and site chrome (Greenhouse's .job__location, Lever's .location). */
+function locationText(doc: Document): string {
+  for (const el of doc.querySelectorAll<HTMLElement>('[class*="location" i]')) {
+    if (el.closest("form,header,footer,nav") || el.querySelector("input,select,textarea") || !isVisible(el)) continue;
+    const t = collapse(el.textContent ?? "");
+    if (t.length >= 2 && t.length <= 100) return t;
+  }
+  return "";
+}
+
 export function extractJobContext(doc: Document = document, loc: Location = location): JobContext {
   const ld = jsonLdJobPosting(doc);
   const h1 = collapse(doc.querySelector("h1")?.textContent ?? "");
   const org = ld?.hiringOrganization;
   const text = ld?.description ? htmlToText(ld.description).slice(0, 8000) : largestDescriptionBlock(doc);
+  const where = (ld && ldLocation(ld)) || locationText(doc);
   return {
     url: loc.href,
     title: doc.title,
@@ -94,6 +133,7 @@ export function extractJobContext(doc: Document = document, loc: Location = loca
     company: meta(doc, "og:site_name") || (typeof org === "string" ? org : (org?.name ?? "")) || companyFromHost(loc),
     text,
     ...(text ? {} : { header: headerText(doc) }),
+    ...(where ? { location: where } : {}),
     capturedAt: Date.now(),
   };
 }

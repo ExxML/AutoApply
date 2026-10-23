@@ -407,6 +407,11 @@ export function REGION_ALIASES(): Map<string, string> {
 
 export const canonicalCountry = (s: string): string | null => COUNTRY_ALIASES().get(normalize(s)) ?? null;
 export const canonicalRegion = (s: string): string | null => REGION_ALIASES().get(normalize(s)) ?? null;
+/** The normalized country of a Canadian province or US state (REGIONS lists Canada's 13 first). */
+export const regionCountry = (s: string): string | null => {
+  const c = canonicalRegion(s);
+  return c ? (REGIONS.findIndex(([, n]) => normalize(n) === c) < 13 ? "canada" : "united states") : null;
+};
 export const regionCode = (s: string): string | null => {
   const c = canonicalRegion(s);
   return c ? (REGIONS.find(([, n]) => normalize(n) === c)?.[0] ?? null) : null;

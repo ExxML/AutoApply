@@ -102,6 +102,8 @@ export interface JobContext {
   text: string;
   /** Page text above the form when there is no description: apply pages still name the job's location there. */
   header?: string;
+  /** Where the job is, from its JSON-LD or location label; descriptions often leave it out (Okta, Dublin). */
+  location?: string;
   capturedAt: number;
 }
 

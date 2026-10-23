@@ -387,4 +387,27 @@ describe("job context (§11.7)", () => {
     expect(jc.header).toMatch(/^Infrastructure Engineer, Internship Washington, D\.C\. \/ Internship/);
     expect(jc.header).not.toContain("Not part of the header");
   });
+
+  it("reads the job's location from its JSON-LD", () => {
+    const ld = (posting: object) =>
+      setBody(
+        `<script type="application/ld+json">${JSON.stringify({ "@type": "JobPosting", description: "x", ...posting })}</script>`,
+      );
+    ld({ jobLocation: [{ "@type": "Place", address: "Dublin, Ireland" }] });
+    expect(extractJobContext(document, location).location).toBe("Dublin, Ireland");
+    ld({
+      jobLocation: {
+        address: { addressLocality: "San Francisco", addressRegion: "California", addressCountry: "USA" },
+      },
+    });
+    expect(extractJobContext(document, location).location).toBe("San Francisco, California, USA");
+    ld({ jobLocationType: "TELECOMMUTE", applicantLocationRequirements: { "@type": "Country", name: "Canada" } });
+    expect(extractJobContext(document, location).location).toBe("Remote (Canada)");
+    ld({});
+    expect(extractJobContext(document, location).location).toBeUndefined();
+    // Greenhouse: no JSON-LD, a location label under the title.
+    setBody(`<h1>Engineer</h1><div class="job__location"><svg></svg>San Francisco, California, United States</div>
+      <form><div class="location-field"><label>Location <input></label></div></form>`);
+    expect(extractJobContext(document, location).location).toBe("San Francisco, California, United States");
+  });
 });

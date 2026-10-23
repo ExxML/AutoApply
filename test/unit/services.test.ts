@@ -207,6 +207,79 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
 
+  it("tells the model which country each work authorization question is about", async () => {
+    const sent: Record<string, unknown>[] = [];
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: Record<string, unknown>[] } }) => {
+        const fields = s.payload.fields ?? [];
+        sent.push(...fields);
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    const ask = (location: string, ...labels: string[]) =>
+      mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        {
+          fields: labels.map((l, i) => field(`f${i}`, { label: l })),
+          profile,
+          documents: [],
+          job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
+        },
+      );
+    await ask(
+      "Dublin, Ireland",
+      "Are you legally authorized to work in the country you reside?",
+      "Will you now or in the future require Visa Sponsorship?",
+      "Are you authorized to work in the U.S.?",
+      "Do you require us to sponsor a visa?",
+      "First name",
+    );
+    expect(sent.map((f) => f.workCountry)).toEqual(["canada", "ireland", "united states", "ireland", undefined]);
+    sent.length = 0;
+    await ask("San Francisco, CA; Toronto, ON", "Will you require sponsorship?");
+    await ask("San Francisco, CA", "Will you require sponsorship?");
+    await ask("Remote (Canada)", "Will you require sponsorship?");
+    await ask("Toronto, ON, CA", "Will you require sponsorship?");
+    await ask("Atlanta, Georgia", "Will you require sponsorship?");
+    expect(sent.map((f) => f.workCountry)).toEqual([undefined, "united states", "canada", "canada", "united states"]);
+
+    // Yes/no questions with a known country are answered from the profile, not asked.
+    profile.workAuthorization.entries = [
+      {
+        country: "Canada",
+        authorized: "yes",
+        status: "",
+        requiresSponsorshipNow: "no",
+        requiresSponsorshipFuture: "no",
+        notes: "",
+      },
+    ];
+    sent.length = 0;
+    const yn = (label: string, options = ["Yes", "No"]) => field(label, { label, kind: "select", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          yn("Are you legally authorized to work in the country you reside?"),
+          yn("Will you now or in the future require Visa Sponsorship?", ["No, I will not", "Yes, I will"]),
+          yn("Are you authorized to work in Canada without sponsorship?"),
+          yn("Do you not require sponsorship?"),
+        ],
+        profile,
+        documents: [],
+        job: { url: "", title: "", company: "", jobTitle: "", text: "", location: "Dublin, Ireland", capturedAt: 0 },
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Yes", "Yes, I will", "flag", "flag"]);
+    expect(sent.map((f) => f.id)).toEqual([
+      "Are you authorized to work in Canada without sponsorship?",
+      "Do you not require sponsorship?",
+    ]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
