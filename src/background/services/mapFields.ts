@@ -92,8 +92,12 @@ function guessed(d: Decision, f: FieldDescriptor): boolean {
   return !needsNoSource(f);
 }
 
+/** Uploads and acknowledgements: a lone option ("I will read the agreement below"), a policy or agreement, a consent. */
 const needsNoSource = (f: FieldDescriptor) =>
-  f.kind === "file" || RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
+  f.kind === "file" ||
+  f.options?.length === 1 ||
+  /\b(polic(y|ies)|agreement)\b/i.test(f.label) ||
+  RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
 
 /**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
