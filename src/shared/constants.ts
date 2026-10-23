@@ -99,7 +99,7 @@ export const RE_CONSENT =
   /i (agree|acknowledge|certify|confirm|understand|accept)|consent|terms|privacy (policy|notice)|attest/i;
 /** Consent that is not needed to apply: future/other roles, talent pools, marketing. */
 export const RE_OPTIONAL_CONSENT =
-  /\b(future|other|additional|similar|relevant)\b(\s+\w+){0,2}\s+(opportunit\w*|openings|vacancies)|considered for (other|future)|talent (community|pool|network)|job alerts?|newsletter|marketing (e-?mails?|communications?|messages|materials)|unsubscribe|keep me (informed|updated|posted)|text messag\w*|\bsms\b|\b(retain|retention)\b[^.]*\b(additional|further|extra|extended|longer)\b/i;
+  /\b(future|other|additional|similar|relevant)\b(\s+\w+){0,2}\s+(opportunit\w*|openings|vacancies)|considered for (other|future)|talent (community|pool|network)|job alerts?|newsletter|marketing (e-?mails?|communications?|messages|materials)|unsubscribe|keep me (informed|updated|posted)|text messag\w*|\bsms\b|alerts? for (similar|new|other|relevant|future) (jobs?|roles?|positions?|openings)|stay (up to date|in touch|informed|connected)\b|\b(retain|retention)\b[^.]*\b(additional|further|extra|extended|longer)\b/i;
 /** Answer choices of a consent question ("Consent" / "Do Not Consent"). */
 export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowledge|accept)/i;
 export const RE_CONSENT_NO = /^(no[\s,:–—-]+)?(i )?(do not|don['’]t|decline|disagree|refuse|withhold)\b/i;

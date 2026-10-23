@@ -256,9 +256,9 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         ? RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text)
         : !d.multiple &&
           !!d.options &&
-          RE_CONSENT.test(text) &&
-          !/background|drug/i.test(text) &&
-          !!consentPair(d.options);
+          ((RE_CONSENT.test(text) && !/background|drug/i.test(text) && !!consentPair(d.options)) ||
+            // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings.
+            (RE_OPTIONAL_CONSENT.test(text) && !!yesNoPair(d.options)));
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);
@@ -298,6 +298,12 @@ export function consentPair(options: string[]): [number, number] | null {
   const yes = options.flatMap((o, i) => (RE_CONSENT_YES.test(o) ? [i] : []));
   const no = options.flatMap((o, i) => (RE_CONSENT_NO.test(o) ? [i] : []));
   return yes.length === 1 && no.length === 1 ? [yes[0], no[0]] : null;
+}
+
+/** [yes, no] option indexes of a plain Yes/No choice. */
+export function yesNoPair(options: string[]): [number, number] | null {
+  const [yes, no] = [/^yes\b/i, /^no\b/i].map((re) => options.findIndex((o) => re.test(o)));
+  return yes >= 0 && no >= 0 ? [yes, no] : null;
 }
 
 function isPrefilled(h: FieldHandle, current: string): boolean {

@@ -22,7 +22,7 @@ import { isFilling, sleep } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { addEntries, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
-import { consentPair, newScanState, scan, type FieldHandle } from "./scan/fields";
+import { consentPair, newScanState, scan, yesNoPair, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
@@ -322,12 +322,10 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   const options = h.desc.options ?? harvested.get(h.id);
   // The AI may answer "consent" without naming the two options (Ramp's SMS question): read them locally then.
   // A lone option (Reddit's "I agree" dropdown) can only accept; plain "Yes"/"No" (MongoDB's job alerts) pair too.
-  const yesNo = [/^yes\b/i, /^no\b/i].map((re) => options?.findIndex((o) => re.test(o)) ?? -1);
   const pair =
     d?.optionIndexes?.length === 2
       ? d.optionIndexes
-      : ((options && consentPair(options)) ??
-        (options?.length === 1 ? [0] : yesNo.every((i) => i >= 0) ? yesNo : d?.optionIndexes));
+      : ((options && (consentPair(options) ?? yesNoPair(options))) ?? (options?.length === 1 ? [0] : d?.optionIndexes));
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
   const op: FillOp | null =
     h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;

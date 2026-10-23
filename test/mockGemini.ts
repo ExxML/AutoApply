@@ -116,8 +116,6 @@ function decide(f: Field): Json {
   if (/work arrangement/i.test(L)) return choose(/^hybrid$/i, "preferences.workArrangement");
   if (/remote/i.test(L)) return fill({ checked: true, sources: ["preferences.workArrangement"] });
   if (/why|tell us|describe|cover letter/i.test(L)) return { fieldId: f.id, action: "essay", confidence: "high" };
-  if (/alerts for similar jobs/i.test(L))
-    return { fieldId: f.id, action: "consent", checked: false, confidence: "high" };
   if (/agree|certify|terms|privacy/i.test(L))
     return { fieldId: f.id, action: "consent", checked: true, confidence: "high" };
   return { fieldId: f.id, action: "flag", confidence: "low", note: "Not in profile" };
