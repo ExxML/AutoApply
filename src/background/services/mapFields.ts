@@ -207,6 +207,25 @@ function workCountry(label: string, home: string, job: string | undefined): stri
   );
 }
 
+const SITES: [RegExp, string[]][] = [
+  ...["github", "gitlab", "bitbucket", "linkedin", "replit", "kaggle", "leetcode", "devpost", "huggingface"].map(
+    (s): [RegExp, string[]] => [new RegExp(`\\b${s}\\b`, "i"), [s]],
+  ),
+  [/\b(twitter|x\.com)\b/i, ["twitter", "x.com"]],
+  [/\bhugging face\b/i, ["huggingface"]],
+];
+
+/**
+ * A link for a field that names one site, pointing elsewhere: Replit's "Replit Profile URL" got the GitHub URL and
+ * the audit let it through. Fields that also take any site ("LinkedIn, personal website or blog") are left alone.
+ */
+function wrongSiteLink(label: string, answer: string): boolean {
+  const host = answer.match(/^https?:\/\/([^/\s]+)/i)?.[1]?.toLowerCase();
+  if (!host || /website|portfolio|blog|personal|other|\bor\b/i.test(label)) return false;
+  const named = SITES.filter(([re]) => re.test(label));
+  return named.length > 0 && !named.some(([, hosts]) => hosts.some((h) => host.includes(h)));
+}
+
 const entryFor = (country: string, entries: Profile["workAuthorization"]["entries"]) =>
   entries.find((x) => (canonicalCountry(x.country) ?? normalize(x.country)) === country);
 
@@ -525,9 +544,9 @@ export async function mapFields(
     decisions: input.fields.map((f) => {
       const d = local.get(f.id) ?? answered.get(f.id)!;
       const answer = d.action === "fill" ? (suggestionOf(d, f) ?? "") : "";
-      return deniesNeededSponsorship(f, answer, countries.get(f.id), entries)
-        ? flag(f.id, "Sponsorship needed in this country", answer)
-        : d;
+      if (deniesNeededSponsorship(f, answer, countries.get(f.id), entries))
+        return flag(f.id, "Sponsorship needed in this country", answer);
+      return wrongSiteLink(f.label, answer) ? flag(f.id, NOT_IN_PROFILE, answer) : d;
     }),
     usedModel,
   };

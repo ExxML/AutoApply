@@ -358,6 +358,36 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect((await ask("Toronto, ON")).decisions[0]).toMatchObject({ action: "fill" });
   });
 
+  it("flags a link for a different site than the field names", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          text: "https://github.com/ada",
+          confidence: "high",
+          sources: ["personal.links.github"],
+        }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("Replit Profile URL"),
+          field("GitHub profile"),
+          field("GitHub or personal website"),
+          field("Link to your Kaggle"),
+        ],
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag"]);
+  });
+
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
     const asked: string[] = [];
     const gemini = {
