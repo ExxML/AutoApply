@@ -378,6 +378,13 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(scan(state).handles.map((h) => h.id)).toEqual(a.map((h) => h.id));
   });
 
+  it("treats a phone box holding only a dial code as empty (Recruitee)", () => {
+    setBody(
+      `<label>Phone number <input type="tel" value="+31"></label><label>Mobile <input type="tel" value="+1 604 555 1234"></label>`,
+    );
+    expect(fields().map((h) => h.prefilled)).toEqual([false, true]);
+  });
+
   it("treats a leading empty-valued option as a prompt, not a prefilled answer (Lever)", () => {
     setBody(`<label>School <select><option value="">Click Here (If you encounter an issue, …)</option>
       <option>Aalborg University</option><option value="">None</option></select></label>`);

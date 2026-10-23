@@ -312,5 +312,7 @@ function isPrefilled(h: FieldHandle, current: string): boolean {
   if (k === "dropdown") return !RE_PLACEHOLDER_OPTION.test(current) && !/^(select|choose)/i.test(current);
   if (k === "checkbox") return current === "true";
   if (h.desc.placeholder && current === h.desc.placeholder) return false;
+  // A phone box seeded with just a dial code ("+31", Recruitee) is still empty.
+  if (k === "tel" && /^\+?\d{1,4}$/.test(current.trim())) return false;
   return true;
 }
