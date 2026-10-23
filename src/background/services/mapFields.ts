@@ -189,19 +189,21 @@ function workAuthDecision(
   country: string | undefined,
   entries: Profile["workAuthorization"]["entries"],
 ): Decision | null {
+  // A text box asking a yes/no question takes "Yes"/"No" (Zoox: "Do you require sponsorship ...?").
+  const text = f.kind === "text" && /^(are|do|does|will|would|have|is|can)\b.*\?$/i.test(f.label.trim());
   // Lever asks yes/no as a two-box checkbox group (Zoox).
-  if (!country || !f.options || (isMulti(f) && f.options.length !== 2) || /\bnot\b|n['’]t\b/i.test(f.label))
+  if (!country || (!f.options && !text) || (isMulti(f) && f.options?.length !== 2) || /\bnot\b|n['’]t\b/i.test(f.label))
     return null;
   const sponsor = RE_SPONSOR_Q.test(f.label);
   const authorized = /authori[sz]ed|eligible to work|right to work/i.test(f.label);
   if (sponsor === authorized || (authorized && /sponsor/i.test(f.label))) return null;
   const only = (re: RegExp) => {
-    const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
+    const hits = (f.options ?? []).flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
   };
   const yes = only(/^yes\b/i);
   const no = only(/^no\b/i);
-  if (yes < 0 || no < 0) return null;
+  if (!text && (yes < 0 || no < 0)) return null;
   const e = entryFor(country, entries);
   // No entry for the country: not authorized there, so sponsorship needed.
   const says = !e
@@ -211,15 +213,10 @@ function workAuthDecision(
       : [e.authorized];
   const answer = says.includes("yes") ? true : says.every((s) => s === "no") ? false : null;
   if (answer === null) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["workAuthorization"] };
+  if (text) return { ...base, text: answer ? "Yes" : "No" };
   const i = answer ? yes : no;
-  return {
-    fieldId: f.id,
-    action: "fill",
-    optionIndexes: [i],
-    intendedAnswer: f.options[i],
-    confidence: "high",
-    sources: ["workAuthorization"],
-  };
+  return { ...base, optionIndexes: [i], intendedAnswer: f.options![i] };
 }
 
 /** Months of work experience in the profile, end dates included ("2026-01" to "2026-08" is 8). */

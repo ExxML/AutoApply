@@ -227,7 +227,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       mapFields(
         { gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
-          fields: labels.map((l, i) => field(`f${i}`, { label: l })),
+          fields: labels.map((l, i) => field(`f${i}`, { label: l, kind: "textarea" })),
           profile,
           documents: [],
           job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
@@ -284,16 +284,27 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             kind: "checkbox_group" as const,
             multiple: true,
           },
+          { ...yn("Do you require sponsorship in Ireland?"), kind: "text" as const, options: undefined },
+          { ...yn("Please describe your right to work in Ireland."), kind: "text" as const, options: undefined },
         ],
         profile,
         documents: [],
         job: { url: "", title: "", company: "", jobTitle: "", text: "", location: "Dublin, Ireland", capturedAt: 0 },
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Yes", "Yes, I will", "flag", "flag", "Yes"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual([
+      "Yes",
+      "Yes, I will",
+      "flag",
+      "flag",
+      "Yes",
+      "Yes",
+      "flag",
+    ]);
     expect(sent.map((f) => f.id)).toEqual([
       "Are you authorized to work in Canada without sponsorship?",
       "Do you not require sponsorship?",
+      "Please describe your right to work in Ireland.",
     ]);
   });
 
