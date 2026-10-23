@@ -338,17 +338,20 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const profile = emptyProfile();
     profile.personal.address.country = "Canada";
     const label = "For this specific internship, will you require any of the below sponsorship for employment?";
-    const ask = (location: string) =>
+    const ask = (location: string, l = label) =>
       mapFields(
         { gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
-          fields: [field("v", { label, kind: "radio_group", options: ["J1", "F1", "None", "Other"] })],
+          fields: [field("v", { label: l, kind: "radio_group", options: ["J1", "F1", "None", "Other"] })],
           profile,
           documents: [],
           job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
         },
       );
     expect((await ask("San Francisco, CA")).decisions[0]).toMatchObject({ action: "flag", suggestion: "None" });
+    // Fastly: "None" is right when the question is about a visa held now.
+    const held = "If you are currently on a VISA sponsorship, what type of VISA? (H-1B, J1, F1, OPT, etc.)";
+    expect((await ask("San Francisco, CA", held)).decisions[0]).toMatchObject({ action: "fill" });
     profile.workAuthorization.entries = [
       {
         country: "Canada",

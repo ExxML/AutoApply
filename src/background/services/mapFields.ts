@@ -263,7 +263,9 @@ function deniesNeededSponsorship(
   country: string | undefined,
   entries: Profile["workAuthorization"]["entries"],
 ): boolean {
-  if (!country || !RE_SPONSOR_Q.test(f.label) || !/^(none|no|n\/?a|not applicable)\b/i.test(answer)) return false;
+  // Only "will you require/need …": "If you are currently on a visa sponsorship, what type?" → "N/A" is right (Fastly).
+  const asks = /\b(requir|need)\w*\b[^?]*\bsponsor/i.test(f.label) && !/\bcurrently (on|hold)/i.test(f.label);
+  if (!country || !asks || !/^(none|no|n\/?a|not applicable)\b/i.test(answer)) return false;
   const e = entryFor(country, entries);
   return !e || e.requiresSponsorshipNow === "yes" || e.requiresSponsorshipFuture === "yes";
 }
