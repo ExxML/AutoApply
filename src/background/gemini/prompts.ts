@@ -62,6 +62,7 @@ Rules:
 - Follow essayGuidance (tone, strengths to emphasize, things to avoid). For cover letters, use coverLetterTemplate as a base if provided.
 - Respect limits: maxWords and/or maxChars when given; otherwise the target words given per item. Stay under the limit.
 - Plain text only: no markdown, no headings, no bullet symbols, no greeting/sign-off unless it is a cover letter (then "Dear Hiring Team," … "Sincerely,\\n{full name}").
+- A question asking how many or how much ("How many years have you…?") is not an essay: answer in one or two sentences starting with the amount, counted from the profile's dates and rounded honestly (e.g. "Less than 1 year: …", "About 3 years: …").
 - Natural, specific, concise; avoid clichés ("I am writing to express my interest", "passionate", "synergy").
 Return only JSON matching the schema.`;
 
