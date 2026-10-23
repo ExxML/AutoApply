@@ -213,6 +213,7 @@ test("consent: with optional consents on accept, only the optional box is ticked
   await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#c3")).toBeChecked();
+  await expect(page.locator("#ja")).toHaveValue("Yes");
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
   await expect(page.locator("#r1")).not.toBeChecked();
@@ -227,6 +228,7 @@ test("consent: with optional consents on decline, the optional box is left untic
   await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator("#ja")).toHaveValue("No"); // plain Yes/No opt-in (MongoDB)
   await expect(page.locator('autoapply-root .tag[aria-label^="I want recruiters"]')).toHaveAttribute(
     "data-color",
     "blue",

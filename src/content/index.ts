@@ -321,11 +321,13 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
   // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
   const options = h.desc.options ?? harvested.get(h.id);
   // The AI may answer "consent" without naming the two options (Ramp's SMS question): read them locally then.
-  // A lone option (Reddit's "I agree" dropdown) can only accept.
+  // A lone option (Reddit's "I agree" dropdown) can only accept; plain "Yes"/"No" (MongoDB's job alerts) pair too.
+  const yesNo = [/^yes\b/i, /^no\b/i].map((re) => options?.findIndex((o) => re.test(o)) ?? -1);
   const pair =
     d?.optionIndexes?.length === 2
       ? d.optionIndexes
-      : ((options && consentPair(options)) ?? (options?.length === 1 ? [0] : d?.optionIndexes));
+      : ((options && consentPair(options)) ??
+        (options?.length === 1 ? [0] : yesNo.every((i) => i >= 0) ? yesNo : d?.optionIndexes));
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
   const op: FillOp | null =
     h.desc.kind === "checkbox" ? { type: "checked", value: accept } : pick ? { type: "options", texts: [pick] } : null;
