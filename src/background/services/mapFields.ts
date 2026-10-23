@@ -172,6 +172,24 @@ const HUBS: Record<string, string> = {
   tokyo: "japan",
   sydney: "australia",
   "tel aviv": "israel",
+  lisbon: "portugal",
+  madrid: "spain",
+  barcelona: "spain",
+  warsaw: "poland",
+  krakow: "poland",
+  prague: "czechia",
+  vienna: "austria",
+  copenhagen: "denmark",
+  oslo: "norway",
+  helsinki: "finland",
+  milan: "italy",
+  edinburgh: "united kingdom",
+  manchester: "united kingdom",
+  singapore: "singapore",
+  "hong kong": "hong kong",
+  seoul: "south korea",
+  "sao paulo": "brazil",
+  "mexico city": "mexico",
 };
 
 /**
@@ -191,7 +209,8 @@ function jobCountry(location: string): string | undefined {
         const both = pick.filter((c) => options.includes(c));
         pick = pick.length ? (both.length ? both : pick) : options;
       }
-      return pick[0] ?? parts.map((p) => HUBS[normalize(p)]).find(Boolean) ?? null;
+      const hub = parts.map((p) => HUBS[normalize(p)]).find(Boolean);
+      return pick[0] ?? (hub ? (canonicalCountry(hub) ?? hub) : null);
     }),
   );
   return countries.size === 1 ? ([...countries][0] ?? undefined) : undefined;

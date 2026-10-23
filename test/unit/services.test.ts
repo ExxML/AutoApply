@@ -260,6 +260,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     await ask("Atlanta, Georgia", "Will you require sponsorship?");
     await ask("Hybrid - San Francisco", "Will you require sponsorship?");
     await ask("Vancouver, WA", "Will you require sponsorship?");
+    await ask("Lisbon", "Will you require sponsorship?");
     expect(sent.map((f) => f.workCountry)).toEqual([
       undefined,
       "united states",
@@ -268,6 +269,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "united states",
       "united states",
       "united states",
+      "portugal",
     ]);
 
     // Yes/no questions with a known country are answered from the profile, not asked.
