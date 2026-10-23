@@ -82,7 +82,12 @@ export function groupLabel(groupEl: Element | null): string {
   const al = groupEl.getAttribute("aria-label");
   if (al) return collapse(al);
   const fs = groupEl.tagName === "FIELDSET" ? groupEl : groupEl.closest("fieldset");
-  const legend = fs?.querySelector(":scope > legend");
+  // Ashby titles its fieldsets with a first <label> ("Race") followed by long descriptions, not a <legend>.
+  const legend =
+    fs?.querySelector(":scope > legend") ??
+    (fs?.firstElementChild?.tagName === "LABEL" && !fs.firstElementChild.querySelector("input,select,textarea")
+      ? fs.firstElementChild
+      : null);
   return legend ? textOf(legend) : "";
 }
 

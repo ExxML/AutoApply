@@ -183,6 +183,13 @@ describe("grouping (§11.5)", () => {
     ]);
   });
 
+  it("labels a fieldset by its leading <label>, not the long text after it (Ashby EEO)", () => {
+    setBody(`<fieldset><label>Race</label><div>${"Hispanic or Latino - A person of Cuban origin. ".repeat(10)}</div>
+      <div><input type="radio" id="r1" name="race"><label for="r1">Asian</label></div>
+      <div><input type="radio" id="r2" name="race"><label for="r2">White</label></div></fieldset>`);
+    expect(fields()[0].desc.label).toBe("Race");
+  });
+
   it("keeps same-named option boxes of different questions apart (Ashby survey)", () => {
     const q = (title: string, opt: string, i: number) => `<fieldset><label>${title}</label>
         <label><input type="checkbox" id="o${i}" name="${opt}">${opt}</label>
