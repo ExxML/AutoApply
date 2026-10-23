@@ -74,7 +74,8 @@ const NOT_IN_PROFILE = "Not in your profile";
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
 const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit|right to work|eligible to work)/i;
 const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_SPONSOR_Q.test(label);
-const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence)\b/i;
+// GitLab: "require sponsorship for a visa to remain in your current location?".
+const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence|current (location|country))\b/i;
 
 /** Sources an answer may rest on: the candidate's profile sections, résumé and learned answers. */
 const CANDIDATE_DATA = new Set([...Object.keys(emptyProfile()).filter((k) => k !== "resumeText"), "resume"]);
@@ -219,11 +220,14 @@ const SITES: [RegExp, string[]][] = [
  * A link for a field that names one site, pointing elsewhere: Replit's "Replit Profile URL" got the GitHub URL and
  * the audit let it through. Fields that also take any site ("LinkedIn, personal website or blog") are left alone.
  */
-function wrongSiteLink(label: string, answer: string): boolean {
-  const host = answer.match(/^https?:\/\/([^/\s]+)/i)?.[1]?.toLowerCase();
-  if (!host || /website|portfolio|blog|personal|other|\bor\b/i.test(label)) return false;
+function wrongSiteLink(label: string, answer: string, sources: string[] = []): boolean {
+  if (/website|portfolio|blog|personal|other|\bor\b/i.test(label)) return false;
   const named = SITES.filter(([re]) => re.test(label));
-  return named.length > 0 && !named.some(([, hosts]) => hosts.some((h) => host.includes(h)));
+  const onSite = (x: string) => named.some(([, hosts]) => hosts.some((h) => x.includes(h)));
+  const host = answer.match(/^https?:\/\/([^/\s]+)/i)?.[1]?.toLowerCase();
+  // A username taken from another site's link: GitLab's "What is your GitLab username?" got the GitHub handle.
+  const cited = sources.flatMap((s) => s.match(/links\.(\w+)/)?.[1] ?? []);
+  return named.length > 0 && (host ? !onSite(host) : cited.length > 0 && !cited.some(onSite));
 }
 
 const entryFor = (country: string, entries: Profile["workAuthorization"]["entries"]) =>
@@ -546,7 +550,7 @@ export async function mapFields(
       const answer = d.action === "fill" ? (suggestionOf(d, f) ?? "") : "";
       if (deniesNeededSponsorship(f, answer, countries.get(f.id), entries))
         return flag(f.id, "Sponsorship needed in this country", answer);
-      return wrongSiteLink(f.label, answer) ? flag(f.id, NOT_IN_PROFILE, answer) : d;
+      return wrongSiteLink(f.label, answer, d.sources) ? flag(f.id, NOT_IN_PROFILE, answer) : d;
     }),
     usedModel,
   };

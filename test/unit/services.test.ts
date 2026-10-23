@@ -241,6 +241,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Do you require us to sponsor a visa?",
       "First name",
       "Do you currently receive any active funding (e.g., grants, sponsorships)?",
+      "Will you now or in the future require sponsorship for a visa to remain in your current location?",
     );
     expect(sent.map((f) => f.workCountry)).toEqual([
       "canada",
@@ -249,6 +250,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "ireland",
       undefined,
       undefined,
+      "canada",
     ]);
     sent.length = 0;
     await ask("San Francisco, CA; Toronto, ON", "Will you require sponsorship?");
@@ -364,7 +366,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         const decisions = (s.payload.fields ?? []).map((f) => ({
           fieldId: f.id,
           action: "fill",
-          text: "https://github.com/ada",
+          text: /username/.test(f.id) ? "ada" : "https://github.com/ada",
           confidence: "high",
           sources: ["personal.links.github"],
         }));
@@ -379,13 +381,14 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           field("GitHub profile"),
           field("GitHub or personal website"),
           field("Link to your Kaggle"),
+          field("What is your GitLab username?"),
         ],
         profile: emptyProfile(),
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag"]);
+    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "fill", "fill", "flag", "flag"]);
   });
 
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
