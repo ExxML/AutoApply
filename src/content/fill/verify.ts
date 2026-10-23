@@ -5,9 +5,14 @@ import type { FieldHandle } from "../scan/fields";
 
 export type VerifyOutcome = "ok" | "mismatch" | "failed";
 
+const ariaOn = (el: Element) =>
+  ["aria-checked", "aria-pressed", "aria-selected"].some((a) => el.getAttribute(a) === "true");
+
 export const isOn = (el: Element): boolean =>
   (el as HTMLInputElement).checked === true ||
-  ["aria-checked", "aria-pressed", "aria-selected"].some((a) => el.getAttribute(a) === "true");
+  ariaOn(el) ||
+  // Workable leaves its hidden radio unchecked and marks the role=radio wrapper around it.
+  (el instanceof HTMLInputElement && ariaOn(el.parentElement?.closest("[role=radio],[role=checkbox]") ?? el));
 
 /** Text as rendered: <slot>s show their assigned nodes. */
 function slottedText(n: Node): string {

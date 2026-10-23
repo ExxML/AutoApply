@@ -6,6 +6,7 @@ import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
 import { fillFile } from "../../src/content/fill/file";
+import { readValue } from "../../src/content/fill/verify";
 
 beforeAll(() => {
   stubLayout();
@@ -205,6 +206,23 @@ describe("fill engine", () => {
     const h = scan(newScanState()).handles[0];
     expect(await fill(h, { type: "options", texts: ["Yes"] }, deps())).toMatchObject({ outcome: "ok" });
     expect(document.querySelector("button")!.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("picks a Workable radio, whose role=radio wrapper holds the state", async () => {
+    const opt = (v: string) =>
+      `<div role="radio" aria-checked="false"><label><input type="radio" name="q" aria-hidden="true"><span>${v}</span></label></div>`;
+    setBody(
+      `<span id="ql">Eligible?</span><fieldset role="radiogroup" aria-labelledby="ql">${opt("YES")}${opt("NO")}</fieldset>`,
+    );
+    // Workable keeps its hidden radio unchecked and marks the wrapper instead.
+    for (const input of document.querySelectorAll("input"))
+      input.addEventListener("click", (e) => {
+        e.preventDefault();
+        input.closest("[role=radio]")!.setAttribute("aria-checked", "true");
+      });
+    const h = scan(newScanState()).handles[0];
+    expect(await fill(h, { type: "options", texts: ["YES"] }, deps())).toMatchObject({ outcome: "ok" });
+    expect(readValue(h)).toBe("YES");
   });
 
   it("a refused click fails that field instead of rejecting the whole fill", async () => {
