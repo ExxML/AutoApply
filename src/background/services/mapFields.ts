@@ -100,6 +100,14 @@ const needsNoSource = (f: FieldDescriptor) =>
   RE_CONSENT.test(`${f.label} ${f.hint ?? ""} ${(f.options ?? []).join(" ")}`);
 
 /**
+ * A yes/no work authorization or sponsorship answer: the mapping prompt derives it from the job's country, which the
+ * audit won't weigh ("authorized in the country where you are applying?" → "No" for a US job got flagged).
+ */
+const workAuthYesNo = (f: FieldDescriptor, answer: string) =>
+  /\b(authori[sz]|sponsor|visa\b|work permit|right to work|eligible to work)/i.test(f.label) &&
+  /^(yes|no)\b/i.test(answer);
+
+/**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
  * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
  */
@@ -112,8 +120,9 @@ async function auditFills(
   const byId = new Map(fields.map((f) => [f.id, f]));
   const items = decisions.flatMap((d) => {
     const f = byId.get(d.fieldId);
-    return d.action === "fill" && f && !needsNoSource(f)
-      ? [{ fieldId: f.id, question: f.label, answer: suggestionOf(d, f) ?? "" }]
+    const answer = f && suggestionOf(d, f);
+    return d.action === "fill" && f && !needsNoSource(f) && !workAuthYesNo(f, answer ?? "")
+      ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
       : [];
   });
   if (!items.length) return decisions;
