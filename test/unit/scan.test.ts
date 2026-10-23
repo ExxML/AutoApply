@@ -349,6 +349,14 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(fields()[0].desc.label).toBe("Resume");
   });
 
+  it("skips a résumé uploader whose own panel offers to autocomplete the application (SmartRecruiters)", () => {
+    setBody(`<form><div><h3>Easy Apply</h3><p>Choose an option to autocomplete your application.</p>
+        <div><label for="a">Choose a file or drop it here</label><input type="file" id="a"></div></div>
+      <div><h3>Resume</h3><div><label for="b">Choose a file or drop it here</label><input type="file" id="b"></div></div>
+      <label>Name <input></label></form>`);
+    expect(fields().map((h) => h.desc.label)).toEqual(["Resume", "Name"]);
+  });
+
   it("skips a résumé uploader that only autofills the form (Ashby)", () => {
     setBody(`<div><input type="file" aria-describedby="h"><p id="h">Upload your resume here to autofill key application fields.</p></div>
       <div><label for="r">Resume</label><input type="file" id="r"></div>`);

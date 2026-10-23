@@ -25,6 +25,7 @@ import {
   labelElementFor,
   precedingText,
   sectionFor,
+  textOf,
 } from "./labels";
 import { collect, type Collected } from "./traverse";
 import { parentOf } from "./visibility";
@@ -93,6 +94,21 @@ function ownLabel(el: HTMLElement, unit: Unit, owner: Map<Element, Set<Unit>>): 
   if (!RE_ACTION_LABEL.test(own)) return own;
   const g = el.closest("[role=group],fieldset");
   return g && owner.get(g)?.size === 1 && owner.get(g)!.has(unit) ? groupLabel(g) : "";
+}
+
+const holds = (a: Element, n: Element) => {
+  for (let x: Element | null = n; x; x = parentOf(x)) if (x === a) return true;
+  return false;
+};
+
+/** Text of the largest region around `el` holding no other field (across shadow roots): an uploader's own panel. */
+function ownRegionText(el: Element, unit: Unit, units: Unit[]): string {
+  let cur = el;
+  for (let p = parentOf(el); p && p !== document.body; p = parentOf(p)) {
+    if (units.some((o) => o !== unit && holds(p, o.el))) break;
+    cur = p;
+  }
+  return textOf(cur);
 }
 
 const isDisabled = (el: Element) =>
@@ -230,8 +246,9 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     )
       d.maxLength = el.maxLength;
     if (el instanceof HTMLInputElement && el.type === "file" && el.accept) d.accept = el.accept;
-    // Ashby's "Autofill from resume" uploader is no answer: it parses the file and re-renders the form, wiping fills.
-    if (kind === "file" && RE_AUTOFILL_UPLOAD.test(`${label} ${d.hint ?? ""}`)) continue;
+    // Résumé parsers are no answer: Ashby's "Autofill from resume" re-renders the form, wiping fills, and
+    // SmartRecruiters' "Easy Apply … autocomplete your application" adds half-parsed entries to clean up.
+    if (kind === "file" && RE_AUTOFILL_UPLOAD.test(`${label} ${d.hint ?? ""} ${ownRegionText(el, u, units)}`)) continue;
 
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
     const text = `${label} ${d.hint ?? ""}`;
