@@ -234,6 +234,42 @@ function experienceDecision(f: FieldDescriptor, months: number): Decision | null
   };
 }
 
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const SEASONS: [RegExp, number[]][] = [
+  [/\bspring\b/i, [3, 4, 5]],
+  [/\bsummer\b/i, [6, 7, 8]],
+  [/\b(fall|autumn)\b/i, [9, 10, 11]],
+  [/\bwinter\b/i, [12, 1, 2]],
+];
+
+/**
+ * A graduation date among options, matched by year and month or season ("2028-05" → "Spring/Summer 2028"). The
+ * model picked "Other" for Lyft's "anticipated graduation month and year?" with the note "Graduation is May 2028".
+ */
+function graduationDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
+  const when = education.find((e) => e.expectedGraduation || e.endDate);
+  if (!f.options || isMulti(f) || !/graduat/i.test(f.label) || /high school|secondary/i.test(f.label) || !when)
+    return null;
+  const [year, month] = (when.expectedGraduation || when.endDate).split("-").map(Number);
+  const hits = f.options.flatMap((o, i) => {
+    if (!new RegExp(`\\b${year}\\b`).test(o)) return [];
+    const names = MONTHS.filter((m) => new RegExp(`\\b${m}`, "i").test(o));
+    const seasons = SEASONS.filter(([re]) => re.test(o));
+    if (!names.length && !seasons.length) return [i];
+    return names.includes(MONTHS[month - 1]) || seasons.some(([, ms]) => ms.includes(month)) ? [i] : [];
+  });
+  if (hits.length !== 1) return null;
+  const i = hits[0];
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["education"],
+  };
+}
+
 /**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
  * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
@@ -360,7 +396,8 @@ export async function mapFields(
   for (const f of input.fields) {
     const d =
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
-      experienceDecision(f, months);
+      experienceDecision(f, months) ??
+      graduationDecision(f, input.profile.education);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

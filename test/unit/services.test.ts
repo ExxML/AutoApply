@@ -334,6 +334,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["b", "c"]);
   });
 
+  it("matches the graduation date to an option by year and month or season", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.education = [{ ...profile.education[0], school: "UBC", expectedGraduation: "2028-05" }];
+    const label = "What is your anticipated graduation month and year?";
+    const ask = (options: string[]) => field(options.join(), { label, kind: "select", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          ask(["December 2027", "Spring/Summer 2028", "Other"]),
+          ask(["May 2028", "Dec 2028"]),
+          ask(["2027", "2028", "2029+"]),
+          ask(["Fall 2028", "Winter 2028"]),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
+      "Spring/Summer 2028",
+      "May 2028",
+      "2028",
+      "flag",
+    ]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
