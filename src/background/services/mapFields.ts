@@ -196,6 +196,44 @@ function workAuthDecision(
   };
 }
 
+/** Months of work experience in the profile, end dates included ("2026-01" to "2026-08" is 8). */
+function experienceMonths(experience: Profile["experience"]): number {
+  const month = (d: string) => {
+    const [y, m] = d.split("-").map(Number);
+    return y * 12 + (m || 1) - 1;
+  };
+  return experience.reduce((sum, e) => {
+    const end = e.current || !e.endDate ? todayIso() : e.endDate;
+    return e.startDate ? sum + Math.max(0, month(end) - month(e.startDate) + 1) : sum;
+  }, 0);
+}
+
+/**
+ * "How many years of experience?" when even the candidate's total experience is under the lowest bracket's top
+ * ("Less than 2", "0-1 years"): relevant experience can only be less. The model picked "2,4" for 11 months.
+ */
+function experienceDecision(f: FieldDescriptor, months: number): Decision | null {
+  if (!f.options || isMulti(f) || !/\bhow many years\b|\byears of\b.*\bexperience\b/i.test(f.label)) return null;
+  const tops = f.options.map((o) => {
+    const n = (o.match(/\d+(\.\d+)?/g) ?? []).map(Number);
+    if (/^(less than|under|fewer than|<)/i.test(o.trim()) && n.length === 1) return { low: 0, top: n[0] };
+    if (n.length === 2 && n[0] < n[1]) return { low: n[0], top: n[1] };
+    return null;
+  });
+  const lows = tops.flatMap((t) => (t ? [t.low] : []));
+  const i = tops.findIndex((t) => t && t.low === Math.min(...lows));
+  // Below the lowest bracket's floor too ("1-2" when there is also "None"): the model decides.
+  if (i < 0 || months / 12 >= tops[i]!.top || months / 12 < tops[i]!.low) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["experience"],
+  };
+}
+
 /**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
  * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
@@ -317,9 +355,12 @@ export async function mapFields(
   const home = input.profile.personal.address.country;
   const job = input.job?.location ? jobCountry(input.job.location) : undefined;
   const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job)]));
+  const months = experienceMonths(input.profile.experience);
   const local = new Map<string, Decision>();
   for (const f of input.fields) {
-    const d = workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries);
+    const d =
+      workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
+      experienceDecision(f, months);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

@@ -282,6 +282,58 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("picks the lowest experience bracket when even the total experience is under it", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.experience = [
+      {
+        title: "",
+        company: "",
+        location: "",
+        employmentType: "",
+        startDate: "2026-01",
+        endDate: "2026-08",
+        current: false,
+        description: "",
+      },
+      {
+        title: "",
+        company: "",
+        location: "",
+        employmentType: "",
+        startDate: "2023-06",
+        endDate: "2023-08",
+        current: false,
+        description: "",
+      },
+    ];
+    const label = "How Many Years of work experience do you have in your chosen engineering field";
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label, kind: "select", options: ["Less than 2", "2,4", "4,6", "12+"] }),
+          field("b", { label, kind: "select", options: ["None", "1-2 years", "3-5 years"] }),
+          field("c", { label, kind: "select", options: ["0-0.5", "0.5-1", "1-3"] }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    // 11 months: under 2; below "1-2" (with "None" offered) and over 0.5 stay with the model.
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Less than 2", "flag", "flag"]);
+    expect(asked).toEqual(["b", "c"]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
