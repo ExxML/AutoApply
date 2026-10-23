@@ -9,6 +9,7 @@ const CHOICE = new Set<FieldKind>(["select", "multiselect", "radio_group", "chec
 
 const PATHS: Record<DetKey, string> = {
   fullName: "personal.firstName + lastName",
+  legalName: "personal.firstName + middleName + lastName",
   firstName: "personal.firstName",
   middleName: "personal.middleName",
   lastName: "personal.lastName",
@@ -83,6 +84,7 @@ export function deterministicValue(
   const join = (...xs: string[]) => xs.filter(Boolean).join(" ");
   const values: Record<DetKey, () => string> = {
     fullName: () => join(p.firstName, p.lastName),
+    legalName: () => join(p.firstName, p.middleName, p.lastName),
     firstName: () => p.firstName,
     middleName: () => p.middleName,
     lastName: () => p.lastName,

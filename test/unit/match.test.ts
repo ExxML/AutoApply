@@ -67,6 +67,10 @@ describe("deterministic matching (§13.2)", () => {
   it("maps unambiguous label regexes", () => {
     expect(deterministicValue(f("First name"), p)).toEqual({ value: "Ada", path: "personal.firstName" });
     expect(deterministicValue(f("Full name"), p)?.value).toBe("Ada Lovelace");
+    // Cloudflare: a required "Legal Name (if different than above)" got skipped by the AI.
+    expect(deterministicValue(f("Legal Name (if different than above)"), { ...p, middleName: "King" })?.value).toBe(
+      "Ada King Lovelace",
+    );
     expect(deterministicValue(f("Email address", { kind: "email" }), p)?.value).toBe("ada@example.com");
     expect(deterministicValue(f("LinkedIn profile"), p)?.value).toBe("https://linkedin.com/in/ada");
     expect(deterministicValue(f("Province / State"), p)?.value).toBe("British Columbia");

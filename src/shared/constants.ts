@@ -157,6 +157,7 @@ export const OPTION_SELECTORS = [
 // ---------- Deterministic mapping (§13.2, Appendix C.2) ----------
 export type DetKey =
   | "fullName"
+  | "legalName"
   | "firstName"
   | "middleName"
   | "lastName"
@@ -208,6 +209,7 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/^first\s*name|given name|legal first/i, "firstName"],
   [/^last\s*name|surname|family name/i, "lastName"],
   [/^(full\s*)?name$/i, "fullName"],
+  [/\blegal name\b/i, "legalName"],
   [/preferred (first )?name/i, "preferredName"],
   [/e-?mail/i, "email"],
   [/phone|mobile|cell/i, "phone"],
