@@ -12,8 +12,9 @@ const meta = (doc: Document, prop: string) =>
   doc.querySelector<HTMLMetaElement>(`meta[property="${prop}"],meta[name="${prop}"]`)?.content?.trim() ?? "";
 
 function htmlToText(html: string): string {
-  const d = new DOMParser().parseFromString(html, "text/html");
-  return collapse(d.body?.textContent ?? "");
+  const text = new DOMParser().parseFromString(html, "text/html").body?.textContent ?? "";
+  // Brex's JSON-LD escapes its HTML twice ("&lt;div class=&quot;…"): one pass leaves markup behind.
+  return /<\/?[a-z][^>]*>/i.test(text) && text !== html ? htmlToText(text) : collapse(text);
 }
 
 type Named = string | { name?: string } | null | undefined;

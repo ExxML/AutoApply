@@ -449,6 +449,12 @@ describe("job context (§11.7)", () => {
     expect(extractJobContext(document, location).text).toContain("What we are looking for");
   });
 
+  it("decodes a JSON-LD description escaped twice (Brex)", () => {
+    const description = "&lt;div class=&quot;intro&quot;&gt;&lt;p&gt;Why join us&lt;/p&gt;&lt;/div&gt;";
+    setBody(`<script type="application/ld+json">${JSON.stringify({ "@type": "JobPosting", description })}</script>`);
+    expect(extractJobContext(document, location).text).toBe("Why join us");
+  });
+
   it("reads the job's location from its JSON-LD", () => {
     const ld = (posting: object) =>
       setBody(
