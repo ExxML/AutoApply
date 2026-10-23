@@ -5,6 +5,13 @@ import { cleanLabel, clip, collapse, humanize } from "../../shared/normalize";
 
 const NON_LABEL = "input,select,textarea,option,[role=option],[role=listbox],button,script,style";
 
+/** Text as rendered: <slot>s show their assigned nodes (SmartRecruiters' buttons and headings). */
+export function shownText(n: Node): string {
+  if (n instanceof HTMLSlotElement) return n.assignedNodes({ flatten: true }).map(shownText).join("");
+  if (n instanceof Element) return [...n.childNodes].map(shownText).join("");
+  return n.nodeType === Node.TEXT_NODE ? (n.textContent ?? "") : "";
+}
+
 /** Text content without nested controls/options, or descendants hidden in a shown element (Lever's status text). */
 export function textOf(el: Element, exclude = NON_LABEL): string {
   const all = el.querySelectorAll("*");
@@ -136,5 +143,5 @@ export function sectionFor(el: Element, order: Map<Element, number>, headings: H
     if ((order.get(h) ?? Infinity) < pos) best = h;
     else break;
   }
-  return best ? clip(textOf(best), 120) : "";
+  return best ? clip(textOf(best) || collapse(shownText(best)), 120) : "";
 }

@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { addEntries } from "../../src/content/fill/sections";
+import { addEntries, saveEntries } from "../../src/content/fill/sections";
 import { newScanState, scan } from "../../src/content/scan/fields";
 import type { EntryCounts } from "../../src/shared/types";
 
@@ -99,5 +99,58 @@ describe("addEntries", () => {
     for (const b of document.querySelectorAll("button")) b.addEventListener("click", () => clicks++);
     await addEntries({ ...none, experience: 1 }, new AbortController().signal);
     expect(clicks).toBe(0);
+  });
+});
+
+// SmartRecruiters: shadow-DOM buttons and headings whose text comes through <slot>s; each Add opens an editor beside
+// the heading's wrapper with its own Save (type=button); Save turns it into a card with "Delete experience …".
+function srButton(host: Element, text: string, onClick: () => void) {
+  const b = host.attachShadow({ mode: "open" });
+  b.innerHTML = `<button type="button"><slot></slot></button>`;
+  host.textContent = text;
+  b.querySelector("button")!.addEventListener("click", onClick);
+}
+function smartRecruiters() {
+  setBody(`<form><section id="exp"><div><h3>Experience</h3><x-btn id="add"></x-btn></div><div id="list"></div></section>
+    <section><h3>Message to the Hiring Team</h3><textarea></textarea></section>
+    <x-btn id="next"></x-btn><button>Save and continue</button></form>`);
+  const list = document.getElementById("list")!;
+  const saved: string[] = [];
+  srButton(document.getElementById("add")!, "Add", () => {
+    const editor = document.createElement("div");
+    editor.innerHTML = `<label>Title <input class="title"></label><x-btn class="cancel"></x-btn><x-btn class="save"></x-btn>`;
+    list.append(editor);
+    srButton(editor.querySelector(".cancel")!, "Cancel", () => editor.remove());
+    srButton(editor.querySelector(".save")!, "Save", () => {
+      const title = editor.querySelector<HTMLInputElement>(".title")!.value;
+      saved.push(title);
+      editor.outerHTML = `<div><b>${title}</b><button aria-label="Delete experience ${title}"></button></div>`;
+    });
+  });
+  let next = 0;
+  srButton(document.getElementById("next")!, "Next", () => next++);
+  return { saved, nexts: () => next };
+}
+
+describe("entry editors with their own Save (SmartRecruiters)", () => {
+  it("opens one editor per profile entry, saves only those, and never presses Next", async () => {
+    const sr = smartRecruiters();
+    const saves = await addEntries({ ...none, experience: 2 }, new AbortController().signal);
+    expect(saves).toHaveLength(2);
+    const titles = [...document.querySelectorAll<HTMLInputElement>(".title")];
+    titles[0].value = "Software Engineer Intern";
+    titles[1].value = "IT Technician Intern";
+    // The two editors share one heading: their fields are numbered as separate entries for the AI.
+    expect(
+      scan(newScanState())
+        .handles.filter((h) => h.desc.label === "Title")
+        .map((h) => h.desc.section),
+    ).toEqual(["Experience 1", "Experience 2"]);
+    await saveEntries(saves);
+    expect(sr.saved).toEqual(["Software Engineer Intern", "IT Technician Intern"]);
+    expect(sr.nexts()).toBe(0);
+    // A second fill finds the saved entries and adds no more.
+    expect(await addEntries({ ...none, experience: 2 }, new AbortController().signal)).toEqual([]);
+    expect(document.querySelectorAll(".title")).toHaveLength(0);
   });
 });

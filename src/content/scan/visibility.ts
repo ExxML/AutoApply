@@ -21,3 +21,9 @@ export function parentOf(n: Element): Element | null {
   const root = n.getRootNode();
   return root instanceof ShadowRoot ? root.host : null;
 }
+
+/** `a` contains `n`, crossing shadow-root boundaries. */
+export function composedContains(a: Element, n: Element): boolean {
+  for (let x: Element | null = n; x; x = parentOf(x)) if (x === a) return true;
+  return false;
+}

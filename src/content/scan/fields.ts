@@ -28,7 +28,7 @@ import {
   textOf,
 } from "./labels";
 import { collect, type Collected } from "./traverse";
-import { parentOf } from "./visibility";
+import { composedContains, parentOf } from "./visibility";
 import { findHiddenSelect, isTypeaheadInput, nativeOptions } from "./widgets";
 
 export interface FieldHandle {
@@ -96,16 +96,11 @@ function ownLabel(el: HTMLElement, unit: Unit, owner: Map<Element, Set<Unit>>): 
   return g && owner.get(g)?.size === 1 && owner.get(g)!.has(unit) ? groupLabel(g) : "";
 }
 
-const holds = (a: Element, n: Element) => {
-  for (let x: Element | null = n; x; x = parentOf(x)) if (x === a) return true;
-  return false;
-};
-
 /** Text of the largest region around `el` holding no other field (across shadow roots): an uploader's own panel. */
 function ownRegionText(el: Element, unit: Unit, units: Unit[]): string {
   let cur = el;
   for (let p = parentOf(el); p && p !== document.body; p = parentOf(p)) {
-    if (units.some((o) => o !== unit && holds(p, o.el))) break;
+    if (units.some((o) => o !== unit && composedContains(p, o.el))) break;
     cur = p;
   }
   return textOf(cur);
@@ -271,7 +266,28 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     h.id = d.id = id;
     handles.push(h);
   }
+  numberEntries(handles);
   return { handles, collected };
+}
+
+/**
+ * Entries of a repeatable section that share one heading (SmartRecruiters opens each Experience as the same form)
+ * become "Experience 1", "Experience 2", so each is filled from its own profile entry.
+ */
+function numberEntries(handles: FieldHandle[]) {
+  // section → label → how many fields so far carry it
+  const counts = new Map<string, Map<string, number>>();
+  const nth = new Map<FieldHandle, number>();
+  for (const h of handles) {
+    if (!h.desc.section) continue;
+    const labels = counts.get(h.desc.section) ?? new Map<string, number>();
+    counts.set(h.desc.section, labels);
+    const n = (labels.get(h.desc.label) ?? 0) + 1;
+    labels.set(h.desc.label, n);
+    nth.set(h, n);
+  }
+  for (const [h, n] of nth)
+    if ([...counts.get(h.desc.section!)!.values()].some((c) => c > 1)) h.desc.section = `${h.desc.section} ${n}`;
 }
 
 /** [consenting, declining] option indexes when the options hold exactly one of each. */

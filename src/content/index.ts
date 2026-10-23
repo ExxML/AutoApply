@@ -20,7 +20,7 @@ import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
 import { isFilling, sleep } from "./fill/events";
 import { findDropzones } from "./fill/file";
-import { addEntries } from "./fill/sections";
+import { addEntries, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
 import { consentPair, newScanState, scan, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
@@ -77,6 +77,8 @@ const harvested = new Map<string, string[]>();
 let current: { groupId: string; ctrl: AbortController } | null = null;
 let running = false;
 let queued: { rerun: boolean; depth?: number } | null = null;
+/** Save buttons of entry editors addEntries opened, clicked after the last fill pass. */
+const unsaved: HTMLElement[] = [];
 let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
@@ -362,7 +364,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
     setBadgesVisible(config.settings.showBadges);
-    await addEntries(config.entryCounts, ctrl.signal);
+    unsaved.push(...(await addEntries(config.entryCounts, ctrl.signal)));
     const all = rescan();
     mark("scan");
     const targets = all.filter((h) => {
@@ -498,6 +500,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       await Promise.all(fresh.filter(emptied).map((h) => doFill(h, ...applied.get(h.id)!, ctrl)));
       if (fresh.some((h) => !states.has(h.id))) queued ??= { rerun: false, depth: depth + 1 };
     }
+    // Entry editors we opened (SmartRecruiters' Experience) are saved once nothing more will be filled in them.
+    if (!queued && !ctrl.signal.aborted && unsaved.length) await saveEntries(unsaved.splice(0));
   } catch (e) {
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
