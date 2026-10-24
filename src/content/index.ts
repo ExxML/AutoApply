@@ -476,7 +476,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     // first and mapped in a second call, so the AI picks from the real options instead of guessing blind.
     if (pending.length && !ctrl.signal.aborted) {
       for (const h of pending) setStatus(h, "working");
-      const toHarvest = pending.filter((h) => h.desc.kind === "dropdown" && !h.desc.optionsKnown).slice(0, 15);
+      // Required ones first: SpaceX's 15th, "Citizenship Status", answered blind as "Citizen", got "U.S. citizen".
+      const toHarvest = pending
+        .filter((h) => h.desc.kind === "dropdown" && !h.desc.optionsKnown)
+        .sort((a, b) => Number(b.desc.required) - Number(a.desc.required))
+        .slice(0, 15);
       const later = new Set(toHarvest);
       const now = pending.filter((h) => !later.has(h));
       const essays: EssayItem[] = [];
