@@ -376,6 +376,7 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
       <div role="dialog" aria-label="Cookie notice banner"><label><input type="checkbox"> Analytics</label></div>
       <footer><label>Select region <select><option>English (US)</option></select></label></footer>
       <div class="newsletter-signup"><form><label>Get industry insights <input type="email"></label></form></div>
+      <div id="subscribe"><div class="SubscribeForm_f"><label>Zip Code <input name="zip"></label></div></div>
       <form><label>A <input name="a"></label><label>B <input name="b" disabled></label>
       <label>C <input name="c" readonly></label><label>D <input name="d" type="password"></label>
       <label>E <input name="e" style="display:none"></label><label>Captcha <input name="captcha"></label>

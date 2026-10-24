@@ -112,8 +112,10 @@ const isDisabled = (el: Element) =>
   (el as HTMLInputElement).disabled === true || el.getAttribute("aria-disabled") === "true";
 
 function excludedContext(el: HTMLElement, label: string, mainForm: HTMLFormElement | null): boolean {
-  // Stripe's newsletter box is labelled "Get industry insights and updates from Stripe".
-  if (el.closest('nav,[role=navigation],[role=search],[id*="newsletter" i],[class*="newsletter" i]')) return true;
+  // Stripe's newsletter box is labelled "Get industry insights and updates from Stripe"; Lucid's footer signup
+  // (email, name, zip, "Interested Model") sits in #subscribe beside its embedded application.
+  const signup = '[id*="newsletter" i],[class*="newsletter" i],[id*="subscribe" i],[class*="subscribe" i]';
+  if (el.closest(`nav,[role=navigation],[role=search],${signup}`)) return true;
   const form = el.closest("form");
   // Site chrome: Samsara's footer language picker.
   if (el.closest("header,footer") && !form) return true;
