@@ -18,7 +18,7 @@ import { deterministicValue, isFreeText, matchLearned } from "./match/determinis
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
-import { isFilling, sleep } from "./fill/events";
+import { isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { addEntries, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
@@ -288,6 +288,27 @@ function rescan(): FieldHandle[] {
   return all;
 }
 
+/**
+ * Chrome stops rendering a cross-origin frame that lies wholly outside the viewport, so its dropdowns never open
+ * (Riot's Greenhouse form, far below the job description): scroll the frame into view first. Its viewport size, stale
+ * meanwhile (150 px for Riot's 6582 px frame), updates some 100 ms after it shows; fills before that still fail.
+ */
+async function revealFrame() {
+  const root = document.documentElement;
+  const seen = await new Promise<boolean>((resolve) => {
+    const io = new IntersectionObserver(([e]) => {
+      io.disconnect();
+      resolve(e.isIntersecting);
+    });
+    io.observe(root);
+    void sleep(300).then(() => resolve(true));
+  });
+  if (seen) return;
+  const stale = innerHeight;
+  root.scrollIntoView({ block: "start" });
+  await waitFor(() => innerHeight !== stale, 1000);
+}
+
 /** The last fill applied to each field, to re-apply as is if the page empties it. */
 const applied = new Map<string, [FillOp, Status, string]>();
 
@@ -391,6 +412,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     });
     for (const h of targets) setStatus(h, "pending");
     report();
+    if (!TOP && targets.length) await revealFrame();
 
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
