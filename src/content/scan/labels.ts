@@ -51,6 +51,19 @@ export function labelElementFor(el: HTMLElement): HTMLLabelElement | null {
 
 /** Steps 1–3 of §11.5 for a single control. */
 export function controlLabel(el: HTMLElement): string {
+  return ownName(el) || wrapperLabel(el);
+}
+
+/** A <label for> naming the control's wrapper: Ashby's "Start Date" labels the div holding month and year selects. */
+function wrapperLabel(el: HTMLElement): string {
+  for (let p = el.parentElement, i = 0; p && i < 3; p = p.parentElement, i++) {
+    const l = p.id ? rootOf(el).querySelector(`label[for="${esc(p.id)}"]`) : null;
+    if (l && textOf(l)) return textOf(l);
+  }
+  return "";
+}
+
+function ownName(el: HTMLElement): string {
   const lb = byIds(el, "aria-labelledby");
   if (lb) return lb;
   const l = labelElementFor(el);

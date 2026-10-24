@@ -120,6 +120,13 @@ describe("label extraction (§11.5)", () => {
     expect(hs[1].desc.hint).toBe("Max 100 words");
   });
 
+  it("labels controls by a <label for> naming their wrapper (Ashby's education dates)", () => {
+    const sel = (o: string[]) => `<div><select>${o.map((x) => `<option>${x}</option>`).join("")}</select></div>`;
+    setBody(`<div><label for="start">Start Date</label><div id="start">${sel(["Month...", "May"])}${sel(["Year...", "2024"])}</div></div>
+      <div><label for="end">End Date</label><div id="end">${sel(["Month...", "May"])}${sel(["Year...", "2028"])}</div></div>`);
+    expect(fields().map((h) => h.desc.label)).toEqual(["Start Date", "Start Date", "End Date", "End Date"]);
+  });
+
   it("names the question a follow-up follows (LaunchDarkly's 'If yes, what country?')", () => {
     setBody(`<div><label for="a">Are you legally authorized to work in your country of residence?</label><input id="a"></div>
       <div><label for="b">If yes, what country?</label><input id="b"></div>`);
