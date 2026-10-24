@@ -663,6 +663,47 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49"]);
   });
 
+  it("leaves questions about AI use in the application to the user", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          optionIndexes: [0],
+          confidence: "high",
+          sources: ["skills"],
+        }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const yn = (id: string, label: string, options = ["Yes", "No"]) => field(id, { label, kind: "select", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          yn(
+            "a",
+            "Please indicate 'Yes' if you agree: I have not, and I will not, use AI tools during the application.",
+          ),
+          yn("b", "Which of the following best describes you?", [
+            "I am an AI or automated program",
+            "I am a human being",
+          ]),
+          yn("c", "Did you use ChatGPT or other AI tools to write your answers?"),
+          yn("d", "We do not mandate when employees use AI tools. How fluent are you with AI?", ["Expert", "Novice"]),
+        ],
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "flag", "flag", "fill"]);
+    expect(asked).toEqual(["d"]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {

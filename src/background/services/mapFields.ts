@@ -432,6 +432,24 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
   };
 }
 
+const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
+const RE_AI_USE = new RegExp(
+  String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}`,
+  "i",
+);
+
+/**
+ * Questions about AI use or automation in the application itself are the user's to answer, never ours: Peloton's
+ * "I have not, and I will not, use AI tools during the application" got "Yes"; Grafana asks "I am an AI or automated
+ * program" / "I am a human being".
+ */
+function aiUseDecision(f: FieldDescriptor): Decision | null {
+  const bot = f.options?.some((o) => /\b(AI|automated|bot)\b/i.test(o)) && f.options.some((o) => /\bhuman\b/i.test(o));
+  return bot || RE_AI_USE.test(f.label)
+    ? flag(f.id, "Asks about AI use in this application: answer it yourself")
+    : null;
+}
+
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
 function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
   if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
@@ -631,6 +649,7 @@ export async function mapFields(
   const local = new Map<string, Decision>();
   for (const f of input.fields) {
     const d =
+      aiUseDecision(f) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
