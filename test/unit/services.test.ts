@@ -736,6 +736,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("")).toBe("flag");
   });
 
+  it("picks a bare 'Country' option from the profile, past a dial code (Greenhouse phone)", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    const options = ["United States +1", "Cambodia +855", "Canada +1", "Cape Verde +238"];
+    const ask = async (label: string) => {
+      const f = field("a", { label, kind: "dropdown", options });
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask("Country")).toBe("Canada +1");
+    expect(await ask("Country of citizenship")).toBe("flag");
+  });
+
   it("picks how soon the candidate can start from the earliest start date", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

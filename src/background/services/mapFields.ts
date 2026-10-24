@@ -503,6 +503,27 @@ function ageDecision(f: FieldDescriptor, dob: string): Decision | null {
   };
 }
 
+/**
+ * A bare "Country" list (Greenhouse's phone country, "Canada +1") gets the candidate's country: the audit rejected
+ * Robinhood's "Canada +1" as unsupported.
+ */
+function countryDecision(f: FieldDescriptor, home: string): Decision | null {
+  const want = canonicalCountry(home);
+  if (!f.options || isMulti(f) || !want || !/^country$/i.test(f.label.trim())) return null;
+  const hits = f.options.flatMap((o, i) =>
+    canonicalCountry(o.replace(/\s*\(?\+[\d\s-]+\)?$/, "")) === want ? [i] : [],
+  );
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["personal.address.country"],
+  };
+}
+
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
@@ -766,7 +787,8 @@ export async function mapFields(
       officeDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
-      ageDecision(f, input.profile.personal.dateOfBirth);
+      ageDecision(f, input.profile.personal.dateOfBirth) ??
+      countryDecision(f, home);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {
