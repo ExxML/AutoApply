@@ -69,6 +69,23 @@ describe("response validation (§10.8.1)", () => {
       ],
     );
     expect(out[0].optionIndexes).toEqual([1]);
+    // Plaid: no 2028 among the years; the index points at 2027.
+    const missing = (options: string[]) =>
+      validateDecisions(
+        [field("y", { kind: "select", options })],
+        [
+          {
+            fieldId: "y",
+            action: "fill",
+            intendedAnswer: "2028",
+            optionIndexes: [0],
+            confidence: "high",
+            sources: ["education"],
+          },
+        ],
+      )[0];
+    expect(missing(["2027", "2026"])).toMatchObject({ action: "flag", note: "No option for 2028" });
+    expect(missing(["Class of 2028", "2026"])).toMatchObject({ action: "fill", optionIndexes: [0] });
   });
 
   it("a skipped required field becomes a flag", () => {

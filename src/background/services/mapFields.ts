@@ -506,7 +506,11 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
       const named = said ? f.options.findIndex((o) => normalize(o) === said) : -1;
       if (named >= 0) d.optionIndexes = [named];
       const idx = d.optionIndexes;
-      if (!idx?.length) {
+      // A year no option offers: Plaid's graduation years stop at 2027; the model meant 2028, sent "0: 2027".
+      const year = named < 0 && /^(19|20)\d\d$/.test(said) && idx?.length === 1;
+      if (year && !(f.options[idx[0]] ?? "").includes(said)) {
+        d = flag(f.id, `No option for ${said}`);
+      } else if (!idx?.length) {
         if (!(f.kind === "dropdown" && d.intendedAnswer)) d = flag(f.id, "No option chosen", suggestionOf(r, f));
       } else if (idx.some((i) => !Number.isInteger(i) || i < 0 || i >= f.options!.length)) {
         d = flag(f.id, "AI chose an invalid option", d.intendedAnswer);
