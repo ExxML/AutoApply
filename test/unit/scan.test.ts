@@ -145,6 +145,12 @@ describe("grouping (§11.5)", () => {
       ["radio_group", "Do you have a driver's license?", ["Yes", "No"]],
       ["radio_group", "Work arrangement", ["Remote", "Hybrid"]],
     ]);
+    // Ashby (Rivian): the question's <label>, then a note too long to keep whole.
+    const note = "The information being requested will be used exclusively for export controls. ".repeat(5);
+    setBody(`<div><label for="q1">Is your most recent country of citizenship one of the following: Cuba?</label>
+      <div><p><em>${note}</em></p></div><div><button aria-pressed="false">Yes</button><button aria-pressed="false">No</button>
+      <input type="checkbox" name="q1" hidden></div></div>`);
+    expect(fields()[0].desc.label).toBe("Is your most recent country of citizenship one of the following: Cuba?");
   });
 
   it("native radios wrapped in role=radio divs make one question (Workable)", () => {

@@ -91,9 +91,13 @@ export function groupLabel(groupEl: Element | null): string {
   return legend ? textOf(legend) : "";
 }
 
-/** Step 5: visible text in `container` preceding `control`, excluding `skip` subtrees. Last 300 chars. */
+/**
+ * Step 5: visible text in `container` preceding `control`, excluding `skip` subtrees. Last 300 chars, or the first
+ * <label>'s text when longer: Ashby's Yes/No pills follow their <label> and a long note, and the cut kept the note.
+ */
 export function precedingText(container: Element, control: Element, skip: Element[] = []): string {
   const parts: string[] = [];
+  let label = "";
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     if (control.contains(n)) break;
@@ -102,10 +106,14 @@ export function precedingText(container: Element, control: Element, skip: Elemen
     if (!p || p.closest("option,[role=option],select,textarea,script,style,[hidden]")) continue;
     if (skip.some((s) => s.contains(n))) continue;
     const t = n.textContent?.trim();
-    if (t) parts.push(t);
+    if (!t) continue;
+    parts.push(t);
+    const l = p.closest("label");
+    if (!label && l && container.contains(l)) label = textOf(l);
   }
   const text = collapse(parts.join(" "));
-  return text.length > 300 ? text.slice(-300).replace(/^\S*\s/, "") : text;
+  if (text.length <= 300) return text;
+  return label || text.slice(-300).replace(/^\S*\s/, "");
 }
 
 /** Step 6. */
