@@ -279,22 +279,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     if (kind === "file" && RE_AUTOFILL_UPLOAD.test(`${label} ${d.hint ?? ""} ${ownRegionText(el, u, units)}`)) continue;
 
     h.sensitive = /^cc-/.test((d.autocomplete ?? "").split(/\s+/).pop() ?? "") || RE_SENSITIVE_LABEL.test(label);
-    const text = `${label} ${d.hint ?? ""}`;
-    // Choice consents ("Consent" / "Do Not Consent") are answered locally; background/drug checks follow the profile.
-    // Interview recording opt-ins (Palantir's AI notetakers) follow the profile's preference, so the AI path answers them.
-    h.consent =
-      !RE_INTERVIEW_RECORDING.test(text) &&
-      (kind === "checkbox"
-        ? RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text)
-        : !d.multiple &&
-          !!d.options &&
-          ((RE_CONSENT.test(text) && !/background|drug/i.test(text) && !!consentPair(d.options)) ||
-            // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings. Not
-            // answers stating facts: CI&T's "on-site every day? … in case you are considered for other positions"
-            // offers "Yes, I live in Campinas or near the region and can go to the office every day."
-            (RE_OPTIONAL_CONSENT.test(text) &&
-              !!yesNoPair(d.options) &&
-              d.options.every((o) => o.split(/\s+/).length <= 3))));
+    h.consent = isConsent(d);
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);
@@ -334,6 +319,28 @@ export function consentPair(options: string[]): [number, number] | null {
   const yes = options.flatMap((o, i) => (RE_CONSENT_YES.test(o) ? [i] : []));
   const no = options.flatMap((o, i) => (RE_CONSENT_NO.test(o) ? [i] : []));
   return yes.length === 1 && no.length === 1 ? [yes[0], no[0]] : null;
+}
+
+/**
+ * Choice consents ("Consent" / "Do Not Consent") are answered locally; background/drug checks follow the profile.
+ * Interview recording opt-ins (Palantir's AI notetakers) follow the profile's preference, so the AI path answers them.
+ */
+export function isConsent(d: FieldDescriptor): boolean {
+  const text = `${d.label} ${d.hint ?? ""}`;
+  return (
+    !RE_INTERVIEW_RECORDING.test(text) &&
+    (d.kind === "checkbox"
+      ? RE_CONSENT.test(text) || RE_OPTIONAL_CONSENT.test(text)
+      : !d.multiple &&
+        !!d.options &&
+        ((RE_CONSENT.test(text) && !/background|drug/i.test(text) && !!consentPair(d.options)) ||
+          // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings. Not
+          // answers stating facts: CI&T's "on-site every day? … in case you are considered for other positions"
+          // offers "Yes, I live in Campinas or near the region and can go to the office every day."
+          (RE_OPTIONAL_CONSENT.test(text) &&
+            !!yesNoPair(d.options) &&
+            d.options.every((o) => o.split(/\s+/).length <= 3))))
+  );
 }
 
 /** [yes, no] option indexes of a plain Yes/No choice. */

@@ -22,7 +22,7 @@ import { isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { addEntries, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
-import { consentPair, newScanState, scan, yesNoPair, type FieldHandle } from "./scan/fields";
+import { consentPair, isConsent, newScanState, scan, yesNoPair, type FieldHandle } from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
@@ -500,7 +500,13 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
           const options = harvested.get(h.id);
           return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
         });
-        await mapAndApply(toHarvest, fields);
+        // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
+        const consents = new Set(fields.filter(isConsent).map((f) => f.id));
+        for (const h of toHarvest) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
+        await mapAndApply(
+          toHarvest.filter((h) => !consents.has(h.id)),
+          fields.filter((f) => !consents.has(f.id)),
+        );
       };
       const mapAndApply = async (hs: FieldHandle[], fields: FieldDescriptor[]) => {
         if (!hs.length || ctrl.signal.aborted) return;
