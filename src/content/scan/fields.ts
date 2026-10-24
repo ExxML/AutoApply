@@ -90,12 +90,18 @@ function buildOwnerMap(units: Unit[]): Map<Element, Set<Unit>> {
   return m;
 }
 
-/** Upload widgets (e.g. Greenhouse) label the input "Attach"; the question sits on an enclosing group of its own. */
+/**
+ * Upload widgets (e.g. Greenhouse) label the input "Attach"; the question sits on an enclosing group of its own.
+ * So does a lone box labelled only "Yes" (Ashby's "I certify the information … is true" fieldset).
+ */
 function ownLabel(el: HTMLElement, unit: Unit, owner: Map<Element, Set<Unit>>): string {
   const own = controlLabel(el);
-  if (!RE_ACTION_LABEL.test(own)) return own;
+  const bare =
+    unit.kind === "checkbox" && /^(yes|i agree|agree|i accept|accept|i acknowledge|acknowledged?)$/i.test(own);
+  if (!bare && !RE_ACTION_LABEL.test(own)) return own;
   const g = el.closest("[role=group],fieldset");
-  return g && owner.get(g)?.size === 1 && owner.get(g)!.has(unit) ? groupLabel(g) : "";
+  const question = g && owner.get(g)?.size === 1 && owner.get(g)!.has(unit) ? groupLabel(g) : "";
+  return bare ? question || own : question;
 }
 
 /** Text of the largest region around `el` holding no other field (across shadow roots): an uploader's own panel. */

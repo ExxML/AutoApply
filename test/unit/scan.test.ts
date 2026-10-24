@@ -204,6 +204,17 @@ describe("grouping (§11.5)", () => {
     ]);
   });
 
+  it("labels a lone 'Yes' box by its fieldset's question (Ashby attestation)", () => {
+    setBody(`<fieldset><label for="q">I certify the information provided is true and correct.</label>
+      <div><input type="checkbox" id="y" name="Yes"><label for="y">Yes</label></div></fieldset>`);
+    const [h] = fields();
+    expect(h.desc).toMatchObject({
+      kind: "checkbox",
+      label: "I certify the information provided is true and correct.",
+    });
+    expect(h.consent).toBe(true);
+  });
+
   it("labels a fieldset by its leading <label>, not the long text after it (Ashby EEO)", () => {
     setBody(`<fieldset><label>Race</label><div>${"Hispanic or Latino - A person of Cuban origin. ".repeat(10)}</div>
       <div><input type="radio" id="r1" name="race"><label for="r1">Asian</label></div>
