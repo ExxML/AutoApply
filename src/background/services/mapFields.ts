@@ -470,6 +470,39 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
   };
 }
 
+/**
+ * An age bracket ("18-20", "21-29", "60 or older") from the date of birth. Lever's "What is your age range?" got
+ * "21-29" for a 20-year-old on Tala and Paytm.
+ */
+function ageDecision(f: FieldDescriptor, dob: string): Decision | null {
+  if (!f.options || isMulti(f) || !dob || !/\bage (range|group|bracket)\b|\bhow old\b/i.test(f.label)) return null;
+  const [y, m, d] = dob.split("-").map(Number);
+  const [ty, tm, td] = todayIso().split("-").map(Number);
+  if (!y) return null;
+  const age = ty - y - (tm < (m || 1) || (tm === (m || 1) && td < (d || 1)) ? 1 : 0);
+  const hits = f.options.flatMap((o, i) => {
+    const n = (o.match(/\d+/g) ?? []).map(Number);
+    const [lo, hi] =
+      n.length === 2
+        ? n
+        : n.length === 1 && /\b(or (younger|under|less)|under|below)\b/i.test(o)
+          ? [0, /\bunder|below\b/i.test(o) ? n[0] - 1 : n[0]]
+          : n.length === 1 && /\b(or (older|over|more)|over|above|\+)/i.test(o)
+            ? [/\bover|above\b/i.test(o) ? n[0] + 1 : n[0], Infinity]
+            : [NaN, NaN];
+    return age >= lo && age <= hi ? [i] : [];
+  });
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["personal.dateOfBirth"],
+  };
+}
+
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
@@ -730,7 +763,8 @@ export async function mapFields(
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
       officeDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
-      startDecision(f, input.profile.preferences.earliestStartDate);
+      startDecision(f, input.profile.preferences.earliestStartDate) ??
+      ageDecision(f, input.profile.personal.dateOfBirth);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

@@ -711,6 +711,31 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("picks the age bracket from the date of birth", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const [y, m, d] = todayIso().split("-");
+    const options = ["17 or younger", "18-20", "21-29", "30-39", "60 or older", "Prefer not to say"];
+    const ask = async (dob: string) => {
+      profile.personal.dateOfBirth = dob;
+      const f = field("a", { label: "What is your age range?", kind: "radio_group", options });
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask(`${Number(y) - 21}-${m}-${d}`)).toBe("21-29"); // 21 today
+    expect(await ask(`${Number(y) - 21}-12-31`)).toBe(m === "12" && d === "31" ? "21-29" : "18-20");
+    expect(await ask(`${Number(y) - 70}-01-01`)).toBe("60 or older");
+    expect(await ask("")).toBe("flag");
+  });
+
   it("picks how soon the candidate can start from the earliest start date", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
