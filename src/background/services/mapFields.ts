@@ -72,8 +72,10 @@ const NOT_IN_PROFILE = "Not in your profile";
 
 // A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
-const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit|right to work|eligible to work)/i;
-const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_SPONSOR_Q.test(label);
+// Twitch: "would you be legally eligible to begin employment immediately?".
+const RE_ELIGIBLE = /\beligible to (work|begin|start)\b|\bright to work\b/i;
+const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit)/i;
+const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_ELIGIBLE.test(label) || RE_SPONSOR_Q.test(label);
 // GitLab: "require sponsorship for a visa to remain in your current location?".
 const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence|current (location|country))\b/i;
 
@@ -286,7 +288,7 @@ function workAuthDecision(
   if (!country || (!f.options && !text) || (isMulti(f) && f.options?.length !== 2) || /\bnot\b|n['’]t\b/i.test(f.label))
     return null;
   const sponsor = RE_SPONSOR_Q.test(f.label);
-  const authorized = /authori[sz]ed|eligible to work|right to work/i.test(f.label);
+  const authorized = /authori[sz]ed/i.test(f.label) || RE_ELIGIBLE.test(f.label);
   if (sponsor === authorized || (authorized && /sponsor/i.test(f.label))) return null;
   const only = (re: RegExp) => {
     const hits = (f.options ?? []).flatMap((o, i) => (re.test(o) ? [i] : []));

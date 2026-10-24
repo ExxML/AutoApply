@@ -300,6 +300,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
           { ...yn("Do you require sponsorship in Ireland?"), kind: "text" as const, options: undefined },
           { ...yn("Please describe your right to work in Ireland."), kind: "text" as const, options: undefined },
+          yn("If offered employment, would you be legally eligible to begin employment immediately?"),
         ],
         profile,
         documents: [],
@@ -314,6 +315,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Yes",
       "Yes",
       "flag",
+      "No",
     ]);
     expect(sent.map((f) => f.id)).toEqual([
       "Are you authorized to work in Canada without sponsorship?",
