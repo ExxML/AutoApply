@@ -376,6 +376,31 @@ function experienceDecision(f: FieldDescriptor, months: number): Decision | null
   };
 }
 
+/**
+ * "Are you able to work from our office 3 days a week?" (plain Yes/No) for a candidate open to on-site or hybrid work
+ * and to relocating: "Yes". Benchling's got "No"; the audit blanked Plaid's. Where they live stays with the model.
+ */
+function officeDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+  const l = f.label;
+  if (!f.options || isMulti(f) || !/\b(office|on-?site|in[- ]person)\b/i.test(l)) return null;
+  if (!/\b(able|willing|can you|comfortable|commit|open|excited)\b/i.test(l)) return null;
+  if (/\b(located|live|living|reside|currently)\b|\bnot\b|n['’]t\b/i.test(l) || prefs.willingToRelocate !== "yes")
+    return null;
+  const daily = /\b(5|five) days\b|\bevery ?day\b|\bfully on-?site\b/i.test(l);
+  if (!prefs.workArrangement.some((w) => w === "onsite" || (!daily && w === "hybrid"))) return null;
+  // A lone plain "Yes": not "Yes, I live in Campinas", nor beside "Yes but I would need to relocate" (Zip).
+  const yes = f.options.flatMap((o, i) => (/^yes\b/i.test(o) ? [i] : []));
+  if (yes.length !== 1 || !/^yes\W*$/i.test(f.options[yes[0]]) || !f.options.some((o) => /^no\b/i.test(o))) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: yes,
+    intendedAnswer: f.options[yes[0]],
+    confidence: "high",
+    sources: ["preferences"],
+  };
+}
+
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
 function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
   if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
@@ -580,7 +605,8 @@ export async function mapFields(
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile.education) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
-      heardDecision(f, input.profile.referral.howDidYouHearDefault);
+      heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
+      officeDecision(f, input.profile.preferences);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

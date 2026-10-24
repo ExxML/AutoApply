@@ -586,6 +586,49 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("answers in-office questions from the profile's work arrangement and relocation", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences.willingToRelocate = "yes";
+    profile.preferences.workArrangement = ["hybrid", "remote"];
+    const yn = (label: string, options = ["Yes", "No"]) => field(label, { label, kind: "radio_group", options });
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              yn("Are you able to work from our office Monday, Tuesday, and Thursday?"),
+              yn("Are you open to working 5 days a week onsite in San Francisco?"),
+              yn("Please confirm you live near our New York office and understand the in-office expectation."),
+              yn("Are you willing to come into our SF office 3 days per week?", [
+                "Yes",
+                "Yes but I would relocate",
+                "No",
+              ]),
+              yn("Do you have availability for on-site work at the Campinas office every day?", [
+                "Yes, I live in Campinas",
+                "No",
+              ]),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask()).toEqual(["Yes", "flag", "flag", "flag", "flag"]);
+    profile.preferences.workArrangement = ["onsite"];
+    expect((await ask())[1]).toBe("Yes");
+    profile.preferences.willingToRelocate = "no";
+    expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
