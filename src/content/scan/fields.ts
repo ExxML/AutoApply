@@ -25,6 +25,7 @@ import {
   groupLabel,
   hintFor,
   labelElementFor,
+  legendOf,
   precedingText,
   sectionFor,
   textOf,
@@ -251,7 +252,12 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const required =
       [el, u.searchInput, u.groupEl, ...(members ?? [])].some(
         (n) => n && ((n as HTMLInputElement).required || n.getAttribute("aria-required") === "true"),
-      ) || /\*|\(required\)/i.test(rawLabel);
+      ) ||
+      /\*|\(required\)/i.test(rawLabel) ||
+      // Ashby marks required questions only with a CSS "*" after their label.
+      [labelElementFor(el), legendOf(u.groupEl ?? el.closest("fieldset")), container.querySelector("label")].some(
+        (n) => n && textOf(n) === rawLabel && getComputedStyle(n, "::after").content.includes("*"),
+      );
     d.required = !!required;
     const input = (u.searchInput ?? el) as HTMLInputElement;
     const ph = input.getAttribute?.("placeholder");

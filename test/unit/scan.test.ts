@@ -215,6 +215,27 @@ describe("grouping (§11.5)", () => {
     expect(h.consent).toBe(true);
   });
 
+  it("reads a CSS '*' after a question's label as required (Ashby)", () => {
+    // jsdom computes no pseudo-element content.
+    const real = window.getComputedStyle;
+    vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) =>
+      pseudo === "::after" && el.classList.contains("req")
+        ? ({ content: '"*"' } as CSSStyleDeclaration)
+        : real(el, pseudo),
+    );
+    setBody(`<fieldset><label class="req">Will you relocate?</label>
+        <input type="radio" id="a" name="r"><label for="a">Yes</label>
+        <input type="radio" id="b" name="r"><label for="b">No</label></fieldset>
+      <label class="req" for="t">City</label><input id="t">
+      <fieldset><label>Any notes?</label><input type="radio" id="c" name="n"><label for="c">Yes</label></fieldset>`);
+    expect(fields().map((h) => [h.desc.label, h.desc.required])).toEqual([
+      ["Will you relocate?", true],
+      ["City", true],
+      ["Any notes?", false],
+    ]);
+    vi.restoreAllMocks();
+  });
+
   it("labels a fieldset by its leading <label>, not the long text after it (Ashby EEO)", () => {
     setBody(`<fieldset><label>Race</label><div>${"Hispanic or Latino - A person of Cuban origin. ".repeat(10)}</div>
       <div><input type="radio" id="r1" name="race"><label for="r1">Asian</label></div>
