@@ -101,7 +101,8 @@ export function deterministicValue(d: FieldDescriptor, p: DeterministicProfile["
     streetAddress: () => [a.line1, a.line2].filter(Boolean).join(", "),
     line1: () => a.line1,
     line2: () => a.line2,
-    city: () => a.city,
+    // LaunchDarkly: "Where is your permanent (City, Country) work location?" got "Langley".
+    city: () => (/\bcountry\b/i.test(d.label) ? [a.city, a.country].filter(Boolean).join(", ") : a.city),
     region: () => (d.maxLength && d.maxLength <= 3 ? a.regionCode : a.region) || a.region,
     postalCode: () => a.postalCode,
     country: () => a.country,
