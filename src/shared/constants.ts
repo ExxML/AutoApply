@@ -146,6 +146,8 @@ export const OPTION_SELECTORS = [
   "[role=option]",
   '[class*="select__option"]',
   '[class*="Select-option"]',
+  // react-select without a class prefix or option roles (Epic Games): ids are its own.
+  '[id^="react-select-"][id*="-option-"]',
   ".MuiAutocomplete-option",
   ".MuiMenuItem-root",
   ".ant-select-item-option",

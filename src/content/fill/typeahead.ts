@@ -1,5 +1,5 @@
 // §14.6 typeahead: type, wait for suggestions, pick by safe local match or the AI.
-import { normalize } from "../../shared/normalize";
+import { collapse, normalize } from "../../shared/normalize";
 import { localMatch } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
 import {
@@ -16,6 +16,20 @@ import {
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, sameValue } from "./verify";
+
+/** The pick a combobox shows beside its emptied search box: react-select's single value (Epic Games). */
+function shownBeside(input: HTMLElement): string {
+  let p = input.parentElement;
+  for (let i = 0; i < 4 && p && !p.querySelector("label"); i++, p = p.parentElement) {
+    const clone = p.cloneNode(true) as HTMLElement;
+    clone
+      .querySelectorAll('input,svg,script,style,[aria-live],[class*="placeholder" i],[class*="a11y" i]')
+      .forEach((n) => n.remove());
+    const t = collapse(clone.textContent ?? "");
+    if (t) return t;
+  }
+  return "";
+}
 
 export async function fillTypeahead(
   h: FieldHandle,
@@ -95,7 +109,7 @@ export async function fillTypeahead(
     return sameValue(want, dropdownText(h), "contains")
       ? { outcome: "ok", shown: want }
       : { outcome: "mismatch", note: `Expected "${want}", shows "${dropdownText(h)}"` };
-  const v = normalize(input.value || h.el.textContent || "");
+  const v = normalize(input.value || h.el.textContent || shownBeside(input));
   // Our own query left in the box ("Langley" of "Langley, BC") means the pick did not register.
   const picked = v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(typed));
   return v && picked

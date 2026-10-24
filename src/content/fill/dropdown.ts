@@ -9,7 +9,13 @@ import { dispatching, focus, key, realClick, setNativeValue, sleep, typeText, wa
 import type { FillResult } from "./native";
 import { dropdownText, isOn, sameValue } from "./verify";
 
-export const optText = (o: Element) => collapse(o.textContent ?? "");
+// Not an icon's <title>: Epic Games' country options read "CanadaCanada+1" with their flag's.
+export const optText = (o: Element) => {
+  if (!o.querySelector("svg")) return collapse(o.textContent ?? "");
+  const clone = o.cloneNode(true) as Element;
+  clone.querySelectorAll("svg").forEach((n) => n.remove());
+  return collapse(clone.textContent ?? "");
+};
 const isRealOption = (o: HTMLElement) => {
   const t = optText(o);
   return !!t && !RE_NO_OPTIONS.test(t) && !RE_PLACEHOLDER_OPTION.test(t) && o.getAttribute("aria-disabled") !== "true";

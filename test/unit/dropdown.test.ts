@@ -320,6 +320,26 @@ describe("typeahead verification", () => {
     const r = await fillTypeahead(h, "Langley", "Langley, BC, Canada", async () => 0);
     expect(r.outcome).toBe("mismatch");
   });
+
+  it("reads the pick shown beside an emptied search box (react-select without classes, Epic Games)", async () => {
+    setBody(`<div><label for="c">Country</label><div><div><div class="css-1-placeholder">Select</div><div>
+      <input id="c" aria-autocomplete="list"></div></div><div id="menu"></div></div></div>`);
+    const input = document.querySelector("input")!;
+    input.addEventListener("input", () => {
+      document.getElementById("menu")!.innerHTML =
+        `<div id="react-select-2-option-38"><svg><title>Canada</title></svg><span>Canada</span><span>+1</span></div>`;
+      document.getElementById("react-select-2-option-38")!.addEventListener("click", () => {
+        input.value = "";
+        document.getElementById("menu")!.innerHTML = "";
+        document
+          .querySelector(".css-1-placeholder")!
+          .replaceWith(Object.assign(document.createElement("div"), { textContent: "Canada+1" }));
+      });
+    });
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Canada", "Canada", async () => null);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Canada+1" });
+  });
 });
 
 describe("slotted dropdown values", () => {
