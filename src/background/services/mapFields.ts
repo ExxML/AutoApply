@@ -484,7 +484,10 @@ const RE_AI_USE = new RegExp(
  * program" / "I am a human being".
  */
 function aiUseDecision(f: FieldDescriptor): Decision | null {
-  const bot = f.options?.some((o) => /\b(AI|automated|bot)\b/i.test(o)) && f.options.some((o) => /\bhuman\b/i.test(o));
+  // "I am an AI or automated program" / "I am a human being"; not StackAdapt's "I am an advanced AI user".
+  const bot =
+    f.options?.some((o) => /^(I am|I'm) (an? )?(AI|bot|automated)\b/i.test(o)) &&
+    f.options.some((o) => /^(I am|I'm) (a )?human\b/i.test(o));
   return bot || RE_AI_USE.test(f.label)
     ? flag(f.id, "Asks about AI use in this application: answer it yourself")
     : null;

@@ -783,14 +783,18 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             "Yes",
             "Not Applicable",
           ]),
+          yn("g", "Which statement best describes how you currently use AI tools in work/life?", [
+            "I am an advanced AI user and have directly used AI to completely systemize workflows.",
+            "I prefer to rely primarily on human-driven workflows.",
+          ]),
         ],
         profile: emptyProfile(),
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "flag", "flag", "fill", "flag", "flag"]);
-    expect(asked).toEqual(["d"]);
+    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "flag", "flag", "fill", "flag", "flag", "fill"]);
+    expect(asked).toEqual(["d", "g"]);
   });
 
   it("re-asks once for fields the model left out", async () => {
