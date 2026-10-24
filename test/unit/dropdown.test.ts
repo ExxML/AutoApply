@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { newScanState, scan } from "../../src/content/scan/fields";
+import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
 import { fillFile } from "../../src/content/fill/file";
-import { readValue } from "../../src/content/fill/verify";
+import { dropdownText, readValue } from "../../src/content/fill/verify";
 
 beforeAll(() => {
   stubLayout();
@@ -306,6 +306,19 @@ describe("clicks", () => {
     sr.querySelector("div")!.addEventListener("click", () => clicked++);
     realClick(host);
     expect(clicked).toBe(1);
+  });
+});
+
+describe("listbox kept inside the widget (Carvana)", () => {
+  it("reads a closed list as no value", () => {
+    setBody(`<div data-testid="Select"><button type="button" aria-haspopup="listbox"><div>Select answer</div>
+      <span id="sel"></span></button><div role="listbox" style="display:none"><div role="option">Yes</div>
+      <div role="option">No</div></div></div>`);
+    const el = document.querySelector<HTMLElement>("[data-testid=Select]")!;
+    const h = { el, desc: { kind: "dropdown" } } as unknown as FieldHandle;
+    expect(dropdownText(h)).toBe("Select answer");
+    document.getElementById("sel")!.textContent = "Yes";
+    expect(dropdownText(h)).toBe("Select answer Yes");
   });
 });
 

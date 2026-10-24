@@ -22,6 +22,9 @@ export function dropdownText(h: FieldHandle): string {
       .map((o) => collapse(o.textContent ?? ""))
       .join(" | ");
   const clone = h.el.cloneNode(true) as HTMLElement;
+  // A closed list kept in the widget is no value: Carvana's hidden Yes/No options read as already chosen.
+  const lists = clone.querySelectorAll("[role=listbox]");
+  h.el.querySelectorAll("[role=listbox]").forEach((l, i) => !l.getClientRects().length && lists[i]?.remove());
   clone.querySelectorAll('input,select,[class*="placeholder" i],script,style').forEach((n) => n.remove());
   // Screen-reader descriptions are not the value: Workday's empty prompt describes itself as "0 items selected".
   for (const id of [h.el, h.searchInput].flatMap((n) => n?.getAttribute("aria-describedby")?.split(/\s+/) ?? []))
