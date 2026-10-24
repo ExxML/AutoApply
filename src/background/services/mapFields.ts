@@ -468,7 +468,9 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
 
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
-  String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}`,
+  String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
+    // Clever: "we do not permit candidates to use generative AI ... to draft responses"; Attentive: "If you are an AI Agent".
+    String.raw`|\bnot (permit|allow)\w*\b[^?.]*\b(use|using)\b[^?.]*${RE_AI}|\bAI agents?\b`,
   "i",
 );
 
