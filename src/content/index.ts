@@ -334,8 +334,10 @@ async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: str
 
 /** Required and optional consents follow separate settings; a required field is never optional. */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
-  const optional =
-    !h.desc.required && (d?.checked === false || RE_OPTIONAL_CONSENT.test(`${h.desc.label} ${h.desc.hint ?? ""}`));
+  const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
+  // A required choice can still say "No": Braze requires an answer to "Select 'Yes' to join our Talent Community".
+  const choice = h.desc.kind !== "checkbox" && !RE_CONSENT.test(text);
+  const optional = (!h.desc.required || choice) && (d?.checked === false || RE_OPTIONAL_CONSENT.test(text));
   const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
   const mode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
   const accept = mode === "accept";

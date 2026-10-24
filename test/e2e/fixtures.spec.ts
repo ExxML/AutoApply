@@ -231,6 +231,7 @@ test("consent: with optional consents on decline, the optional box is left untic
   await waitDone(page);
   await expect(page.locator("#c3")).not.toBeChecked();
   await expect(page.locator("#ja")).toHaveValue("No"); // plain Yes/No opt-in (MongoDB)
+  await expect(page.locator("#tc")).toHaveValue("No"); // a required opt-in still takes "No" (Braze)
   await expect(page.locator('autoapply-root .tag[aria-label^="I want recruiters"]')).toHaveAttribute(
     "data-color",
     "blue",
