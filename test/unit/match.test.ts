@@ -72,7 +72,14 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Given", { autocomplete: "given-name" }), p)?.value).toBe("Ada");
     expect(deterministicValue(f("x", { autocomplete: "section-a shipping family-name" }), p)?.value).toBe("Lovelace");
     expect(deterministicValue(f("x", { autocomplete: "address-level1", maxLength: 2 }), p)?.value).toBe("BC");
-    expect(deterministicValue(f("x", { autocomplete: "tel", kind: "tel" }), p)?.value).toBe("+1 6045551234");
+    expect(deterministicValue(f("x", { autocomplete: "tel", kind: "tel" }), p)?.value).toBe("6045551234");
+  });
+  it("adds the country code only when the phone box shows one", () => {
+    const tel = (extra: Partial<FieldDescriptor>) =>
+      deterministicValue(f("Phone", { kind: "tel", ...extra }), p)?.value;
+    expect(tel({})).toBe("6045551234");
+    expect(tel({ placeholder: "+47 40 61 23 45" })).toBe("+1 6045551234"); // Teamtailor
+    expect(tel({ currentValue: "+31" })).toBe("+1 6045551234"); // Recruitee seeds the dial code
   });
   it("maps unambiguous label regexes", () => {
     expect(deterministicValue(f("First name"), p)).toEqual({ value: "Ada", path: "personal.firstName" });

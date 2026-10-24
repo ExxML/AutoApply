@@ -10,7 +10,7 @@ test("react-controlled: React state follows the filled values", async ({ page, s
       firstName: "Ada",
       lastName: "Lovelace",
       email: "ada@example.com",
-      phone: "+1 6045551234",
+      phone: "6045551234",
       country: "CA",
       remote: true,
     }),
@@ -116,7 +116,7 @@ test("iframe: a cross-origin child frame fills itself and the top-frame overlay 
   await fillPage(page, sw);
   const frame = page.frameLocator("#frame");
   await expect(frame.locator("#fn")).toHaveValue("Ada");
-  await expect(frame.locator("#ph")).toHaveValue("+1 6045551234");
+  await expect(frame.locator("#ph")).toHaveValue("6045551234");
   await expect(frame.locator("#city")).toHaveValue("Vancouver");
   expect(await frame.locator("#cv").evaluate((i: HTMLInputElement) => i.files?.[0]?.name)).toBe("ada-resume.pdf");
   await waitDone(page);
@@ -145,7 +145,7 @@ test("multistep: step 2 after Next (pushState) waits for another fill; the exten
   await page.waitForTimeout(1500);
   await expect(page.locator("#ph")).toHaveValue("");
   await fillPage(page, sw);
-  await expect(page.locator("#ph")).toHaveValue("+1 6045551234");
+  await expect(page.locator("#ph")).toHaveValue("6045551234");
   await expect(page.locator("#city")).toHaveValue("Vancouver");
   await expect(page.locator("#li")).toHaveValue("https://linkedin.com/in/ada");
   await expect(page.locator("autoapply-root .panel .status")).toHaveText(/^Done · 7 filled/);

@@ -398,7 +398,6 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
 
     // PHASE A: deterministic and learned answers — no network to Gemini.
     const det = config.profileSnapshotForDeterministic;
-    const hasCountryCode = all.some((h) => /country code|dialing code/i.test(h.desc.label));
     const usedLearned: string[] = [];
     const pending: FieldHandle[] = [];
     for (const h of targets) {
@@ -422,7 +421,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         else pending.push(h);
         continue;
       }
-      const d = deterministicValue(h.desc, det.personal, hasCountryCode);
+      const d = deterministicValue(h.desc, det.personal);
       if (d) {
         const op: FillOp = d.query
           ? { type: "intended", answer: d.value, query: d.query }

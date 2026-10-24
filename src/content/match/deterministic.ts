@@ -65,11 +65,7 @@ export interface DetResult {
   query?: string;
 }
 
-export function deterministicValue(
-  d: FieldDescriptor,
-  p: DeterministicProfile["personal"],
-  hasCountryCodeField = false,
-): DetResult | null {
+export function deterministicValue(d: FieldDescriptor, p: DeterministicProfile["personal"]): DetResult | null {
   // Typeaheads, and remote-search dropdowns (Greenhouse's "Location (City)"), list places to search.
   const typeahead = d.kind === "typeahead" || (d.kind === "dropdown" && !d.optionsKnown);
   if (!TEXT_KINDS.has(d.kind) && !typeahead) return null;
@@ -96,7 +92,9 @@ export function deterministicValue(
       if (!n) return "";
       const formatted = formatPhone(n, d.placeholder);
       if (formatted !== n) return formatted;
-      return hasCountryCodeField ? n : join(p.phone.countryCode, n);
+      // Most forms reject or misread "+1 …"; add the code only when the box shows one ("+47 …" example, seeded "+31").
+      const intl = /^\s*\+/.test(d.placeholder ?? "") || /^\s*\+/.test(d.currentValue ?? "");
+      return intl ? join(p.phone.countryCode, n) : n;
     },
     phoneNational: () => p.phone.number,
     phoneCountryCode: () => p.phone.countryCode,

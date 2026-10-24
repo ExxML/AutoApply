@@ -13,7 +13,7 @@ test("plain form: deterministic, AI, essay, file and consent fields are filled, 
   await expect(page.locator("#fn")).toHaveValue("Ada");
   await expect(page.locator("#ln")).toHaveValue("Lovelace");
   await expect(page.locator("#em")).toHaveValue("ada@example.com");
-  await expect(page.locator("#ph")).toHaveValue("+1 6045551234");
+  await expect(page.locator("#ph")).toHaveValue("6045551234");
   await expect(page.locator("#prov")).toHaveValue("BC");
   await expect(page.locator("input[name=auth][value=yes]")).toBeChecked();
   await expect(page.locator("#why")).not.toHaveValue("");
