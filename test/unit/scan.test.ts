@@ -504,5 +504,12 @@ describe("job context (§11.7)", () => {
     setBody(`<h1>Engineer</h1><div class="job__location"><svg></svg>San Francisco, California, United States</div>
       <form><div class="location-field"><label>Location <input></label></div></form>`);
     expect(extractJobContext(document, location).location).toBe("San Francisco, California, United States");
+    // Company pages embedding the form: a plain place under the title (Ripple, Fivetran).
+    setBody(`<h1>Senior Staff, Developer Relations</h1><span>New York, NY, United States</span><p>Apply Now</p>`);
+    expect(extractJobContext(document, location).location).toBe("New York, NY, United States");
+    setBody(`<h1>Senior Software Engineer</h1><div>Ontario, Canada</div>`);
+    expect(extractJobContext(document, location).location).toBe("Ontario, Canada");
+    setBody(`<h1>Engineer</h1><p>Join us, and help build the future of payments for everyone.</p>`);
+    expect(extractJobContext(document, location).location).toBeUndefined();
   });
 });

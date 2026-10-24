@@ -1,5 +1,5 @@
 // §11.7 job context extraction.
-import { isAtsHost } from "../shared/constants";
+import { canonicalCountry, isAtsHost, regionCountry } from "../shared/constants";
 import { collapse } from "../shared/normalize";
 import type { JobContext } from "../shared/types";
 import { isVisible } from "./scan/visibility";
@@ -123,12 +123,32 @@ function locationText(doc: Document): string {
   return "";
 }
 
+/**
+ * A place among the few short texts right under the title, ending in a country or region: company pages that embed
+ * the application ("New York, NY, United States" on Ripple, "Ontario, Canada" on Fivetran, "Sydney, Australia" on Riot).
+ */
+function underTitle(doc: Document): string {
+  const h1 = doc.querySelector("h1");
+  if (!h1) return "";
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  walker.currentNode = h1;
+  let seen = 0;
+  for (let n = walker.nextNode(); n && seen < 4; n = walker.nextNode()) {
+    const t = collapse(n.textContent ?? "");
+    if (!t || h1.contains(n)) continue;
+    seen++;
+    const last = t.split(",").pop()!;
+    if (t.length <= 60 && (canonicalCountry(last) || regionCountry(last))) return t;
+  }
+  return "";
+}
+
 export function extractJobContext(doc: Document = document, loc: Location = location): JobContext {
   const ld = jsonLdJobPosting(doc);
   const h1 = collapse(doc.querySelector("h1")?.textContent ?? "");
   const org = ld?.hiringOrganization;
   const text = ld?.description ? htmlToText(ld.description).slice(0, 8000) : largestDescriptionBlock(doc);
-  const where = (ld && ldLocation(ld)) || locationText(doc);
+  const where = (ld && ldLocation(ld)) || locationText(doc) || underTitle(doc);
   return {
     url: loc.href,
     title: doc.title,
