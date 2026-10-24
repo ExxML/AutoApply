@@ -246,12 +246,16 @@ function jobCountry(location: string): string | undefined {
 
 /**
  * The country a work authorization question is about: the one it names, the candidate's own for "where you live",
- * else the job's. The model mixed these up ("authorized in the country you reside?" → the job's country).
+ * else the job's. The model mixed these up ("authorized in the country you reside?" → the job's country). With no
+ * job country, a U.S. visa it names: Clever's "require sponsorship for employment visa status (e.g. H-1B visa
+ * status)?" got "No" for a U.S. job whose page gave no parseable location.
  */
 function workCountry(label: string, home: string, job: string | undefined): string | undefined {
   if (!isWorkAuth(label)) return undefined;
   return (
-    countryIn(label) ?? ((RE_RESIDENCE.test(label) ? (canonicalCountry(home) ?? normalize(home)) : job) || undefined)
+    countryIn(label) ??
+    ((RE_RESIDENCE.test(label) ? (canonicalCountry(home) ?? normalize(home)) : job) || undefined) ??
+    (/\bH-?1-?B\b/.test(label) ? US : undefined)
   );
 }
 

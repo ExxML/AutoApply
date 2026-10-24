@@ -259,6 +259,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "First name",
       "Do you currently receive any active funding (e.g., grants, sponsorships)?",
       "Will you now or in the future require sponsorship for a visa to remain in your current location?",
+      "Will you now or in the future require sponsorship for employment visa status (e.g. H-1B visa status)?",
     );
     expect(sent.map((f) => f.workCountry)).toEqual([
       "canada",
@@ -268,6 +269,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       undefined,
       undefined,
       "canada",
+      "ireland",
     ]);
     sent.length = 0;
     await ask("San Francisco, CA; Toronto, ON", "Will you require sponsorship?");
@@ -278,6 +280,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     await ask("Hybrid - San Francisco", "Will you require sponsorship?");
     await ask("Vancouver, WA", "Will you require sponsorship?");
     await ask("Lisbon", "Will you require sponsorship?");
+    await ask("", "Will you require sponsorship for employment visa status (e.g. H-1B visa status)?");
     expect(sent.map((f) => f.workCountry)).toEqual([
       undefined,
       "united states",
@@ -287,6 +290,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "united states",
       "united states",
       "portugal",
+      "united states",
     ]);
 
     // Yes/no questions with a known country are answered from the profile, not asked.
