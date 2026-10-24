@@ -84,7 +84,7 @@ describe("response validation (§10.8.1)", () => {
           },
         ],
       )[0];
-    expect(missing(["2027", "2026"])).toMatchObject({ action: "flag", note: "No option for 2028" });
+    expect(missing(["2027", "2026"])).toMatchObject({ action: "flag", note: "No option for 2028", suggestion: "2028" });
     expect(missing(["Class of 2028", "2026"])).toMatchObject({ action: "fill", optionIndexes: [0] });
   });
 
