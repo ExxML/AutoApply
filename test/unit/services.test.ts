@@ -536,6 +536,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("picks the company's site for how they heard when the profile says company website", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.referral.howDidYouHearDefault = "Company website";
+    const ask = (options: string[]) =>
+      field(options.join(), { label: "How did you hear about Character AI?", kind: "radio_group", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          ask(["Linkedin", "Indeed", "Referral", "Character Careers Page", "Other"]),
+          ask(["Job board website", "Company blog", "Other website", "Riot Games Website"]),
+          ask(["LinkedIn", "Company Website"]),
+          ask(["Social (e.g. Twitter, LinkedIn)", "External Job Board", "Employee Referral"]),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
+      "Character Careers Page",
+      "Riot Games Website",
+      "Company Website",
+      "flag",
+    ]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {

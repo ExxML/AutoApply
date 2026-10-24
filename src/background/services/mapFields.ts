@@ -116,9 +116,35 @@ const needsNoSource = (f: FieldDescriptor) =>
 const workAuthAnswer = (f: FieldDescriptor & { workCountry?: string }, answer: string) =>
   isWorkAuth(f.label) && (!!f.workCountry || /^(yes|no)\b/i.test(answer));
 
+const RE_HEARD = /\b(hear|heard|learn(ed)?) (about|of)\b/i;
 /** "Other" for how they heard: no option matches the profile's source; the audit flagged it (Match Group, Vercel). */
-const heardOther = (f: FieldDescriptor, answer: string) =>
-  /\b(hear|heard|learn(ed)?) (about|of)\b/i.test(f.label) && /^other\b/i.test(answer);
+const heardOther = (f: FieldDescriptor, answer: string) => RE_HEARD.test(f.label) && /^other\b/i.test(answer);
+
+/**
+ * How they heard, when one option is the profile's source: itself, or the company's site for "Company website"
+ * ("Character Careers Page", "Riot Games Website"). The model picked "Other" over "Character Careers Page".
+ */
+function heardDecision(f: FieldDescriptor, heard: string): Decision | null {
+  if (!f.options || !heard || !RE_HEARD.test(f.label)) return null;
+  const site = /\b(web ?site|careers? (page|site))\b/i.test(heard);
+  const hits = f.options.flatMap((o, i) =>
+    normalize(o) === normalize(heard) ||
+    (site &&
+      /\b(web ?site|careers? (page|site|portal))\b/i.test(o) &&
+      !/^other\b|\bjob ?(board|site)|social|blog/i.test(o))
+      ? [i]
+      : [],
+  );
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["referral"],
+  };
+}
 
 /** A country the text names. Short codes only as written ("US", "U.S."), never the pronoun "us". */
 function countryIn(text: string): string | undefined {
@@ -549,7 +575,8 @@ export async function mapFields(
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile.education) ??
-      recordingDecision(f, input.profile.background.consentToInterviewRecording);
+      recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
+      heardDecision(f, input.profile.referral.howDidYouHearDefault);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {
