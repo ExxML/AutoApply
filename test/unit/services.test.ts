@@ -615,6 +615,8 @@ describe("mapFields chunking and splitting (§10.7)", () => {
                 "Yes, I live in Campinas",
                 "No",
               ]),
+              yn("Are you able to work within the NY office (located at 441 9th Avenue) on Tuesdays?"),
+              yn("Are you currently located near our office and able to come in?"),
             ],
             profile,
             documents: [],
@@ -622,11 +624,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
         )
       ).decisions.map((d) => d.intendedAnswer ?? d.action);
-    expect(await ask()).toEqual(["Yes", "flag", "flag", "flag", "flag"]);
+    expect(await ask()).toEqual(["Yes", "flag", "flag", "flag", "flag", "Yes", "flag"]);
     profile.preferences.workArrangement = ["onsite"];
     expect((await ask())[1]).toBe("Yes");
     profile.preferences.willingToRelocate = "no";
-    expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
+    expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag", "flag", "flag"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {

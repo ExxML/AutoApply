@@ -384,8 +384,9 @@ function officeDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
   const l = f.label;
   if (!f.options || isMulti(f) || !/\b(office|on-?site|in[- ]person)\b/i.test(l)) return null;
   if (!/\b(able|willing|can you|comfortable|commit|open|excited)\b/i.test(l)) return null;
-  if (/\b(located|live|living|reside|currently)\b|\bnot\b|n['’]t\b/i.test(l) || prefs.willingToRelocate !== "yes")
-    return null;
+  // Where the candidate is, not where the office is ("office (located at 441 9th Avenue)", Peloton).
+  const where = /\b(are you|you are|you're|currently) (located|based|living)\b|\b(you|currently) (live|reside)\b/i;
+  if (where.test(l) || /\breside\b|\bnot\b|n['’]t\b/i.test(l) || prefs.willingToRelocate !== "yes") return null;
   const daily = /\b(5|five) days\b|\bevery ?day\b|\bfully on-?site\b/i.test(l);
   if (!prefs.workArrangement.some((w) => w === "onsite" || (!daily && w === "hybrid"))) return null;
   // A lone plain "Yes": not "Yes, I live in Campinas", nor beside "Yes but I would need to relocate" (Zip).
