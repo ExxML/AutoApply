@@ -104,6 +104,8 @@ export interface JobContext {
   header?: string;
   /** Where the job is, from its JSON-LD or location label; descriptions often leave it out (Okta, Dublin). */
   location?: string;
+  /** Sent by a child frame (an embedded application), which knows the description but not the page's job. */
+  embedded?: boolean;
   capturedAt: number;
 }
 

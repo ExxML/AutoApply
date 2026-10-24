@@ -10,6 +10,7 @@ import {
 } from "../../src/shared/constants";
 import { nextMidnightPacific } from "../../src/shared/time";
 import { createStorage } from "../../src/shared/storage";
+import type { JobContext } from "../../src/shared/types";
 import { ProfileSchema } from "../../src/shared/profileSchema";
 import { defaultSettings } from "../../src/shared/settings";
 
@@ -134,5 +135,41 @@ describe("storage", () => {
       learnedAnswers: [{ bad: true }, { id: "x", question: "q", normalizedQuestion: "q", kind: "text", answer: "a" }],
     });
     expect(p.learnedAnswers).toHaveLength(1);
+  });
+});
+
+describe("job context", () => {
+  beforeEach(() => installChromeMock());
+
+  it("adds an embedded form's description to the page's job, never its company or location", async () => {
+    const { getJobContext, setJobContext } = await import("../../src/background/jobContext");
+    const page = "https://block.xyz/careers/jobs/1";
+    const job = (o: Partial<JobContext>): JobContext =>
+      ({
+        url: page,
+        title: "",
+        company: "Block",
+        jobTitle: "Engineer",
+        text: "",
+        capturedAt: Date.now(),
+        ...o,
+      }) as JobContext;
+    const frame = job({
+      url: "https://job-boards.greenhouse.io/embed/job_app",
+      company: "job-boards",
+      text: "About us",
+    });
+    // The page first, then its form's frame.
+    await setJobContext(1, job({ location: "Bay Area, CA, US" }));
+    await setJobContext(1, frame, page);
+    expect(await getJobContext(1)).toMatchObject({ company: "Block", location: "Bay Area, CA, US", text: "About us" });
+    // The frame first, then the page.
+    await setJobContext(2, frame, page);
+    await setJobContext(2, job({ location: "Bay Area, CA, US" }));
+    expect(await getJobContext(2)).toMatchObject({ company: "Block", location: "Bay Area, CA, US", text: "About us" });
+    // Step 2 of an application keeps step 1's job.
+    await setJobContext(3, job({ text: "Step 1 description", location: "Dublin" }));
+    await setJobContext(3, job({ url: page + "/step2", jobTitle: "Your details" }));
+    expect(await getJobContext(3)).toMatchObject({ jobTitle: "Engineer", location: "Dublin" });
   });
 });

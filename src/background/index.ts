@@ -203,7 +203,8 @@ const handlers: Handlers = {
   },
 
   async SET_JOB_CONTEXT({ ctx }, sender) {
-    if (sender.tab?.id !== undefined) await setJobContext(sender.tab.id, ctx);
+    if (sender.tab?.id !== undefined)
+      await setJobContext(sender.tab.id, ctx, sender.frameId ? (sender.tab.url ?? "") : undefined);
     return { ok: true };
   },
 

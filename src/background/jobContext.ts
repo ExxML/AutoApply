@@ -5,10 +5,20 @@ import type { JobContext } from "../shared/types";
 const MAX_AGE = 2 * 3600 * 1000;
 const fresh = (c: JobContext | null): c is JobContext => !!c && Date.now() - c.capturedAt < MAX_AGE;
 
-export async function setJobContext(tabId: number, ctx: JobContext): Promise<void> {
-  const prev = await session.getJobContext(tabId);
+/** `pageUrl`: the tab's address, for a context sent by a child frame. */
+export async function setJobContext(tabId: number, ctx: JobContext, pageUrl?: string): Promise<void> {
+  const prev = await getJobContext(tabId);
+  // An embedded form's frame adds its description to the page's job: Block's Greenhouse frame replaced the page's
+  // company and location with "job-boards" and none, and work authorization went to the model blind.
+  if (pageUrl !== undefined) {
+    const page = prev?.url === pageUrl;
+    return session.setJobContext(tabId, page ? { ...prev, text: ctx.text || prev.text } : { ...ctx, embedded: true });
+  }
   // A page without a description (e.g. step 2 of an application) keeps the earlier description.
-  if (!ctx.text && fresh(prev) && prev.text) return;
+  if (!ctx.text && prev?.text) {
+    if (prev.embedded) await session.setJobContext(tabId, { ...ctx, text: prev.text });
+    return;
+  }
   await session.setJobContext(tabId, ctx);
 }
 
