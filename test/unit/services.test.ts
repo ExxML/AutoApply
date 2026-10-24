@@ -701,7 +701,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ctx = { gemini, settings: defaultSettings(), model: "m", fallback: null };
     const options = ["Canada +1", "Cape Verde +238"];
     await mapFields(ctx, { fields: [field("a", { options })], profile: emptyProfile(), documents: [], job: null });
-    await chooseOptions(ctx, [{ fieldId: "b", question: "q", intendedAnswer: "Canada", options, multiple: false }]);
+    await chooseOptions(
+      ctx,
+      [{ fieldId: "b", question: "q", intendedAnswer: "Canada", options, multiple: false }],
+      emptyProfile(),
+    );
     const want = ["0: Canada +1", "1: Cape Verde +238"];
     expect((payloads[0].fields as FieldDescriptor[])[0].options).toEqual(want);
     expect((payloads.at(-1)!.items as { options: string[] }[])[0].options).toEqual(want);

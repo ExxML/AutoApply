@@ -218,7 +218,7 @@ const handlers: Handlers = {
   async CHOOSE_OPTIONS({ items, groupId }, sender) {
     const ctx = await serviceCtx(groupSignal(sender, groupId));
     if ("error" in ctx) return ctx;
-    return { choices: await chooseOptions(ctx, items) };
+    return { choices: await chooseOptions(ctx, items, await store.get("profile")) };
   },
 
   async DRAFT_ESSAYS({ items, groupId }, sender) {

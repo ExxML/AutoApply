@@ -1,9 +1,9 @@
 // §10.8.2 follow-up option choice for options discovered late.
-import type { Choice, ChooseItem } from "../../shared/types";
+import type { Choice, ChooseItem, Profile } from "../../shared/types";
 import { BadOutputError, BlockedError } from "../gemini/errors";
 import { CHOOSE_OPTIONS_PROMPT } from "../gemini/prompts";
 import { CHOOSE_SCHEMA, ChooseZ } from "../gemini/schemas";
-import { numbered, type ServiceCtx } from "./mapFields";
+import { compactProfile, numbered, type ServiceCtx } from "./mapFields";
 
 export function validateChoices(items: ChooseItem[], raw: Choice[]): Choice[] {
   const byId = new Map(items.map((i) => [i.fieldId, i]));
@@ -24,7 +24,9 @@ export function validateChoices(items: ChooseItem[], raw: Choice[]): Choice[] {
   return items.map((i) => out.get(i.fieldId) ?? { fieldId: i.fieldId, optionIndexes: null, confidence: "low" });
 }
 
-export async function chooseOptions(ctx: ServiceCtx, items: ChooseItem[]): Promise<Choice[]> {
+/** The profile resolves vague answers: "Asian" among East/South/Southeast Asian, "Citizen" (SpaceX: "U.S. citizen"). */
+export async function chooseOptions(ctx: ServiceCtx, items: ChooseItem[], profile: Profile): Promise<Choice[]> {
+  const { resumeText: _resume, learnedAnswers: _learned, ...rest } = profile;
   const batches: ChooseItem[][] = [];
   for (let i = 0; i < items.length; i += 20) batches.push(items.slice(i, i + 20));
   const results = await Promise.all(
@@ -33,7 +35,10 @@ export async function chooseOptions(ctx: ServiceCtx, items: ChooseItem[]): Promi
         const r = await ctx.gemini.call(
           {
             system: CHOOSE_OPTIONS_PROMPT,
-            payload: { items: batch.map((i) => ({ ...i, options: numbered(i.options) })) },
+            payload: {
+              items: batch.map((i) => ({ ...i, options: numbered(i.options) })),
+              profile: compactProfile(rest),
+            },
             schema: CHOOSE_SCHEMA,
             validate: (d) => ChooseZ.parse(d),
             timeoutMs: ctx.settings.requestTimeoutMs,
