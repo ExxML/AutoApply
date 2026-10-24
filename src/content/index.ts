@@ -364,7 +364,10 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
         ? { type: "options", texts: boxes }
         : pick
           ? { type: "options", texts: [pick] }
-          : null;
+          : // Options not read yet (Twitch's 16th dropdown, "considered for future opportunities?"): pick by meaning.
+            h.desc.kind === "dropdown" && !options
+            ? { type: "intended", answer: accept ? "Yes" : "No" }
+            : null;
   const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${optional ? " (optional)" : ""}`;
   if (mode !== "ask" && op) jobs.push(doFill(h, op, "ai", tooltip, ctrl));
   else setStatus(h, "needs", "Needs your confirmation");
