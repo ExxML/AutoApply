@@ -432,6 +432,40 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
   };
 }
 
+/**
+ * "How soon could you start?" among ranges ("2 weeks or less", "8 - 12 weeks", "more than 12 weeks"), counted from
+ * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away.
+ */
+function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
+  const label =
+    /\bhow soon\b|\bwhen (can|could|would) you (start|begin|join)\b|\b(availability|able) to (start|begin)\b/i;
+  if (!f.options || isMulti(f) || !earliest || !label.test(f.label)) return null;
+  const weeks = Math.max(0, (Date.parse(earliest) - Date.parse(todayIso())) / 6048e5);
+  const hits = f.options.flatMap((o, i) => {
+    const unit = /\bmonths?\b/i.test(o) ? 4.345 : /\bweeks?\b/i.test(o) ? 1 : 0;
+    const n = (o.match(/\d+(\.\d+)?/g) ?? []).map((x) => Number(x) * unit);
+    let range: [number, number] | null = null;
+    if (/\bimmediate/i.test(o) && !n.length) range = [0, 0];
+    else if (!unit) range = null;
+    else if (n.length === 2) range = [n[0], n[1]];
+    else if (n.length === 1 && /\bor less\b|\bwithin\b|\bless than\b|\bunder\b/i.test(o)) range = [0, n[0]];
+    else if (n.length === 1 && /\bmore than\b|\bover\b|\bor more\b|\+/i.test(o)) range = [n[0], Infinity];
+    return range && weeks >= range[0] && weeks <= range[1] ? [{ i, width: range[1] - range[0] }] : [];
+  });
+  // The narrowest wins: "immediately" over "2 weeks or less" for a start date already passed.
+  hits.sort((a, b) => a.width - b.width);
+  if (!hits.length || hits[1]?.width === hits[0].width) return null;
+  const i = hits[0].i;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["preferences"],
+  };
+}
+
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}`,
@@ -657,7 +691,8 @@ export async function mapFields(
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
       officeDecision(f, input.profile.preferences) ??
-      gpaDecision(f, input.profile.education);
+      gpaDecision(f, input.profile.education) ??
+      startDecision(f, input.profile.preferences.earliestStartDate);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

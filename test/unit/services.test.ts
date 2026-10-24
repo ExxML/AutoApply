@@ -663,6 +663,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49"]);
   });
 
+  it("picks how soon the candidate can start from the earliest start date", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const options = [
+      "I am able to start immediately",
+      "I would be able to start in 2 weeks or less",
+      "I would be able to start in 3 weeks",
+      "I would be able to start in 4 - 8 weeks",
+      "I would be able to start in 8 - 12 weeks",
+      "I would be able to start in more than 12 weeks",
+    ];
+    const ask = async (daysAway: number) => {
+      profile.preferences.earliestStartDate = new Date(Date.parse(todayIso()) + daysAway * 864e5)
+        .toISOString()
+        .slice(0, 10);
+      const label = "Once an offer is accepted, how soon would you be able to begin working with us?";
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [field("s", { label, kind: "select", options })], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask(70)).toBe("I would be able to start in 8 - 12 weeks");
+    expect(await ask(-30)).toBe("I am able to start immediately");
+    expect(await ask(200)).toBe("I would be able to start in more than 12 weeks");
+    expect(await ask(21)).toBe("flag");
+  });
+
   it("leaves questions about AI use in the application to the user", async () => {
     const asked: string[] = [];
     const gemini = {
