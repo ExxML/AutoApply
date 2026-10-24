@@ -527,6 +527,35 @@ const SEASONS: [RegExp, number[]][] = [
 ];
 
 /**
+ * A year or month option picked for the profile date the model cites ("education.0.endDate" → "2028-05"), checked
+ * against it: the model miscounts numeric lists, and Plaid's end year got "2025". Corrected to the right option, or
+ * flagged when the list lacks it (Plaid's years stop at 2027).
+ */
+function citedDateCheck(f: FieldDescriptor, d: Decision, profile: Profile): Decision {
+  const i = d.optionIndexes?.[0];
+  if (d.action !== "fill" || !f.options || i === undefined || d.optionIndexes!.length !== 1) return d;
+  const dates = (d.sources ?? []).flatMap((s) => {
+    let v: unknown = profile;
+    for (const k of s
+      .replace(/^profile\./, "")
+      .split(/[.[\]]+/)
+      .filter(Boolean))
+      v = v && typeof v === "object" ? (v as Record<string, unknown>)[k] : undefined;
+    return typeof v === "string" && /^\d{4}-\d\d/.test(v) ? [v] : [];
+  });
+  if (new Set(dates).size !== 1) return d;
+  const [year, month] = dates[0].split("-").map(Number);
+  const picked = f.options[i].trim();
+  const isYear = /^(19|20)\d\d$/.test(picked);
+  const monthOf = (o: string) => MONTHS.findIndex((m) => new RegExp(`^${m}[a-z]*\\.?$`, "i").test(o.trim())) + 1;
+  if (isYear ? Number(picked) === year : !monthOf(picked) || monthOf(picked) === month) return d;
+  const want = isYear ? String(year) : MONTHS[month - 1].replace(/^./, (c) => c.toUpperCase());
+  const right = f.options.findIndex((o) => (isYear ? o.trim() === want : monthOf(o) === month));
+  if (right < 0) return flag(f.id, `No option for ${want}`, want);
+  return { ...d, optionIndexes: [right], intendedAnswer: f.options[right] };
+}
+
+/**
  * A graduation date among options, matched by year and month or season ("2028-05" → "Spring/Summer 2028"). The
  * model picked "Other" for Lyft's "anticipated graduation month and year?" with the note "Graduation is May 2028".
  */
@@ -753,7 +782,8 @@ export async function mapFields(
       const answer = d.action === "fill" ? (suggestionOf(d, f) ?? "") : "";
       if (deniesNeededSponsorship(f, answer, countries.get(f.id), entries))
         return flag(f.id, "Sponsorship needed in this country", answer);
-      return wrongSiteLink(f.label, answer, d.sources) ? flag(f.id, NOT_IN_PROFILE, answer) : d;
+      if (wrongSiteLink(f.label, answer, d.sources)) return flag(f.id, NOT_IN_PROFILE, answer);
+      return citedDateCheck(f, d, input.profile);
     }),
     usedModel,
   };

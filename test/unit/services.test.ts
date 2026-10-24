@@ -663,6 +663,50 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49"]);
   });
 
+  it("checks a picked year or month against the profile date the model cites", async () => {
+    const picks: Record<string, [number, string]> = {
+      y1: [2, "education.0.endDate"],
+      y2: [0, "profile.education[0].startDate"],
+      y3: [1, "education.0.endDate"],
+      m1: [0, "education.0.endDate"],
+    };
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          optionIndexes: [picks[f.id][0]],
+          confidence: "high",
+          sources: [picks[f.id][1]],
+        }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.education = [{ ...profile.education[0], school: "UBC", startDate: "2024-09", endDate: "2028-05" }];
+    const sel = (id: string, options: string[]) => field(id, { label: "", kind: "select", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          sel("y1", ["2027", "2026", "2025", "2024"]),
+          sel("y2", ["2025", "2024", "2023"]),
+          sel("y3", ["2029", "2028", "2027"]),
+          sel("m1", ["January", "May"]),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => (d.action === "flag" ? d.note : d.intendedAnswer))).toEqual([
+      "No option for 2028",
+      "2024",
+      undefined,
+      "May",
+    ]);
+  });
+
   it("picks how soon the candidate can start from the earliest start date", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
