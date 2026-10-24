@@ -629,6 +629,38 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
   });
 
+  it("picks the undergraduate GPA option on a 4.0 scale", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const outOf = ["Not applicable", "4.0 out of 4.0", "3.9 out of 4.0", "3.8 out of 4.0", "Below 3.0 out of 4.0"];
+    const ranges = ["3.5 - 4.0", "3.0 - 3.49", "Below 3.0"];
+    const ask = async (gpa: string, scale: string) => {
+      profile.education = [{ ...profile.education[0], gpa, gpaScale: scale }];
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        {
+          fields: [
+            field("a", { label: "GPA (Undergraduate)", kind: "select", options: outOf }),
+            field("b", { label: "GPA (Graduate)", kind: "select", options: outOf }),
+            field("c", { label: "Undergraduate GPA", kind: "select", options: ranges }),
+          ],
+          profile,
+          documents: [],
+          job: null,
+        },
+      );
+      return r.decisions.map((d) => d.intendedAnswer ?? d.action);
+    };
+    expect(await ask("4.33", "4.33")).toEqual(["4.0 out of 4.0", "flag", "3.5 - 4.0"]);
+    expect(await ask("3.85", "4.0")).toEqual(["3.8 out of 4.0", "flag", "3.5 - 4.0"]);
+    expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49"]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {

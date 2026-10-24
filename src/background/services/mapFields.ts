@@ -401,6 +401,36 @@ function officeDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
   };
 }
 
+/**
+ * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
+ * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
+ */
+function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
+  const e = education.find((x) => x.gpa);
+  const [gpa, scale] = [Number(e?.gpa), Number(e?.gpaScale || 4)];
+  if (!f.options || isMulti(f) || !/\bGPA\b|grade point/i.test(f.label) || !gpa || !scale) return null;
+  if (/\b(graduate|doctorate|master'?s?|ph\.?d|high school)\b/i.test(f.label)) return null;
+  const v = scale >= 4 && scale <= 4.34 ? Math.min(gpa, 4) : (gpa / scale) * 4;
+  let best = -1;
+  let bestLow = -Infinity;
+  f.options.forEach((o, i) => {
+    const m = o.match(/^\s*(\d(?:\.\d+)?)\s*(?:[-–]\s*(\d(?:\.\d+)?)|(?:out of|\/)\s*4(?:\.0+)?\b)/i);
+    if (!m) return;
+    const low = Number(m[1]);
+    const top = m[2] ? Number(m[2]) + 0.01 : Infinity;
+    if (low <= v + 1e-9 && v < top && low > bestLow) [best, bestLow] = [i, low];
+  });
+  if (best < 0) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [best],
+    intendedAnswer: f.options[best],
+    confidence: "high",
+    sources: ["education"],
+  };
+}
+
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
 function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
   if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
@@ -606,7 +636,8 @@ export async function mapFields(
       graduationDecision(f, input.profile.education) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
-      officeDecision(f, input.profile.preferences);
+      officeDecision(f, input.profile.preferences) ??
+      gpaDecision(f, input.profile.education);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {
