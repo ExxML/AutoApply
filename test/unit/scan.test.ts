@@ -231,6 +231,13 @@ describe("grouping (§11.5)", () => {
       <label><input type="radio" name="sms"> No - I do not consent to receiving text messages</label></fieldset>`);
     expect(fields()[0].consent).toBe(true);
     expect(RE_OPTIONAL_CONSENT.test(fields()[0].desc.label)).toBe(true);
+    // A Yes/No opt-in is one with bare answers; CI&T's answers state where the candidate lives.
+    const opt = (o: string) => `<label><input type="radio" name="y"> ${o}</label>`;
+    setBody(`<fieldset><legend>Receive alerts for similar jobs?</legend>${opt("Yes")}${opt("No")}</fieldset>`);
+    expect(fields()[0].consent).toBe(true);
+    setBody(`<fieldset><legend>On-site availability every day? In case you are considered for other open positions.</legend>
+      ${opt("Yes, I live near the office and can go every day.")}${opt("No, I can't go every day.")}</fieldset>`);
+    expect(fields()[0].consent).toBe(false);
   });
 });
 

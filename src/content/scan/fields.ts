@@ -268,8 +268,12 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         : !d.multiple &&
           !!d.options &&
           ((RE_CONSENT.test(text) && !/background|drug/i.test(text) && !!consentPair(d.options)) ||
-            // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings.
-            (RE_OPTIONAL_CONSENT.test(text) && !!yesNoPair(d.options))));
+            // MongoDB's "Receive alerts for similar jobs?" Yes/No: an opt-in, declined or accepted per settings. Not
+            // answers stating facts: CI&T's "on-site every day? … in case you are considered for other positions"
+            // offers "Yes, I live in Campinas or near the region and can go to the office every day."
+            (RE_OPTIONAL_CONSENT.test(text) &&
+              !!yesNoPair(d.options) &&
+              d.options.every((o) => o.split(/\s+/).length <= 3))));
 
     const current = readValue(h);
     if (current) d.currentValue = clip(current, 300);
