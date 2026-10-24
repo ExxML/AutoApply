@@ -233,6 +233,13 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     // Descriptor details
     const hint = hintFor(u.searchInput ?? el, container);
     if (hint && hint !== label) d.hint = hint;
+    // A follow-up means nothing alone: the model skipped LaunchDarkly's required "If yes, what country?".
+    const prev = handles.at(-1);
+    if (
+      prev &&
+      /^(if (yes|no|so|not|other)\b|please (specify|explain|elaborate)\b|if you (answered|selected))/i.test(label)
+    )
+      d.hint = clip(`Follow-up to the previous question: "${prev.desc.label}"${d.hint ? `. ${d.hint}` : ""}`, 300);
     const section = sectionFor(el, collected.order, collected.headings);
     if (section && section !== label) d.section = section;
     const required =

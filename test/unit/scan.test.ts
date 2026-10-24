@@ -119,6 +119,14 @@ describe("label extraction (§11.5)", () => {
     expect(hs[0].desc.hint).toBe("Link to your work");
     expect(hs[1].desc.hint).toBe("Max 100 words");
   });
+
+  it("names the question a follow-up follows (LaunchDarkly's 'If yes, what country?')", () => {
+    setBody(`<div><label for="a">Are you legally authorized to work in your country of residence?</label><input id="a"></div>
+      <div><label for="b">If yes, what country?</label><input id="b"></div>`);
+    expect(fields()[1].desc.hint).toBe(
+      'Follow-up to the previous question: "Are you legally authorized to work in your country of residence?"',
+    );
+  });
 });
 
 describe("grouping (§11.5)", () => {
