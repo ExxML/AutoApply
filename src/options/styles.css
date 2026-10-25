@@ -325,6 +325,17 @@ label.inline {
 .row-actions {
   white-space: nowrap;
 }
+.row-actions .btn + .btn {
+  margin-left: 60px;
+}
+.table th .btn.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.row-actions .btn.small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
 .mono {
   font-family: ui-monospace, monospace;
   font-size: 12px;

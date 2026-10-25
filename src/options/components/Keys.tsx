@@ -17,6 +17,7 @@ export function Keys() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
+  const [testingAll, setTestingAll] = useState(false);
 
   const add = async (e: Event) => {
     e.preventDefault();
@@ -36,6 +37,12 @@ export function Keys() {
     setRowMsg((m) => ({ ...m, [id]: "Testing…" }));
     const r = await send({ type: "TEST_KEY", id });
     setRowMsg((m) => ({ ...m, [id]: isErr(r) ? `✗ ${r.error.message}` : "✓ Works" }));
+  };
+
+  const testAll = async () => {
+    setTestingAll(true);
+    await Promise.all(keys.map((k) => test(k.id)));
+    setTestingAll(false);
   };
 
   const remove = (id: string) => void save({ apiKeys: keys.filter((k) => k.id !== id) });
@@ -58,7 +65,11 @@ export function Keys() {
               <th>Label</th>
               <th>Key</th>
               <th>Status</th>
-              <th />
+              <th>
+                <button type="button" class="btn small" disabled={testingAll} onClick={() => void testAll()}>
+                  {testingAll ? "Testing…" : "Test all"}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
