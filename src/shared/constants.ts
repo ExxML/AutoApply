@@ -216,7 +216,8 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/^(full\s*)?name$/i, "fullName"],
   [/\blegal name\b/i, "legalName"],
   [/preferred (first )?name/i, "preferredName"],
-  [/e-?mail/i, "email"],
+  // Not a school address (Jane Street's "university email" got the personal one): the AI decides.
+  [/^(?!.*\b(school|university|college|student|\.?edu)\b).*e-?mail/i, "email"],
   [/phone|mobile|cell/i, "phone"],
   [/country code|dialing code/i, "phoneCountryCode"],
   [/linkedin/i, "linkedin"],

@@ -89,6 +89,7 @@ describe("deterministic matching (§13.2)", () => {
       "Ada King Lovelace",
     );
     expect(deterministicValue(f("Email address", { kind: "email" }), p)?.value).toBe("ada@example.com");
+    expect(deterministicValue(f("university email", { kind: "email" }), p)).toBeNull();
     expect(deterministicValue(f("LinkedIn profile"), p)?.value).toBe("https://linkedin.com/in/ada");
     expect(deterministicValue(f("Province / State"), p)?.value).toBe("British Columbia");
     // Lever: "Name Pronunciation | How do you pronounce your name?" is not a pronouns question.
