@@ -343,6 +343,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             options: undefined,
           },
           yn("If offered employment, would you be legally eligible to begin employment immediately?"),
+          yn("Will you now or in the future require sponsorship?", [
+            "Yes, I will require sponsorship now.",
+            "Yes, I will require sponsorship in the future.",
+            "No, I will not require sponsorship.",
+          ]),
         ],
         profile,
         documents: [],
@@ -359,6 +364,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "flag",
       "Yes",
       "No",
+      "Yes, I will require sponsorship now.",
     ]);
     expect(sent.map((f) => f.id)).toEqual([
       "Are you authorized to work in Canada without sponsorship?",

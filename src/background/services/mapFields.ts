@@ -328,10 +328,12 @@ function workAuthDecision(
     const hits = (f.options ?? []).flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
   };
-  const yes = only(/^yes\b/i);
+  const e = entryFor(country, entries);
+  // Airbnb splits "Yes, … sponsorship now …" from "Yes, … in the future …": pick by when it is needed.
+  const now = !e || e.requiresSponsorshipNow === "yes";
+  const yes = sponsor && only(/^yes\b/i) < 0 ? only(now ? /^yes\b.*\bnow\b/i : /^yes\b.*\bfuture\b/i) : only(/^yes\b/i);
   const no = only(/^no\b/i);
   if (!text && (yes < 0 || no < 0)) return null;
-  const e = entryFor(country, entries);
   // No entry for the country: not authorized there, so sponsorship needed.
   const says = !e
     ? [sponsor ? "yes" : "no"]
