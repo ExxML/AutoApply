@@ -64,7 +64,9 @@ export function collect(root: Element | null = document.body): Collected {
     out.order.set(el, i++);
     const candidate = el.matches(CANDIDATE_SELECTOR);
     if (candidate) out.candidates.push(el as HTMLElement);
-    else if (el.tagName === "BUTTON") out.buttons.push(el as HTMLButtonElement);
+    // A div acting as a list's button (Jane Street's college picker) too.
+    else if (el.tagName === "BUTTON" || el.matches("[role=button][aria-expanded][aria-controls]"))
+      out.buttons.push(el as HTMLButtonElement);
     if (el.matches(HEADING_SELECTOR)) out.headings.push(el as HTMLElement);
     // Children of an editable region or a native select are not separate fields.
     if (candidate && (el.tagName === "SELECT" || (el as HTMLElement).isContentEditable)) return;

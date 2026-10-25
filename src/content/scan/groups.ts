@@ -131,7 +131,9 @@ export function buildUnits(c: Collected): Unit[] {
   // A button[aria-expanded][aria-controls] under a question label also opens a list (Appendix C.3).
   for (const b of c.buttons) {
     if (taken.has(b) || !b.hasAttribute("aria-expanded") || !b.hasAttribute("aria-controls") || !isVisible(b)) continue;
-    if (RE_NAV_BUTTON.test(textOf(b)) || !b.parentElement || !isQuestionContainer(b.parentElement, b)) continue;
+    if (RE_NAV_BUTTON.test(textOf(b)) || !b.parentElement) continue;
+    // One keeping its pick in a named hidden input is a form's select (Jane Street: "Select your college").
+    if (!isQuestionContainer(b.parentElement, b) && !b.querySelector("input[type=hidden][name]")) continue;
     take({ kind: "dropdown", el: b });
   }
 

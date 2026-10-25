@@ -343,6 +343,17 @@ describe("widget classification (Appendix C.3)", () => {
     expect(fields()[0].desc.kind).toBe("dropdown");
   });
 
+  it("a div button keeping its pick in a named hidden input → dropdown with plain list rows (Jane Street)", () => {
+    setBody(`<form><div class="form-field"><p>Select your college *</p><div class="standard-dropdown">
+      <div role="button" tabindex="0" aria-expanded="false" aria-controls="opts"><p>Select an option</p>
+        <input type="hidden" name="college"></div>
+      <div id="opts"><ul><li>Aalto University</li><li>University of British Columbia</li></ul></div>
+      </div></div></form>`);
+    const [h] = fields();
+    expect(h.desc).toMatchObject({ kind: "dropdown", label: "Select your college" });
+    expect(findOptionsContainer(h, snapshot())).toBe(document.getElementById("opts"));
+  });
+
   it("harvests options from a hidden native select backing a widget", () => {
     setBody(`<div><label>Province</label><div class="select__control">Select…</div>
       <select style="display:none"><option value="">Select</option><option>Alberta</option><option>British Columbia</option></select></div>`);
