@@ -454,7 +454,8 @@ function experienceMonths(experience: Profile["experience"]): number {
 
 /**
  * "How many years of experience?" when even the candidate's total experience is under the lowest bracket's top
- * ("Less than 2", "0-1 years"): relevant experience can only be less. The model picked "2,4" for 11 months.
+ * ("Less than 2", "0-1 years"): relevant experience can only be less. The model picked "2,4" for 11 months. Some
+ * experience below a lowest "1-2 years" with nothing under it is nearest that: Replit's got "3-5 years".
  */
 function experienceDecision(f: FieldDescriptor, months: number): Decision | null {
   if (!f.options || isMulti(f) || !/\bhow many years\b|\byears of\b.*\bexperience\b/i.test(f.label)) return null;
@@ -467,7 +468,8 @@ function experienceDecision(f: FieldDescriptor, months: number): Decision | null
   const lows = tops.flatMap((t) => (t ? [t.low] : []));
   const i = tops.findIndex((t) => t && t.low === Math.min(...lows));
   // Below the lowest bracket's floor too ("1-2" when there is also "None"): the model decides.
-  if (i < 0 || months / 12 >= tops[i]!.top || months / 12 < tops[i]!.low) return null;
+  const lower = f.options.some((o, k) => !tops[k] && /\b(none|no experience|0)\b|^(less than|under|<)/i.test(o));
+  if (i < 0 || months / 12 >= tops[i]!.top || (months / 12 < tops[i]!.low && (lower || !months))) return null;
   return {
     fieldId: f.id,
     action: "fill",

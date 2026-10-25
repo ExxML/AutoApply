@@ -603,13 +603,14 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             options: ["Yes", "No"],
           }),
           field("f", { label: "Do you have at least 6 months of experience?", kind: "select", options: ["Yes", "No"] }),
+          field("g", { label, kind: "radio_group", options: ["1-2 years", "3-5 years", "6-8 years", "8+"] }),
         ],
         profile,
         documents: [],
         job: null,
       },
     );
-    // 11 months: under 2; below "1-2" (with "None" offered) and over 0.5 stay with the model.
+    // 11 months: under 2; below "1-2" (with "None" offered) and over 0.5 stay with the model; nearest a lowest "1-2".
     expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
       "Less than 2",
       "flag",
@@ -617,6 +618,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "No",
       "No",
       "flag",
+      "1-2 years",
     ]);
     expect(asked).toEqual(["b", "c", "f"]);
   });
