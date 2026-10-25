@@ -8,7 +8,13 @@ import type {
   Profile,
   Settings,
 } from "../../shared/types";
-import { canonicalCountry, RE_CONSENT, RE_INTERVIEW_RECORDING, regionCountry } from "../../shared/constants";
+import {
+  canonicalCountry,
+  RE_CONSENT,
+  RE_INTERVIEW_RECORDING,
+  regionCode,
+  regionCountry,
+} from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
@@ -552,6 +558,38 @@ function relocationDecision(f: FieldDescriptor, prefs: Profile["preferences"], h
   };
 }
 
+// Where a split state's time zones differ, its most populous one.
+const ZONES: [string, RegExp, string[]][] = (
+  [
+    // Abbreviations in capitals only: not "at", "et".
+    ["Pacific", /\b[Pp]acific\b|\bP[SD]?T\b/, "BC WA OR CA NV"],
+    ["Mountain", /\b[Mm]ountain\b|\bM[SD]?T\b/, "AB CO UT NM WY MT ID AZ"],
+    ["Central", /\b[Cc]entral\b(?! [Ee]urop)|\bC[SD]?T\b/, "SK MB TX IL MN WI IA MO AR LA MS AL OK KS NE SD ND TN"],
+    [
+      "Eastern",
+      /\b[Ee]astern\b(?! [Ee]urop)|\bE[SD]?T\b/,
+      "ON QC NY NJ PA MA CT RI VT NH ME DE MD DC VA WV NC SC GA FL OH MI IN KY",
+    ],
+    ["Atlantic", /\b[Aa]tlantic\b|\bA[SD]?T\b/, "NB NS PE"],
+  ] as const
+).map(([name, re, codes]) => [name, re, codes.split(" ")]);
+
+/**
+ * "What time zone are you based in?" from a Canadian or US address: Collibra's "Pacific Time (PT)" for British
+ * Columbia was rejected by the audit.
+ */
+function timezoneDecision(f: FieldDescriptor, address: Profile["personal"]["address"]): Decision | null {
+  if (!/\btime ?zone\b/i.test(f.label) || isMulti(f) || !/^(text|textarea|select|dropdown|radio_group)$/.test(f.kind))
+    return null;
+  const code = regionCode(address.regionCode || address.region);
+  const zone = code && ZONES.find(([, , codes]) => codes.includes(code));
+  if (!zone) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["personal.address"] };
+  if (!f.options) return f.kind === "text" || f.kind === "textarea" ? { ...base, text: `${zone[0]} Time` } : null;
+  const hits = f.options.flatMap((o, i) => (zone[1].test(o) ? [i] : []));
+  return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
+}
+
 /**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
@@ -1042,6 +1080,7 @@ export async function mapFields(
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
       officeDecision(f, input.profile.preferences) ??
       relocationDecision(f, input.profile.preferences, home) ??
+      timezoneDecision(f, input.profile.personal.address) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??

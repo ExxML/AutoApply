@@ -704,7 +704,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.personal.address.country = "Canada";
     profile.preferences.willingToRelocate = "yes";
     profile.preferences.relocationNotes = "Anywhere";
-    const three = ["Yes, I live in the UK.", "No, but I am willing to relocate.", "No, and I am not willing to relocate."];
+    const three = [
+      "Yes, I live in the UK.",
+      "No, but I am willing to relocate.",
+      "No, and I am not willing to relocate.",
+    ];
     const sel = (label: string, options = ["Yes", "No"]) => field(label, { label, kind: "select", options });
     const ask = async () =>
       (
@@ -728,6 +732,38 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["No, and I am not willing to relocate.", "No", "flag", "flag"]);
     profile.preferences.relocationNotes = "Only within BC";
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag"]);
+  });
+
+  it("answers the time zone from a Canadian or US address", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.region = "British Columbia";
+    const zones = ["Central European Time (CET)", "Eastern Time (ET)", "Central Time (CT)", "Pacific Time (PT)"];
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("a", { label: "What time zone are you based in?", kind: "dropdown", options: zones }),
+              field("b", { label: "Which time zone do you work in?", kind: "text" }),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action);
+    expect(await ask()).toEqual(["Pacific Time (PT)", "Pacific Time"]);
+    profile.personal.address.region = "Saskatchewan";
+    expect(await ask()).toEqual(["Central Time (CT)", "Central Time"]);
+    profile.personal.address.region = "Bavaria";
+    expect(await ask()).toEqual(["flag", "flag"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
