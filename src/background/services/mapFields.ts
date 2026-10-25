@@ -567,6 +567,30 @@ function countryDecision(f: FieldDescriptor, home: string): Decision | null {
   };
 }
 
+/**
+ * A list of another country's states for a candidate living elsewhere takes its "Not Applicable" option: the audit
+ * rejected it for NinjaOne's US "State" with a British Columbia address.
+ */
+function regionDecision(f: FieldDescriptor, address: Profile["personal"]["address"]): Decision | null {
+  const home = canonicalCountry(address.country);
+  if (!f.options || isMulti(f) || !home || !/^(state|province|state\s*(\/|or)\s*province)$/i.test(f.label.trim()))
+    return null;
+  const regions = f.options.map(regionCountry).filter(Boolean);
+  if (regions.length < 5 || regions.includes(home)) return null;
+  const none = f.options.flatMap((o, i) =>
+    /^(not applicable|n\/?a|none|other|outside\b|non-u\.?s\.?|international)/i.test(o.trim()) ? [i] : [],
+  );
+  if (none.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: none,
+    intendedAnswer: f.options[none[0]],
+    confidence: "high",
+    sources: ["personal.address"],
+  };
+}
+
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
@@ -846,7 +870,8 @@ export async function mapFields(
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
-      countryDecision(f, home);
+      countryDecision(f, home) ??
+      regionDecision(f, input.profile.personal.address);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

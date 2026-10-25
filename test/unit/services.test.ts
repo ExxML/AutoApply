@@ -796,6 +796,30 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("picks 'Not Applicable' from another country's state list", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    profile.personal.address.region = "British Columbia";
+    const states = ["Alaska", "Alabama", "Arizona", "California", "Colorado", "Texas"];
+    const ask = async (options: string[]) => {
+      const f = field("a", { label: "State", kind: "select", options });
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask(["Not Applicable", ...states])).toBe("Not Applicable");
+    expect(await ask(states)).toBe("flag");
+    expect(await ask(["Not Applicable", "British Columbia", "Ontario", "Alberta", "Quebec", "Manitoba"])).toBe("flag");
+  });
+
   it("answers 'are you a <country> citizen?' from the profile's status there", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
