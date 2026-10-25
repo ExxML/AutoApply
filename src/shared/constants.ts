@@ -218,7 +218,8 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/preferred (first )?name/i, "preferredName"],
   // Not a school address (Jane Street's "university email" got the personal one): the AI decides.
   [/^(?!.*\b(school|university|college|student|\.?edu)\b).*e-?mail/i, "email"],
-  [/phone|mobile|cell/i, "phone"],
+  // Not "phonetically" (Akuna's name pronunciation got the phone number).
+  [/phone(?!tic)|mobile|\bcell/i, "phone"],
   [/country code|dialing code/i, "phoneCountryCode"],
   [/linkedin/i, "linkedin"],
   [/github/i, "github"],

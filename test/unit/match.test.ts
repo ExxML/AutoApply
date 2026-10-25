@@ -94,6 +94,7 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Province / State"), p)?.value).toBe("British Columbia");
     // Lever: "Name Pronunciation | How do you pronounce your name?" is not a pronouns question.
     expect(deterministicValue(f("Name Pronunciation | How do you pronounce your name?"), p)).toBeNull();
+    expect(deterministicValue(f("Please write out how your name is pronounced phonetically."), p)).toBeNull();
     // Stripe: a Canadian resident must not answer a US-only question with their province.
     expect(deterministicValue(f("If located in the US, in what city and state do you reside?"), p)).toBeNull();
   });
