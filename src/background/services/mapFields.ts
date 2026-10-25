@@ -313,7 +313,9 @@ function workAuthDecision(
   entries: Profile["workAuthorization"]["entries"],
 ): Decision | null {
   // A text box asking a yes/no question takes "Yes"/"No" (Zoox: "Do you require sponsorship ...?").
-  const text = f.kind === "text" && /^(are|do|does|will|would|have|is|can)\b.*\?$/i.test(f.label.trim());
+  // Ro asks in a textarea; Gamma adds "If yes, please share more details below".
+  const text =
+    (f.kind === "text" || f.kind === "textarea") && /^(are|do|does|will|would|have|is|can)\b[^?]*\?/i.test(f.label);
   // Lever asks yes/no as a two-box checkbox group (Zoox).
   if (!country || (!f.options && !text) || (isMulti(f) && f.options?.length !== 2) || /\bnot\b|n['’]t\b/i.test(f.label))
     return null;

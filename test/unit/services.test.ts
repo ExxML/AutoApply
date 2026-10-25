@@ -244,7 +244,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       mapFields(
         { gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
-          fields: labels.map((l, i) => field(`f${i}`, { label: l, kind: "textarea" })),
+          fields: labels.map((l, i) => field(`f${i}`, { label: l, kind: "contenteditable" })),
           profile,
           documents: [],
           job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
@@ -321,6 +321,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
           { ...yn("Do you require sponsorship in Ireland?"), kind: "text" as const, options: undefined },
           { ...yn("Please describe your right to work in Ireland."), kind: "text" as const, options: undefined },
+          {
+            ...yn("Do you require visa sponsorship to work in Ireland? If yes, please share more details below"),
+            kind: "textarea" as const,
+            options: undefined,
+          },
           yn("If offered employment, would you be legally eligible to begin employment immediately?"),
         ],
         profile,
@@ -336,6 +341,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Yes",
       "Yes",
       "flag",
+      "Yes",
       "No",
     ]);
     expect(sent.map((f) => f.id)).toEqual([
