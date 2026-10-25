@@ -788,13 +788,20 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
 
 /**
  * "How soon could you start?" among ranges ("2 weeks or less", "8 - 12 weeks", "more than 12 weeks"), counted from
- * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away.
+ * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away. Asked in
+ * a text box, that date: Netomi's "How soon are you able to join if selected?" got "Immediately" for January.
  */
 function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
   const label =
     /\bhow soon\b|\bwhen (can|could|would) you (start|begin|join)\b|\b(availability|able) to (start|begin)\b/i;
-  if (!f.options || isMulti(f) || !earliest || !label.test(f.label)) return null;
+  if (isMulti(f) || !earliest || !label.test(f.label)) return null;
   const weeks = Math.max(0, (Date.parse(earliest) - Date.parse(todayIso())) / 6048e5);
+  if (!f.options) {
+    if (f.kind !== "text" && f.kind !== "textarea") return null;
+    const on = new Date(earliest).toLocaleDateString("en-US", { dateStyle: "long", timeZone: "UTC" });
+    const text = weeks > 0 ? `From ${on}` : "Immediately";
+    return { fieldId: f.id, action: "fill", text, confidence: "high", sources: ["preferences.earliestStartDate"] };
+  }
   const hits = f.options.flatMap((o, i) => {
     const unit = /\bmonths?\b/i.test(o) ? 4.345 : /\bweeks?\b/i.test(o) ? 1 : 0;
     const n = (o.match(/\d+(\.\d+)?/g) ?? []).map((x) => Number(x) * unit);

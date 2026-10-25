@@ -1392,6 +1392,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(21)).toBe("flag");
   });
 
+  it("answers a start text box from the earliest start date", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences.earliestStartDate = "2099-01-01";
+    profile.preferences.availableUntil = "2100-05-01";
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [field("a", { label: "How soon are you able to join if selected?", kind: "textarea" })],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.text ?? d.action)).toEqual(["From January 1, 2099"]);
+  });
+
   it("leaves questions about AI use in the application to the user", async () => {
     const asked: string[] = [];
     const gemini = {
