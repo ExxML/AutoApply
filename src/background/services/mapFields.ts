@@ -100,6 +100,8 @@ function isToday(text = ""): boolean {
 function guessed(d: Decision, f: FieldDescriptor): boolean {
   if (d.action !== "fill" || d.sources?.some(citesCandidate) || isToday(d.text) || d.text === NOT_APPLICABLE)
     return false;
+  // An optional box left unticked claims nothing (Spotify's "Custom" pronouns).
+  if (f.kind === "checkbox" && d.checked === false && !f.required) return false;
   return !needsNoSource(f);
 }
 

@@ -58,6 +58,21 @@ describe("response validation (§10.8.1)", () => {
     expect(out[0]).toMatchObject({ action: "fill", intendedAnswer: "UBC" });
   });
 
+  it("leaves an optional box unticked without a source, but flags a required one", () => {
+    const box = (id: string, required: boolean) => field(id, { kind: "checkbox", required });
+    const out = validateDecisions(
+      [box("custom", false), box("req", true)],
+      ["custom", "req"].map((fieldId) => ({
+        fieldId,
+        action: "fill" as const,
+        checked: false,
+        confidence: "high" as const,
+        sources: [],
+      })),
+    );
+    expect(out.map((d) => d.action)).toEqual(["fill", "flag"]);
+  });
+
   it("turns out-of-range or non-integer indexes into flags", () => {
     const out = validateDecisions(fields, [
       { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high", sources: ["personal"] },
