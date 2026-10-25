@@ -45,6 +45,8 @@ describe("consent patterns", () => {
     "Send me marketing emails",
     "Receive alerts for similar jobs?",
     "Would you like to stay up to date with MongoDB Culture and Careers content?",
+    // NinjaOne (Jobvite), Yes / No.
+    "Can NinjaOne text you about your application?",
     // Match Group (Lever): keeping the data past the standard period is optional.
     "I consent to the retention of my personal data for the purpose of considering me for employment for an additional 2 years (i.e. 4 years total). I understand I may withdraw my consent at any time.",
   ];
