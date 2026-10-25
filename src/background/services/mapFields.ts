@@ -329,9 +329,11 @@ function workAuthDecision(
     return hits.length === 1 ? hits[0] : -1;
   };
   const e = entryFor(country, entries);
-  // Airbnb splits "Yes, … sponsorship now …" from "Yes, … in the future …": pick by when it is needed.
+  // Airbnb splits "Yes, … sponsorship now …" from "Yes, … in the future …": pick by when it is needed. Else a bare
+  // "Yes" beside a qualified one (Pinecone's "Yes (I have OPT / CPT)").
   const now = !e || e.requiresSponsorshipNow === "yes";
-  const yes = sponsor && only(/^yes\b/i) < 0 ? only(now ? /^yes\b.*\bnow\b/i : /^yes\b.*\bfuture\b/i) : only(/^yes\b/i);
+  const when = only(now ? /^yes\b.*\bnow\b/i : /^yes\b.*\bfuture\b/i);
+  const yes = only(/^yes\b/i) >= 0 ? only(/^yes\b/i) : sponsor && when >= 0 ? when : only(/^yes\W*$/i);
   const no = only(/^no\b/i);
   if (!text && (yes < 0 || no < 0)) return null;
   // No entry for the country: not authorized there, so sponsorship needed.
