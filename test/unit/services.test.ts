@@ -766,6 +766,43 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag"]);
   });
 
+  it("answers the highest education obtained as high school while no degree is finished", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.highSchool.graduationYear = "2024";
+    profile.education = [
+      { ...emptyProfile().education[0], school: "UBC", endDate: "2099-05", currentlyEnrolled: "yes" },
+    ];
+    const levels = ["High School Diploma/GED", "Associate’s Degree", "Bachelor’s Degree", "Master’s Degree"];
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("a", {
+                label: "What is the highest level of education you have obtained?",
+                kind: "select",
+                options: levels,
+              }),
+              field("b", { label: "Highest level of education", kind: "select", options: levels }),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask()).toEqual(["High School Diploma/GED", "flag"]);
+    profile.education[0] = { ...profile.education[0], endDate: "2020-05", currentlyEnrolled: "no" };
+    expect(await ask()).toEqual(["flag", "flag"]);
+  });
+
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

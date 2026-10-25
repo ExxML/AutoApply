@@ -591,6 +591,35 @@ function timezoneDecision(f: FieldDescriptor, address: Profile["personal"]["addr
 }
 
 /**
+ * "Highest level of education you have obtained/completed?" while no degree is finished yet: high school. Appian's
+ * got "Bachelor's Degree" for a student graduating in 2028. With a finished degree, the model decides.
+ */
+function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  const done = /\b(obtained|completed|attained|earned|achieved|received|finished)\b/i;
+  if (!f.options || isMulti(f) || !/\bhighest\b/i.test(f.label) || !/\b(education|degree)\b/i.test(f.label))
+    return null;
+  if (!done.test(f.label) || !profile.highSchool.graduationYear) return null;
+  const today = todayIso().slice(0, 7);
+  const finished = profile.education.some(
+    (e) =>
+      e.currentlyEnrolled !== "yes" &&
+      !!(e.endDate || e.expectedGraduation) &&
+      (e.endDate || e.expectedGraduation) <= today,
+  );
+  if (finished || !profile.education.length) return null;
+  const hits = f.options.flatMap((o, i) => (/\bhigh school\b|\bsecondary\b|\bGED\b/i.test(o) ? [i] : []));
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["highSchool", "education"],
+  };
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1081,6 +1110,7 @@ export async function mapFields(
       officeDecision(f, input.profile.preferences) ??
       relocationDecision(f, input.profile.preferences, home) ??
       timezoneDecision(f, input.profile.personal.address) ??
+      obtainedEducationDecision(f, input.profile) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
