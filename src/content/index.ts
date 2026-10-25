@@ -271,6 +271,14 @@ async function drainChoose() {
 }
 
 // ---------- pipeline (§12) ----------
+/** Follow-ups that slide in stay hidden until their transition ends (Jane Street's student fields, 0.5 s). */
+async function transitionsEnd(maxMs = 800) {
+  const running = (document.getAnimations?.() ?? []).filter(
+    (a) => a.playState === "running" && Number.isFinite(Number(a.effect?.getComputedTiming().endTime)),
+  );
+  if (running.length) await Promise.race([Promise.allSettled(running.map((a) => a.finished)), sleep(maxMs)]);
+}
+
 function rescan(): FieldHandle[] {
   const { handles: hs } = scan(scanState);
   const all = [...hs, ...findDropzones(hs, scanState)];
@@ -562,6 +570,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     // Answers can also reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race): fill them in another pass.
     const depth = opts.depth ?? 0;
     if (!ctrl.signal.aborted && depth < 2) {
+      await transitionsEnd();
       const fresh = rescan();
       await Promise.all(fresh.filter(emptied).map((h) => doFill(h, ...applied.get(h.id)!, ctrl)));
       if (fresh.some((h) => !states.has(h.id))) queued ??= { rerun: false, depth: depth + 1 };
