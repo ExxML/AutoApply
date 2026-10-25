@@ -682,6 +682,36 @@ const pronunciationDecision = (f: FieldDescriptor): Decision | null =>
       : { fieldId: f.id, action: "skip", confidence: "high" }
     : null;
 
+const RE_DATE_RANGE = /\b([a-z]{3,9})\.? (\d{1,2}),? ?(\d{4})?\s*[-–—]\s*([a-z]{3,9})\.?,? (\d{1,2}),? ?(\d{4})\b/i;
+
+/**
+ * "Indicate all cohort dates you would be able to work": each dated option inside the profile's availability window.
+ * Harvey's got two of its five, all of which fell between the earliest start and the available-until date.
+ */
+function cohortDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+  if (!f.options || !isMulti(f) || !prefs.earliestStartDate || !prefs.availableUntil) return null;
+  const iso = (mon: string, day: string, year: string) => {
+    const m = MONTHS.indexOf(mon.slice(0, 3).toLowerCase()) + 1;
+    return m ? `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}` : "";
+  };
+  const fits = f.options.map((o) => {
+    const r = RE_DATE_RANGE.exec(o);
+    if (!r) return null;
+    const [start, end] = [iso(r[1], r[2], r[3] ?? r[6]), iso(r[4], r[5], r[6])];
+    return start && end ? start >= prefs.earliestStartDate && end <= prefs.availableUntil : null;
+  });
+  if (fits.includes(null) || !fits.includes(true)) return null;
+  const picks = fits.flatMap((ok, i) => (ok ? [i] : []));
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: picks,
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["preferences.earliestStartDate", "preferences.availableUntil"],
+  };
+}
+
 /**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
@@ -1183,6 +1213,7 @@ export async function mapFields(
       languagesDecision(f, input.profile) ??
       internshipsDecision(f, input.profile.experience) ??
       pronunciationDecision(f) ??
+      cohortDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??

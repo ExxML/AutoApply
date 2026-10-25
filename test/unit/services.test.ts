@@ -961,6 +961,49 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip"]);
   });
 
+  it("ticks the cohorts inside the availability window", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    Object.assign(profile.preferences, {
+      earliestStartDate: "2027-01-01",
+      availableUntil: "2027-08-31",
+      willingToRelocate: "yes",
+      relocationNotes: "Anywhere",
+      preferredLocations: ["Any"],
+    });
+    const cohorts = [
+      "Winter 2027 (TOR, 16 weeks): January 5, 2027 - April 23, 2027",
+      "Summer 2027 (NY/SF, 12 weeks): May 25, 2027 – August, 13, 2027",
+      "Summer 2027 (NY/SF, 12 weeks): June 22, 2027 – September 10, 2027",
+    ];
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("a", {
+                label: "Please indicate all cohort dates you would be able to work for this position.",
+                kind: "checkbox_group",
+                options: cohorts,
+              }),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask()).toEqual([cohorts.slice(0, 2).join(", ")]);
+    profile.preferences.earliestStartDate = "2027-09-01";
+    expect(await ask()).toEqual(["flag"]);
+  });
+
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
