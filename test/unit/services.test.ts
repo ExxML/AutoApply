@@ -961,7 +961,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip"]);
   });
 
-  it("ticks the cohorts inside the availability window", async () => {
+  it("ticks the cohorts inside the availability window and every relocation option for anywhere", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
@@ -992,6 +992,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
                 kind: "checkbox_group",
                 options: cohorts,
               }),
+              field("b", {
+                label: "Please indicate all locations that you would be interested in relocating to for this position.",
+                kind: "checkbox_group",
+                options: ["New York, NY", "San Francisco, CA", "None of these"],
+              }),
             ],
             profile,
             documents: [],
@@ -999,9 +1004,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
         )
       ).decisions.map((d) => d.intendedAnswer ?? d.action);
-    expect(await ask()).toEqual([cohorts.slice(0, 2).join(", ")]);
+    expect(await ask()).toEqual([cohorts.slice(0, 2).join(", "), "New York, NY, San Francisco, CA"]);
+    profile.preferences.relocationNotes = "Only New York";
     profile.preferences.earliestStartDate = "2027-09-01";
-    expect(await ask()).toEqual(["flag"]);
+    expect(await ask()).toEqual(["flag", "flag"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {

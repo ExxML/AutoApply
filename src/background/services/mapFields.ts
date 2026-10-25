@@ -713,6 +713,27 @@ function cohortDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
 }
 
 /**
+ * "Indicate all locations you would be interested in relocating to" for a candidate willing to relocate anywhere:
+ * every one. Notion's got only "San Francisco, CA" of New York and San Francisco.
+ */
+function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+  if (!f.options || !isMulti(f) || !/\ball\b[^?]*\blocations?\b|\blocations?\b[^?]*\ball that apply\b/i.test(f.label))
+    return null;
+  const anywhere = /^(any(where)?)?$/i.test(prefs.relocationNotes.trim()) && prefs.preferredLocations.includes("Any");
+  if (prefs.willingToRelocate !== "yes" || !anywhere) return null;
+  const picks = f.options.flatMap((o, i) => (/^(none|other|n\/a|not applicable|remote)\b/i.test(o) ? [] : [i]));
+  if (!picks.length) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: picks,
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["preferences.willingToRelocate"],
+  };
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1214,6 +1235,7 @@ export async function mapFields(
       internshipsDecision(f, input.profile.experience) ??
       pronunciationDecision(f) ??
       cohortDecision(f, input.profile.preferences) ??
+      relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
