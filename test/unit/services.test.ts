@@ -844,6 +844,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag"]);
   });
 
+  it("answers remote-work basics and English fluency", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const yn = (id: string, label: string) => field(id, { label, kind: "radio_group", options: ["Yes", "No"] });
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              yn("a", "Do you have consistent internet access?"),
+              yn("b", "Do you have consistent access to power/electricity?"),
+              yn("c", "Are you fluent and able to conduct business in the English Language (both spoken and written)?"),
+              yn("d", "Do you have experience with Kubernetes?"),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask()).toEqual(["Yes", "Yes", "flag", "flag"]);
+    profile.resumeText = "Built the app and the API with tests for the team of five. ".repeat(5);
+    expect((await ask())[2]).toBe("Yes");
+    profile.skills.languages = [{ language: "English", proficiency: "Basic" }];
+    expect((await ask())[2]).toBe("flag");
+  });
+
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

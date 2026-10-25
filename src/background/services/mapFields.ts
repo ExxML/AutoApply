@@ -591,6 +591,35 @@ function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decisi
 }
 
 /**
+ * "Yes" to remote-work basics (consistent internet, power, a phone, a place to work) and to English fluency when the
+ * profile lists English as fluent or better, or its résumé is in English. JumpCloud's were all rejected by the audit.
+ */
+function basicsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  if (!f.options || isMulti(f) || /\bnot\b|n['’]t\b/i.test(f.label)) return null;
+  const setup =
+    /^(do|will) you have\b[^?]*\b(internet|power|electricity|phone|cellular|remote work environment|workspace)\b/i.test(
+      f.label,
+    );
+  const english = /\b(fluent|proficient|fluency|proficiency)\b[^?]*\bEnglish\b/i.test(f.label);
+  if (!setup && !english) return null;
+  if (english) {
+    const listed = profile.skills.languages.find((l) => /^english$/i.test(l.language.trim()));
+    const words = (profile.resumeText.match(/\b(the|and|with|for|of)\b/gi) ?? []).length;
+    if (listed ? !/native|fluent|bilingual|professional|advanced/i.test(listed.proficiency) : words < 20) return null;
+  }
+  const yes = f.options.flatMap((o, i) => (/^yes\b/i.test(o) ? [i] : []));
+  if (yes.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: yes,
+    intendedAnswer: f.options[yes[0]],
+    confidence: "high",
+    sources: [english ? "skills.languages" : "preferences"],
+  };
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1083,6 +1112,7 @@ export async function mapFields(
       relocationDecision(f, input.profile.preferences, home) ??
       timezoneDecision(f, input.profile.personal.address) ??
       obtainedEducationDecision(f, input.profile) ??
+      basicsDecision(f, input.profile) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
