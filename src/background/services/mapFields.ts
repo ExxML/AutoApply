@@ -628,6 +628,31 @@ function basicsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
 }
 
 /**
+ * "Language skills (check all that apply)": the profile's languages, and English for an English résumé. Palantir's
+ * got only "English (ENG)", leaving out the profile's native Mandarin.
+ */
+function languagesDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  if (!f.options || !isMulti(f) || !/\blanguages?\b/i.test(f.label)) return null;
+  const names = profile.skills.languages.map((l) => normalize(l.language)).filter(Boolean);
+  const english = (profile.resumeText.match(/\b(the|and|with|for|of)\b/gi) ?? []).length >= 20;
+  if (english && !names.includes("english")) names.push("english");
+  const opts = f.options.map((o) => normalize(o).split(" "));
+  const picks = names.map((n) => {
+    const hits = opts.flatMap((words, i) => (words.join(" ").startsWith(n) || words.includes(n) ? [i] : []));
+    return hits.length === 1 ? hits[0] : -1;
+  });
+  if (!picks.length || picks.includes(-1)) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [...new Set(picks)],
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["skills.languages"],
+  };
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1121,6 +1146,7 @@ export async function mapFields(
       timezoneDecision(f, input.profile.personal.address) ??
       obtainedEducationDecision(f, input.profile) ??
       basicsDecision(f, input.profile) ??
+      languagesDecision(f, input.profile) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
