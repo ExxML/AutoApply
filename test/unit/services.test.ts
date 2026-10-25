@@ -615,6 +615,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           ask(["Job board website", "Company blog", "Other website", "Riot Games Website"]),
           ask(["LinkedIn", "Company Website"]),
           ask(["Social (e.g. Twitter, LinkedIn)", "External Job Board", "Employee Referral"]),
+          ask(["Campus", "Career Platform (LinkedIn, Glassdoor, BuiltIn, etc.)", "Flexport Blog", "Other"]),
         ],
         profile,
         documents: [],
@@ -626,6 +627,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Riot Games Website",
       "Company Website",
       "flag",
+      "Other",
     ]);
   });
 

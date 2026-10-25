@@ -129,14 +129,16 @@ const heardOther = (f: FieldDescriptor, answer: string) => RE_HEARD.test(f.label
 function heardDecision(f: FieldDescriptor, heard: string): Decision | null {
   if (!f.options || !heard || !RE_HEARD.test(f.label)) return null;
   const site = /\b(web ?site|careers? (page|site))\b/i.test(heard);
-  const hits = f.options.flatMap((o, i) =>
-    normalize(o) === normalize(heard) ||
-    (site &&
-      /\b(web ?site|careers? (page|site|portal))\b/i.test(o) &&
-      !/^other\b|\bjob ?(board|site)|social|blog/i.test(o))
+  const siteish = (o: string) => /\b(web ?site|careers? (page|site|portal))\b|\w\.(com|io|ai|co)\b/i.test(o);
+  let hits = f.options.flatMap((o, i) =>
+    normalize(o) === normalize(heard) || (site && siteish(o) && !/^other\b|\bjob ?(board|site)|social|blog/i.test(o))
       ? [i]
       : [],
   );
+  // No site among them (Flexport: campus, career platforms, blog, …): "Other" it is. Not beside "Flexport Careers".
+  const maybeSite = (o: string) => siteish(o) || /\b(company|official|direct(ly)?)\b|\bcareers$/i.test(o);
+  if (site && !hits.length && !f.options.some(maybeSite))
+    hits = f.options.flatMap((o, i) => (/^other\s*(\([^)]*\))?\W*$/i.test(o) ? [i] : []));
   if (hits.length !== 1) return null;
   return {
     fieldId: f.id,
