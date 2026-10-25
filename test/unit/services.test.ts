@@ -663,8 +663,8 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     } as unknown as Gemini;
     const profile = emptyProfile();
     profile.referral.howDidYouHearDefault = "Company website";
-    const ask = (options: string[]) =>
-      field(options.join(), { label: "How did you hear about Character AI?", kind: "radio_group", options });
+    const ask = (options: string[], required = true) =>
+      field(options.join(), { label: "How did you hear about Character AI?", kind: "radio_group", options, required });
     const r = await mapFields(
       { gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
@@ -674,10 +674,12 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           ask(["LinkedIn", "Company Website"]),
           ask(["Social (e.g. Twitter, LinkedIn)", "External Job Board", "Employee Referral"]),
           ask(["Campus", "Career Platform (LinkedIn, Glassdoor, BuiltIn, etc.)", "Flexport Blog", "Other"]),
+          ask(["Supabase platform / Newsletter", "Linkedin", "Other online job boards"]),
+          ask(["Linkedin", "Other online job boards"], false),
         ],
         profile,
         documents: [],
-        job: null,
+        job: { url: "", title: "", company: "Supabase", jobTitle: "", text: "", capturedAt: 0 },
       },
     );
     expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
@@ -686,6 +688,8 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Company Website",
       "flag",
       "Other",
+      "Supabase platform / Newsletter",
+      "skip",
     ]);
   });
 

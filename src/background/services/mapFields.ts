@@ -133,9 +133,11 @@ const heardOther = (f: FieldDescriptor, answer: string) => RE_HEARD.test(f.label
 
 /**
  * How they heard, when one option is the profile's source: itself, or the company's site for "Company website"
- * ("Character Careers Page", "Riot Games Website"). The model picked "Other" over "Character Careers Page".
+ * ("Character Careers Page", "Riot Games Website"). The model picked "Other" over "Character Careers Page". With
+ * neither a site nor "Other", the company's own channel ("Supabase platform / Newsletter"), else blank if optional:
+ * the model picked Supabase's "Other online job boards".
  */
-function heardDecision(f: FieldDescriptor, heard: string): Decision | null {
+function heardDecision(f: FieldDescriptor, heard: string, company = ""): Decision | null {
   if (!f.options || !heard || !RE_HEARD.test(f.label)) return null;
   const site = /\b(web ?site|careers? (page|site))\b/i.test(heard);
   const siteish = (o: string) => /\b(web ?site|careers? (page|site|portal))\b|\w\.(com|io|ai|co)\b/i.test(o);
@@ -146,8 +148,14 @@ function heardDecision(f: FieldDescriptor, heard: string): Decision | null {
   );
   // No site among them (Flexport: campus, career platforms, blog, …): "Other" it is. Not beside "Flexport Careers".
   const maybeSite = (o: string) => siteish(o) || /\b(company|official|direct(ly)?)\b|\bcareers$/i.test(o);
-  if (site && !hits.length && !f.options.some(maybeSite))
+  if (site && !hits.length && !f.options.some(maybeSite)) {
     hits = f.options.flatMap((o, i) => (/^other\s*(\([^)]*\))?\W*$/i.test(o) ? [i] : []));
+    const name = normalize(company).split(" ")[0];
+    if (!hits.length && name.length > 2)
+      hits = f.options.flatMap((o, i) => (normalize(o).split(" ").includes(name) ? [i] : []));
+    if (!hits.length && !f.required)
+      return { fieldId: f.id, action: "skip", confidence: "high", sources: ["referral"] };
+  }
   if (hits.length !== 1) return null;
   return {
     fieldId: f.id,
@@ -1107,7 +1115,7 @@ export async function mapFields(
       graduationDecision(f, input.profile.education) ??
       entryDateDecision(f, input.profile) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
-      heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
+      heardDecision(f, input.profile.referral.howDidYouHearDefault, input.job?.company) ??
       officeDecision(f, input.profile.preferences) ??
       relocationDecision(f, input.profile.preferences, home) ??
       timezoneDecision(f, input.profile.personal.address) ??
