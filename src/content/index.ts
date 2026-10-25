@@ -301,7 +301,8 @@ async function revealFrame() {
       resolve(e.isIntersecting);
     });
     io.observe(root);
-    void sleep(300).then(() => resolve(true));
+    // An unrendered frame may never report (Brex's Greenhouse form): no answer means not shown.
+    void sleep(300).then(() => resolve(false));
   });
   if (seen) return;
   const stale = innerHeight;
