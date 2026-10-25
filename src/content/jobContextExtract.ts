@@ -1,6 +1,6 @@
 // §11.7 job context extraction.
-import { canonicalCountry, isAtsHost, regionCountry } from "../shared/constants";
-import { collapse } from "../shared/normalize";
+import { canonicalCountry, HUBS, isAtsHost, regionCountry } from "../shared/constants";
+import { collapse, normalize } from "../shared/normalize";
 import type { JobContext } from "../shared/types";
 import { isVisible } from "./scan/visibility";
 
@@ -124,21 +124,23 @@ function locationText(doc: Document): string {
 }
 
 /**
- * A place among the few short texts right under the title, ending in a country or region: company pages that embed
- * the application ("New York, NY, United States" on Ripple, "Ontario, Canada" on Fivetran, "Sydney, Australia" on Riot).
+ * A place among the few short texts right under the title, ending in a country or region, or a tech hub: company
+ * pages that embed the application ("New York, NY, United States" on Ripple, "Ontario, Canada" on Fivetran, "Sydney,
+ * Australia" on Riot). The title may be an h2 (Datadog) and hold the place in a nested heading (MongoDB's "New York
+ * City").
  */
 function underTitle(doc: Document): string {
-  const h1 = doc.querySelector("h1");
-  if (!h1) return "";
+  const title = doc.querySelector("h1") ?? doc.querySelector("main h2");
+  if (!title) return "";
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-  walker.currentNode = h1;
+  walker.currentNode = title;
   let seen = 0;
   for (let n = walker.nextNode(); n && seen < 4; n = walker.nextNode()) {
     const t = collapse(n.textContent ?? "");
-    if (!t || h1.contains(n)) continue;
+    if (!t || (title.contains(n) && n.parentElement?.closest("h1,h2,h3,h4,h5,h6") === title)) continue;
     seen++;
     const last = t.split(",").pop()!;
-    if (t.length <= 60 && (canonicalCountry(last) || regionCountry(last))) return t;
+    if (t.length <= 60 && (canonicalCountry(last) || regionCountry(last) || HUBS[normalize(t)])) return t;
   }
   return "";
 }

@@ -568,5 +568,10 @@ describe("job context (§11.7)", () => {
     expect(extractJobContext(document, location).location).toBe("Ontario, Canada");
     setBody(`<h1>Engineer</h1><p>Join us, and help build the future of payments for everyone.</p>`);
     expect(extractJobContext(document, location).location).toBeUndefined();
+    // MongoDB nests the place in the title; Datadog's title is an h2.
+    setBody(`<h1><span>Senior Software Engineer (FedRAMP)<h3>New York City</h3></span></h1><p>Apply</p>`);
+    expect(extractJobContext(document, location).location).toBe("New York City");
+    setBody(`<main><h2>Senior Program Manager</h2><div><p>New York, New York, USA</p></div></main>`);
+    expect(extractJobContext(document, location).location).toBe("New York, New York, USA");
   });
 });
