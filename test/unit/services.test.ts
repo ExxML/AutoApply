@@ -401,6 +401,47 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("picks the 'need sponsorship' status where the profile has no authorization", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.workAuthorization.entries = [
+      {
+        country: "Canada",
+        authorized: "yes",
+        status: "Citizen",
+        requiresSponsorshipNow: "no",
+        requiresSponsorshipFuture: "no",
+        notes: "",
+      },
+    ];
+    const options = [
+      "I'm a UK or Irish National",
+      "I have a visa that gives me temporary right to work in the UK, and might need sponsorship in the future",
+      "I will need visa sponsorship to start this role",
+    ];
+    const label =
+      "We consider sponsorship case by case. Could you please tell us what's your current right to work status?";
+    const ask = async (location: string) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("a", { label, kind: "radio_group", options })],
+            profile,
+            documents: [],
+            job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask("London (GB)")).toEqual(["I will need visa sponsorship to start this role"]);
+    expect(await ask("Toronto, Canada")).toEqual(["flag"]);
+  });
+
   it('flags an AI "None" to sponsorship where the candidate needs it', async () => {
     const gemini = {
       call: async (s: { system: string; payload: { fields?: FieldDescriptor[] } }) => {

@@ -327,6 +327,33 @@ function workAuthDecision(
 }
 
 /**
+ * A right-to-work status list for a country where the profile needs sponsorship: its one option saying so. Octopus
+ * Energy's London "what's your current right to work status?" got flagged rather than "I will need visa sponsorship
+ * to start this role" for a Canadian with no UK entry.
+ */
+function needsSponsorshipDecision(
+  f: FieldDescriptor,
+  country: string | undefined,
+  entries: Profile["workAuthorization"]["entries"],
+): Decision | null {
+  if (!country || !f.options || isMulti(f)) return null;
+  const e = entryFor(country, entries);
+  if (e && e.requiresSponsorshipNow !== "yes") return null;
+  const hits = f.options.flatMap((o, i) =>
+    /\b(need|require)\w*\b[^.]*\bsponsor/i.test(o) && !/\bfuture\b|\bnot\b|n['’]t\b|^no\b/i.test(o) ? [i] : [],
+  );
+  if (hits.length !== 1 || f.options.some((o) => /^yes\b/i.test(o))) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
+
+/**
  * "Are you a U.S. citizen?" Yes/No from the status the profile gives that country: the audit flagged MongoDB's
  * "meet the special requirements …, specifically being a U.S. Citizen?" → "No" for a Canadian citizen.
  */
@@ -1045,6 +1072,7 @@ export async function mapFields(
       aiUseDecision(f) ??
       schoolEmailDecision(f) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
+      needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile.education) ??
