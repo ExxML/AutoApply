@@ -362,17 +362,19 @@ function citizenDecision(f: FieldDescriptor, entries: Profile["workAuthorization
 }
 
 /**
- * "Current company?" from the role the profile marks current. With none, the model named a past one (an internship
- * ended two months before, on Spotify and Zscaler) or skipped a required box (Abnormal): "N/A" if required, else
- * blank. "Current or most recent employer" stays with the model.
+ * "Current company?" or "current job title?" from the role the profile marks current. With none, the model named a
+ * past one (an internship ended two months before, on Spotify, Zscaler and Rubrik) or skipped a required box
+ * (Abnormal): "N/A" if required, else blank. "Current or most recent employer" stays with the model.
  */
 function currentCompanyDecision(f: FieldDescriptor, experience: Profile["experience"]): Decision | null {
-  const asks = /^(what is your )?current (company|employer)( name)?$/.test(normalize(f.label));
-  if ((f.kind !== "text" && f.kind !== "textarea") || !asks) return null;
+  const label = normalize(f.label).replace(/^(what is |please (provide|enter) )?(the name of )?(your )?/, "");
+  const company = /^current (company|employer)( name)?$/.test(label);
+  const title = /^current (job )?(title|position)$/.test(label);
+  if ((f.kind !== "text" && f.kind !== "textarea") || !(company || title)) return null;
   const today = todayIso().slice(0, 7);
   const now = experience.find((e) => e.company && (e.current || (e.startDate && (!e.endDate || e.endDate >= today))));
   const base = { fieldId: f.id, confidence: "high" as const, sources: ["experience"] };
-  if (now) return { ...base, action: "fill", text: now.company };
+  if (now && (company || now.title)) return { ...base, action: "fill", text: company ? now.company : now.title };
   return f.required ? { ...base, action: "fill", text: NOT_APPLICABLE } : { ...base, action: "skip" };
 }
 

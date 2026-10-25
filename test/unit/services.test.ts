@@ -1011,6 +1011,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const job = (company: string, endDate: string) => ({
       ...emptyProfile().experience[0],
       company,
+      title: "Engineer",
       startDate: "2020-01",
       endDate,
       current: false,
@@ -1028,6 +1029,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Current or most recent employer", true)).toBe("flag");
     profile.experience = [job("Past Co", "2021-01"), job("Now Co", "")];
     expect(await ask("What is your current employer?", true)).toBe("Now Co");
+    expect(await ask("What is the name of your current employer?", true)).toBe("Now Co");
+    expect(await ask("What is your current job title?", true)).toBe("Engineer");
+    profile.experience = [job("Past Co", "2021-01")];
+    expect(await ask("What is your current job title?", false)).toBe("skip");
   });
 
   it("picks the race option naming the profile's", async () => {
