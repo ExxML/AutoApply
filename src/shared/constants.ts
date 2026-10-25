@@ -224,7 +224,11 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/portfolio|personal (web)?site|website/i, "portfolio"],
   // "Your current city, state, and country" also matches region, so it is ambiguous and goes to the AI.
   [/^city|\btown\b|\bcity\b.*\b(state|province|region|country)\b/i, "city"],
-  [/^(current )?location( \(city\))?$|^where are you (currently )?(located|based)\b/i, "location"],
+  // Sprout Social: "Can you please confirm your current location? Note: … must be based in Poland". Not "Is your …?".
+  [
+    /^(current )?location( \(city\))?$|^where are you (currently )?(located|based)\b|^(?!(is|are|do|does)\b)[^?]*\byour current location\?/i,
+    "location",
+  ],
   [/postal|zip/i, "postalCode"],
   [/\bpronouns?\b/i, "pronouns"],
   [/^address( line)? ?1|street address/i, "line1"],
