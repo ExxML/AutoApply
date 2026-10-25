@@ -828,6 +828,29 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
 }
 
 /**
+ * "How many months are you available?" in a text box, from the earliest start to the available-until date. Binance's
+ * got "12 months - January to December 2027" for January 2027 to May 2028.
+ */
+function durationDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+  const { earliestStartDate: from, availableUntil: to } = prefs;
+  if ((f.kind !== "text" && f.kind !== "textarea") || !from || !to) return null;
+  if (!/\bhow (many months|long)\b[^?]*\bavailab/i.test(f.label)) return null;
+  const [y1, m1] = from.split("-").map(Number);
+  const [y2, m2] = to.split("-").map(Number);
+  const months = y2 * 12 + m2 - (y1 * 12 + m1);
+  if (months <= 0) return null;
+  const name = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  return {
+    fieldId: f.id,
+    action: "fill",
+    text: `${months} months – ${name(from)} to ${name(to)}`,
+    confidence: "high",
+    sources: ["preferences.earliestStartDate", "preferences.availableUntil"],
+  };
+}
+
+/**
  * An age bracket ("18-20", "21-29", "60 or older") from the date of birth. Lever's "What is your age range?" got
  * "21-29" for a 20-year-old on Tala and Paytm.
  */
@@ -1270,6 +1293,7 @@ export async function mapFields(
       relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
+      durationDecision(f, input.profile.preferences) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
       countryDecision(f, home) ??
