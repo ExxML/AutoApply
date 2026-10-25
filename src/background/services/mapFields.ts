@@ -342,6 +342,41 @@ function workAuthDecision(
   return { ...base, optionIndexes: [i], intendedAnswer: f.options![i] };
 }
 
+/**
+ * "Are you a U.S. citizen?" Yes/No from the status the profile gives that country: the audit flagged MongoDB's
+ * "meet the special requirements …, specifically being a U.S. Citizen?" → "No" for a Canadian citizen.
+ */
+function citizenDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
+  const country = countryIn(f.label);
+  // A list ("citizen of Cuba, Iran, North Korea, or Syria?") names more than the one country read.
+  const list = /[;:]|,[^,]*,/.test(f.label);
+  if (
+    !country ||
+    list ||
+    !f.options ||
+    isMulti(f) ||
+    !/\bcitizen\b/i.test(f.label) ||
+    /\bnot\b|n['’]t\b/i.test(f.label)
+  )
+    return null;
+  const yes = f.options.findIndex((o) => /^yes\b/i.test(o));
+  const no = f.options.findIndex((o) => /^no\b/i.test(o));
+  if (yes < 0 || no < 0) return null;
+  const status = entryFor(country, entries)?.status ?? "none";
+  if (!status) return null;
+  // "U.S. citizen or permanent resident?" also takes a green card.
+  const resident = /permanent resident|green card/i.test(f.label) && /permanent|resident|green card/i.test(status);
+  const i = /citizen/i.test(status) || resident ? yes : no;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
+
 /** Months of work experience in the profile, end dates included ("2026-01" to "2026-08" is 8). */
 function experienceMonths(experience: Profile["experience"]): number {
   const month = (d: string) => {
@@ -788,6 +823,7 @@ export async function mapFields(
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
+      citizenDecision(f, input.profile.workAuthorization.entries) ??
       countryDecision(f, home);
     if (d) local.set(f.id, d);
   }

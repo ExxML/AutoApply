@@ -758,6 +758,37 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("answers 'are you a <country> citizen?' from the profile's status there", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.workAuthorization.entries = [
+      {
+        country: "Canada",
+        authorized: "yes",
+        status: "Citizen",
+        requiresSponsorshipNow: "no",
+        requiresSponsorshipFuture: "no",
+        notes: "",
+      },
+    ];
+    const ask = async (label: string) => {
+      const f = field("a", { label, kind: "dropdown", options: ["Yes", "No"] });
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask("Can you confirm that you meet the requirements, specifically being a U.S. Citizen?")).toBe("No");
+    expect(await ask("Are you a citizen of Canada?")).toBe("Yes");
+    expect(await ask("Are you a citizen of Cuba, Iran, Canada, or Syria?")).toBe("flag");
+  });
+
   it("picks how soon the candidate can start from the earliest start date", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
