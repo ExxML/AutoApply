@@ -1431,6 +1431,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             "Yes",
             "No",
           ]),
+          yn(
+            "i",
+            "Was this application prepared or submitted in whole or in part by an AI system, language model, or automated agent?",
+          ),
           yn("g", "Which statement best describes how you currently use AI tools in work/life?", [
             "I am an advanced AI user and have directly used AI to completely systemize workflows.",
             "I prefer to rely primarily on human-driven workflows.",
@@ -1441,7 +1445,17 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.action)).toEqual(["flag", "flag", "flag", "fill", "flag", "flag", "flag", "fill"]);
+    expect(r.decisions.map((d) => d.action)).toEqual([
+      "flag",
+      "flag",
+      "flag",
+      "fill",
+      "flag",
+      "flag",
+      "flag",
+      "flag",
+      "fill",
+    ]);
     expect(asked).toEqual(["d", "g"]);
   });
 

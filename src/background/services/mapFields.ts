@@ -927,7 +927,9 @@ const RE_AI_USE = new RegExp(
     // Clever: "we do not permit candidates to use generative AI ... to draft responses"; Attentive: "If you are an AI Agent".
     String.raw`|\bnot (permit|allow)\w*\b[^?.]*\b(use|using)\b[^?.]*${RE_AI}|\bAI agents?\b` +
     // Medium: "You confirm that ... no portion of the following responses were generated using the assistance of AI".
-    String.raw`|\bgenerated\b[^?.]*\b(using|with|by)\b[^?.]*${RE_AI}`,
+    String.raw`|\bgenerated\b[^?.]*\b(using|with|by)\b[^?.]*${RE_AI}` +
+    // Calendly: "Was this application prepared or submitted in whole or in part by an AI system …?".
+    String.raw`|\b(prepared|submitted|completed|written)\b[^?.]*\bby\b[^?.]*${RE_AI}`,
   "i",
 );
 
