@@ -355,6 +355,26 @@ describe("typeahead verification", () => {
   });
 });
 
+describe("how-heard typeaheads", () => {
+  it('pick "Other" when the profile\'s source lists nothing (1Password)', async () => {
+    setBody(`<div><label for="c">What brought you to this job posting</label><input id="c" role="combobox">
+      <div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    let picked = "";
+    input.addEventListener("input", () => {
+      const hits = ["LinkedIn Jobs", "Other", "Otta"].filter((o) => o.toLowerCase().startsWith(input.value.toLowerCase()));
+      document.getElementById("res")!.innerHTML = hits.map((o) => `<div role="option">${o}</div>`).join("");
+      for (const o of document.querySelectorAll("[role=option]"))
+        o.addEventListener("click", () => (input.value = picked = o.textContent!));
+    });
+    // Text that picks nothing is cleared.
+    input.addEventListener("blur", () => (input.value = picked));
+    const h = scan(newScanState()).handles[0];
+    const r = await fill(h, { type: "intended", answer: "Company website" }, deps());
+    expect(r).toMatchObject({ outcome: "ok", shown: "Other" });
+  });
+});
+
 describe("slotted dropdown values", () => {
   it("reads a shadow-root trigger's value through its slot (SmartRecruiters' phone country)", () => {
     setBody(`<x-select><span slot="p">+1</span></x-select>`);

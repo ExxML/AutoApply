@@ -37,6 +37,8 @@ export interface EngineDeps {
   signal: AbortSignal;
 }
 
+const RE_HEARD_Q = /\b(hear|heard|learn(ed)?) (about|of)\b|\bbrought you to\b/i;
+
 // Remote lists can page very slowly (EA skills: 3 options per request); past this, searching beats paging.
 const HARVEST_MS = 3000;
 let chain: Promise<unknown> = Promise.resolve();
@@ -159,10 +161,14 @@ async function dispatchKind(h: FieldHandle, op: FillOp, deps: EngineDeps): Promi
     case "typeahead": {
       const answer = answerOf(op);
       const query = op.type === "intended" ? op.query || answer : answer;
-      return fillTypeahead(h, query, answer, async (o) => {
+      const r = await fillTypeahead(h, query, answer, async (o) => {
         const local = localMatch(answer, o);
         return local ?? (await deps.choose(h, answer, o))?.[0] ?? null;
       });
+      // How they heard, with no option for it ("Company website" on 1Password's list, which lists only as you type).
+      if (r.outcome === "flag" && RE_HEARD_Q.test(h.desc.label) && normalize(answer) !== "other")
+        return fillTypeahead(h, "Other", "Other", async (o) => localMatch("Other", o));
+      return r;
     }
     case "file": {
       if (op.type !== "file") return flag("Upload the file manually");
