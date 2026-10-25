@@ -150,7 +150,9 @@ function heardDecision(f: FieldDescriptor, heard: string, company = ""): Decisio
     hits = f.options.flatMap((o, i) => (/^other\s*(\([^)]*\))?\W*$/i.test(o) ? [i] : []));
     const name = normalize(company).split(" ")[0];
     if (!hits.length && name.length > 2)
-      hits = f.options.flatMap((o, i) => (normalize(o).split(" ").includes(name) ? [i] : []));
+      hits = f.options.flatMap((o, i) =>
+        normalize(o).split(" ").includes(name) && !/\b(referr\w*|employee|event)\b/i.test(o) ? [i] : [],
+      );
     if (!hits.length && !f.required)
       return { fieldId: f.id, action: "skip", confidence: "high", sources: ["referral"] };
   }

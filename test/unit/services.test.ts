@@ -691,7 +691,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           ask(["LinkedIn", "Company Website"]),
           ask(["Social (e.g. Twitter, LinkedIn)", "External Job Board", "Employee Referral"]),
           ask(["Campus", "Career Platform (LinkedIn, Glassdoor, BuiltIn, etc.)", "Flexport Blog", "Other"]),
-          ask(["Supabase platform / Newsletter", "Linkedin", "Other online job boards"]),
+          ask(["Supabase platform / Newsletter", "Supabase Employee Referral", "Other online job boards"]),
           ask(["Linkedin", "Other online job boards"], false),
         ],
         profile,
