@@ -50,6 +50,14 @@ describe("response validation (§10.8.1)", () => {
     expect(out.map((d) => d.text ?? d.action)).toEqual(["N/A", "flag"]);
   });
 
+  it("reads a fill given only as a search query as its answer", () => {
+    const out = validateDecisions(
+      [field("school", { kind: "dropdown", optionsKnown: false })],
+      [{ fieldId: "school", action: "fill", searchQuery: "UBC", confidence: "high", sources: ["education"] }],
+    );
+    expect(out[0]).toMatchObject({ action: "fill", intendedAnswer: "UBC" });
+  });
+
   it("turns out-of-range or non-integer indexes into flags", () => {
     const out = validateDecisions(fields, [
       { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high", sources: ["personal"] },

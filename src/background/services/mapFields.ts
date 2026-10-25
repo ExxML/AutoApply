@@ -748,6 +748,9 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
     const f = byId.get(r.fieldId);
     if (!f || out.has(r.fieldId)) continue;
     let d: Decision = { ...r };
+    // A search alone names the answer (Squarespace's school list: searchQuery "University of British Columbia").
+    if (d.action === "fill" && !d.text && !d.intendedAnswer && !d.optionIndexes?.length && d.searchQuery)
+      d.intendedAnswer = d.searchQuery;
     if (d.action === "fill" && CHOICE_KINDS.has(f.kind) && f.optionsKnown && f.options?.length) {
       // The option the model names beats its index, which it gets wrong in numeric lists (meant 2028, sent "2: 2024").
       const said = d.intendedAnswer && !isMulti(f) ? normalize(d.intendedAnswer) : "";
