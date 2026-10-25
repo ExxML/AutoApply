@@ -706,7 +706,9 @@ async function auditFills(
       !needsNoSource(f) &&
       !workAuthAnswer(f, answer ?? "") &&
       !heardOther(f, answer ?? "") &&
-      d.text !== NOT_APPLICABLE
+      d.text !== NOT_APPLICABLE &&
+      // An unticked box claims nothing (Airbnb's "I decline to answer the following questions.").
+      !(f.kind === "checkbox" && d.checked === false)
       ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
       : [];
   });

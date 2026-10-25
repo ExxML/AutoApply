@@ -211,7 +211,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           fieldId: f.id,
           action: "fill",
           text: f.id === "heard" ? "Other" : f.id === "status" ? "I require sponsorship" : "No",
-          checked: true,
+          checked: f.id !== "decline",
           confidence: "high",
           sources: ["profile.education"],
         }));
@@ -225,6 +225,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       field("auth", { label: "Are you authorized to work in the country where you are applying?" }),
       field("heard", { label: "Where did you first hear about this job?" }),
       field("status", { label: "Your work authorization status in the United States" }),
+      field("decline", { kind: "checkbox", label: "I decline to answer the following questions." }),
     ];
     const r = await mapFields(
       { gemini, settings: defaultSettings(), model: "m", fallback: null },
@@ -238,6 +239,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ["auth", "fill"],
       ["heard", "fill"],
       ["status", "fill"],
+      ["decline", "fill"],
     ]);
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
