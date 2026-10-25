@@ -73,8 +73,8 @@ const NOT_APPLICABLE = "N/A";
 
 // A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
-// Twitch: "would you be legally eligible to begin employment immediately?".
-const RE_ELIGIBLE = /\beligible to (work|begin|start)\b|\bright to work\b/i;
+// Twitch: "would you be legally eligible to begin employment immediately?"; Airwallex: "the right to live and work".
+const RE_ELIGIBLE = /\beligible to (work|begin|start)\b|\bright to (live and )?work\b/i;
 const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit)/i;
 const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_ELIGIBLE.test(label) || RE_SPONSOR_Q.test(label);
 // GitLab: "require sponsorship for a visa to remain in your current location?".
