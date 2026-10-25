@@ -797,6 +797,36 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("answers 'current company' from a current role only", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const job = (company: string, endDate: string) => ({
+      ...emptyProfile().experience[0],
+      company,
+      startDate: "2020-01",
+      endDate,
+      current: false,
+    });
+    const ask = async (label: string, required: boolean) => {
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [field("a", { label, required })], profile, documents: [], job: null },
+      );
+      return r.decisions[0].text ?? r.decisions[0].action;
+    };
+    profile.experience = [job("Past Co", "2021-01")];
+    expect(await ask("Current Company", true)).toBe("N/A");
+    expect(await ask("Current company", false)).toBe("skip");
+    expect(await ask("Current or most recent employer", true)).toBe("flag");
+    profile.experience = [job("Past Co", "2021-01"), job("Now Co", "")];
+    expect(await ask("What is your current employer?", true)).toBe("Now Co");
+  });
+
   it("picks the race option naming the profile's", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
