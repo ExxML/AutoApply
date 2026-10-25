@@ -69,6 +69,7 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
 });
 
 const NOT_IN_PROFILE = "Not in your profile";
+const NOT_APPLICABLE = "N/A";
 
 // A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
@@ -97,7 +98,8 @@ function isToday(text = ""): boolean {
  * posting. Those are guesses: leave them to the user. Consents, uploads and signature dates need no profile source.
  */
 function guessed(d: Decision, f: FieldDescriptor): boolean {
-  if (d.action !== "fill" || d.sources?.some(citesCandidate) || isToday(d.text)) return false;
+  if (d.action !== "fill" || d.sources?.some(citesCandidate) || isToday(d.text) || d.text === NOT_APPLICABLE)
+    return false;
   return !needsNoSource(f);
 }
 
@@ -703,7 +705,8 @@ async function auditFills(
       f &&
       !needsNoSource(f) &&
       !workAuthAnswer(f, answer ?? "") &&
-      !heardOther(f, answer ?? "")
+      !heardOther(f, answer ?? "") &&
+      d.text !== NOT_APPLICABLE
       ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
       : [];
   });
@@ -757,8 +760,16 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
         d.optionIndexes = [idx[0]];
       }
     }
-    // A required field left blank blocks the application: the user must see it.
-    if (d.action === "skip" && f.required) d = flag(f.id, r.note || "Required field", suggestionOf(r, f));
+    // A required follow-up that doesn't apply takes "N/A" (Binance: "If less than 40 hours/week, please state how
+    // many…" for a full-time candidate). Any other required field left blank blocks the application: the user must see it.
+    if (
+      d.action === "skip" &&
+      f.required &&
+      (f.kind === "text" || f.kind === "textarea") &&
+      /^if\b/i.test(f.label.trim())
+    )
+      d = { ...d, action: "fill", text: NOT_APPLICABLE };
+    else if (d.action === "skip" && f.required) d = flag(f.id, r.note || "Required field", suggestionOf(r, f));
     if (d.action === "fill" && d.confidence === "low") d = flag(f.id, r.note || "Low confidence", suggestionOf(r, f));
     if (d.action === "flag" && !d.suggestion && r.action !== "flag") d.suggestion = suggestionOf(r, f);
     // No suggestion either: it would only be the guess.

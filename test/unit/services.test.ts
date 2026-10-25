@@ -36,6 +36,20 @@ describe("response validation (§10.8.1)", () => {
     expect(out[1]).toMatchObject({ action: "flag", note: "No AI decision" });
   });
 
+  it("answers a skipped required 'If …' follow-up with N/A, and flags other skipped required fields", () => {
+    const req = (label: string) => field(label, { label, kind: "textarea", required: true });
+    const out = validateDecisions(
+      [req("If less than 40 hours/week, please state how many hours"), req("Why us?")],
+      ["If less than 40 hours/week, please state how many hours", "Why us?"].map((fieldId) => ({
+        fieldId,
+        action: "skip" as const,
+        confidence: "high" as const,
+        sources: [],
+      })),
+    );
+    expect(out.map((d) => d.text ?? d.action)).toEqual(["N/A", "flag"]);
+  });
+
   it("turns out-of-range or non-integer indexes into flags", () => {
     const out = validateDecisions(fields, [
       { fieldId: "f2", action: "fill", optionIndexes: [2], confidence: "high", sources: ["personal"] },
