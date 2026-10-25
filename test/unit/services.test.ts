@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateDecisions, compactProfile, mapFields } from "../../src/background/services/mapFields";
+import { validateDecisions, compactProfile, mapFields, payTarget } from "../../src/background/services/mapFields";
 import { chooseOptions, validateChoices } from "../../src/background/services/chooseOptions";
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
@@ -1418,6 +1418,75 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "From January 1, 2099",
       "16 months – January 2099 to May 2100",
     ]);
+  });
+
+  it("picks the desired pay from the posting's range, never below the lowest pay", () => {
+    const c = { amount: "30", currency: "CAD", period: "hour" as const, strategy: "mid" as const, notes: "" };
+    const cad = { min: 25, max: 45, period: "hour" as const, currency: "CAD" };
+    const usd = { min: 20, max: 22, period: "hour" as const, currency: "" };
+    expect(payTarget(c, [cad])).toEqual({ amount: 35, period: "hour", currency: "CAD" });
+    expect(payTarget({ ...c, strategy: "min" }, [cad])).toEqual({ amount: 30, period: "hour", currency: "CAD" });
+    expect(payTarget({ ...c, strategy: "q3" }, [cad])?.amount).toBe(40);
+    expect(payTarget({ ...c, strategy: "" }, [cad])?.amount).toBe(30);
+    expect(payTarget(c, [])).toEqual({ amount: 30, period: "hour", currency: "CAD" });
+    // The profile's currency first; a bare "$" is the job country's dollar.
+    expect(payTarget(c, [usd, cad], "united states")?.amount).toBe(35);
+    expect(payTarget({ ...c, amount: "" }, [usd], "united states")).toEqual({
+      amount: 21,
+      period: "hour",
+      currency: "USD",
+    });
+    // Several ranges in one currency: the lowest.
+    const zone = { min: 100000, max: 120000, period: "year" as const, currency: "CAD" };
+    expect(
+      payTarget({ ...c, amount: "", strategy: "max" }, [{ ...zone, min: 130000, max: 160000 }, zone])?.amount,
+    ).toBe(120000);
+    expect(payTarget({ ...c, amount: "" }, [])).toBeNull();
+  });
+
+  it("answers desired pay boxes in the period they ask for", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[]; profile?: { preferences?: object } } }) => {
+        asked.push(JSON.stringify(s.payload.profile?.preferences));
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences.desiredCompensation = {
+      amount: "80000",
+      currency: "CAD",
+      period: "year",
+      strategy: "mid",
+      notes: "",
+    };
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label: "What are your salary expectations?" }),
+          field("b", { label: "Desired hourly pay rate" }),
+          field("c", { label: "Expected compensation", kind: "number" }),
+          field("d", { label: "Current salary" }),
+          field("e", { label: "Desired salary", kind: "select", options: ["Under $90k", "$90k+"] }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+        pays: [{ min: 90000, max: 110000, period: "year", currency: "CAD" }],
+      },
+    );
+    expect(r.decisions.map((d) => d.text ?? d.action)).toEqual([
+      "$100,000 CAD per year",
+      "$48.08 CAD per hour",
+      "100000",
+      "flag",
+      "flag",
+    ]);
+    // The model sees the pay to answer for this job, not the rule.
+    expect(asked[0]).toContain('"amount":"100000"');
+    expect(asked[0]).not.toContain("strategy");
   });
 
   it("leaves questions about AI use in the application to the user", async () => {

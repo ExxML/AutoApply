@@ -94,6 +94,14 @@ export interface ModelCaps {
   essayThinking?: ThinkingCap;
 }
 
+/** A pay range read from a job posting; `currency` is "" for a bare "$". */
+export interface Pay {
+  min: number;
+  max: number;
+  period: "hour" | "year";
+  currency: string;
+}
+
 export interface JobContext {
   url: string;
   title: string;
@@ -142,6 +150,8 @@ export interface FrameStatus {
   running: boolean;
   error?: string;
   detected?: boolean;
+  /** When the background got it (Date.now()). */
+  at?: number;
 }
 
 export interface TabStatus {

@@ -174,4 +174,31 @@ describe("job context", () => {
     await setJobContext(3, job({ url: page + "/step2", jobTitle: "Your details" }));
     expect(await getJobContext(3)).toMatchObject({ jobTitle: "Engineer", location: "Dublin" });
   });
+
+  it("keeps a posting's pay for the application's later pages and the tabs it opens", async () => {
+    const mock = installChromeMock();
+    const tabs: Record<number, string> = { 1: "https://co.com/jobs/1" };
+    Object.assign(mock, { tabs: { get: async (id: number) => ({ id, url: tabs[id] }) } });
+    const { getJobPay, setJobPay } = await import("../../src/background/jobContext");
+    const pay = { min: 1, max: 2, period: "hour" as const, currency: "" };
+    await setJobPay({ id: 1, url: tabs[1] } as chrome.tabs.Tab, [pay]);
+    // A frame of the same page without pay doesn't erase it.
+    await setJobPay({ id: 1, url: tabs[1] } as chrome.tabs.Tab, []);
+    expect(await getJobPay({ id: 1 } as chrome.tabs.Tab)).toEqual([pay]);
+    const opened = { id: 2, openerTabId: 1 } as chrome.tabs.Tab;
+    expect(await getJobPay(opened)).toEqual([pay]);
+    tabs[1] = "https://co.com/jobs/2";
+    expect(await getJobPay(opened)).toEqual([]);
+    // Another posting without pay replaces it.
+    await setJobPay({ id: 1, url: tabs[1] } as chrome.tabs.Tab, []);
+    expect(await getJobPay({ id: 1 } as chrome.tabs.Tab)).toEqual([]);
+  });
+
+  it("prunes only closed tabs' session keys", async () => {
+    const mock = installChromeMock();
+    const { session } = await import("../../src/shared/storage");
+    await chrome.storage.session.set({ "jobContext:1": 1, "jobPay:2": 2, "tabStatus:1": 3, other: 4 });
+    await session.pruneTabs(new Set([1]));
+    expect(Object.keys(mock.storage.session.data()).sort()).toEqual(["jobContext:1", "other", "tabStatus:1"]);
+  });
 });

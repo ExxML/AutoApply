@@ -1,12 +1,14 @@
 // §11.7 job context extraction.
 import { canonicalCountry, HUBS, isAtsHost, regionCountry } from "../shared/constants";
 import { collapse, normalize } from "../shared/normalize";
-import type { JobContext } from "../shared/types";
+import type { JobContext, Pay } from "../shared/types";
 import { isVisible } from "./scan/visibility";
 
 // MongoDB: "What we are looking for in you (qualifications)".
 const RE_DESC =
   /responsibilit|qualification|requirement|about (the|this) (role|job|position)|what you('|’)ll do|what we('|’)re looking for|what we are looking for|who you are/gi;
+
+const descHits = (text: string) => new Set((text.match(RE_DESC) ?? []).map((m) => m.toLowerCase().slice(0, 8))).size;
 
 const meta = (doc: Document, prop: string) =>
   doc.querySelector<HTMLMetaElement>(`meta[property="${prop}"],meta[name="${prop}"]`)?.content?.trim() ?? "";
@@ -24,8 +26,17 @@ interface PostalAddress {
   addressCountry?: Named;
 }
 
+interface MonetaryAmount {
+  currency?: string;
+  value?:
+    | number
+    | string
+    | { value?: number | string; minValue?: number | string; maxValue?: number | string; unitText?: string };
+}
+
 interface JobPosting {
   description?: string;
+  baseSalary?: MonetaryAmount | MonetaryAmount[];
   title?: string;
   hiringOrganization?: { name?: string } | string;
   jobLocation?: { address?: string | PostalAddress } | { address?: string | PostalAddress }[];
@@ -89,8 +100,7 @@ function largestDescriptionBlock(doc: Document): string {
   for (const el of doc.querySelectorAll<HTMLElement>("main,article,section,div")) {
     const text = el.textContent ?? "";
     if (text.length <= bestLen || text.length < 200) continue;
-    const hits = new Set((text.match(RE_DESC) ?? []).map((m) => m.toLowerCase().slice(0, 8)));
-    if (hits.size >= 2 && isVisible(el)) {
+    if (descHits(text) >= 2 && isVisible(el)) {
       best = el;
       bestLen = text.length;
     }
@@ -161,4 +171,118 @@ export function extractJobContext(doc: Document = document, loc: Location = loca
     ...(where ? { location: where } : {}),
     capturedAt: Date.now(),
   };
+}
+
+// ---------- Pay ranges ----------
+
+/** A range in the units the answer uses (monthly pay as yearly), or null when it can't be someone's base pay. */
+function toPay(min: number, max: number, unit: string, currency: string): Pay | null {
+  const period = /^h/i.test(unit) ? "hour" : /^(y|a)/i.test(unit) ? "year" : /^mo/i.test(unit) ? "month" : "";
+  const k = period === "month" ? 12 : 1;
+  const p = { min: min * k, max: max * k, period: period === "hour" ? "hour" : "year", currency } as const;
+  if (!period || !(p.min > 0) || p.min > p.max) return null;
+  return (p.period === "hour" ? p.max <= 1000 && p.min >= 5 : p.max <= 2e6 && p.min >= 1e4) ? p : null;
+}
+
+function ldPay(ld: JobPosting): Pay[] {
+  return [ld.baseSalary ?? []].flat().flatMap((m) => {
+    const v = typeof m.value === "object" ? m.value : { value: m.value };
+    const min = Number(v.minValue ?? v.value);
+    const p = toPay(min, Number(v.maxValue ?? min), v.unitText ?? "", m.currency?.toUpperCase() ?? "");
+    return p ? [p] : [];
+  });
+}
+
+const SYMBOLS: Record<string, string> = {
+  US$: "USD",
+  CA$: "CAD",
+  C$: "CAD",
+  A$: "AUD",
+  AU$: "AUD",
+  "£": "GBP",
+  "€": "EUR",
+};
+const CODE = "(USD|CAD|AUD|GBP|EUR)";
+// [code] [symbol] number[.cents] [k] [code]; "$5M" and "$2 billion" are funding, not pay. No \b after the last code:
+// textContent runs blocks together ("$190,000 USDAt Figma").
+const AMOUNT = String.raw`(?:${CODE}\s?)?(US\$|CA\$|C\$|AU?\$|\$|£|€)?\s?(\d{1,3}(?:[,\s]\d{3})+|\d+)(?:\.(\d{1,2}))?\s?([kK]\b)?(?!\s?(?:[mMbB]\b|million|billion))(?:\s?${CODE})?`;
+const RE_AMOUNTS = new RegExp(String.raw`${AMOUNT}(?:\s*(?:-|–|—|to|and)\s*${AMOUNT})?`, "g");
+const RE_PAY_WORD =
+  /\b(salary|pay|compensation|wages?|rate|range|earn|base|hour|hr|hourly|year|yr|annual|annum|month)\b/i;
+const RE_NOT_PAY =
+  /\b(bonus|equity|stipend|budget|allowance|reimburs\w*|referral|relocation|housing|wellness|learning|revenue|raised|funding|valuation|sign-?on|signing|401)\b/i;
+
+/** Every pay range or rate the text states ("$120,000 – $150,000 USD", "$45/hr", "CA$80K to CA$100K"). */
+export function payIn(text: string): Pay[] {
+  const out: Pay[] = [];
+  for (const m of text.matchAll(RE_AMOUNTS)) {
+    const [, c1, s1, n1, d1, k1, a1, c2, s2, n2, d2, k2, a2] = m;
+    const symbol = s1 ?? s2;
+    const code = c1 ?? a1 ?? c2 ?? a2;
+    if (!symbol && !code) continue;
+    const before = text.slice(Math.max(0, m.index - 80), m.index);
+    const after = text.slice(m.index + m[0].length, m.index + m[0].length + 30);
+    // "+ bonus + equity" after a salary adds to it; "signing bonus" right after an amount names what it is.
+    const next = after.split(/[+&,;.(]|\b(?:plus|and|with)\b/)[0];
+    if (!RE_PAY_WORD.test(before + after) || RE_NOT_PAY.test(before.slice(-25) + " " + next)) continue;
+    const num = (n: string, d = "") => Number(n.replace(/\D/g, "") + "." + d);
+    let [lo, hi] = [num(n1, d1), n2 ? num(n2, d2) : num(n1, d1)];
+    // "$120-150K": the k belongs to both.
+    if (k1 || (k2 && lo < 1000)) lo *= 1000;
+    if (k2 || (k1 && !n2)) hi *= 1000;
+    const unit =
+      after.match(/^[\s(]{0,2}(?:per |an? |\/\s?)?(hour|hr|h\b|year|yr|annum|annual|month|mo\b)/i)?.[1] ??
+      before.match(/\b(hourly|annual|yearly|monthly)\b[^$€£\d]*$/i)?.[1] ??
+      (hi <= 500 ? "hour" : lo >= 1e4 ? "year" : "");
+    const p = toPay(lo, hi, unit, code ?? SYMBOLS[symbol!] ?? "");
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+const RE_JOB_URL = /job|career|position|opening|vacanc|requisition|posting|recruit|hiring/i;
+/** An address that may show a job posting: an ATS, or a URL that says so. */
+export const jobUrl = (loc: Location) => isAtsHost(loc.hostname, loc.pathname) || RE_JOB_URL.test(loc.href);
+const CONTROLS = "input:not([type=hidden]),select,textarea";
+const SKIP_TEXT = "script,style,noscript,template,form,label,fieldset,select,textarea,button,[role=dialog],nav,footer";
+
+/**
+ * The text of the posting shown: the smallest element holding every short description heading ("Responsibilities",
+ * "Qualifications"), so a job board's other cards and an application form's example answers stay out. Up to two
+ * levels above it without a form control: Greenhouse keeps the pay ranges beside the description, not in it.
+ * `sure`: two kinds of heading; one ("Qualifications" on Faire) may be a stray word on a page without a posting.
+ * shortcut: one stray heading elsewhere (a footer's "Requirements") widens it to the page; scoring blocks would fix it.
+ */
+function postingText(doc: Document): { text: string; sure: boolean } {
+  const hits: Element[] = [];
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n.textContent ?? "";
+    RE_DESC.lastIndex = 0;
+    if (t.length > 120 || !RE_DESC.test(t)) continue;
+    const p = n.parentElement;
+    if (p && !p.closest(SKIP_TEXT)) hits.push(p);
+  }
+  if (!hits.length) return { text: "", sure: false };
+  let root: Element | null = hits[0];
+  while (root && !hits.every((h) => root!.contains(h))) root = root.parentElement;
+  for (let i = 0; i < 2 && root?.parentElement && !root.parentElement.querySelector(CONTROLS); i++)
+    root = root.parentElement;
+  return { text: collapse(root?.textContent ?? ""), sure: descHits(hits.map((h) => h.textContent).join(" ")) >= 2 };
+}
+
+/**
+ * The pay ranges of the job posting on the page, or null when the page shows no posting. One pass over the text, so
+ * it can run on every job page load: an application's later pages no longer show the posting's pay.
+ */
+export function readPay(doc: Document = document, loc: Location = location): Pay[] | null {
+  const ld = jsonLdJobPosting(doc);
+  if (ld) {
+    const pays = ldPay(ld);
+    return pays.length ? pays : payIn(htmlToText(ld.description ?? ""));
+  }
+  if (!jobUrl(loc)) return null;
+  const { text, sure } = postingText(doc);
+  const pays = payIn(text);
+  return pays.length || sure ? pays : null;
 }

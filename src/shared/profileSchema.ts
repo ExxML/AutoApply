@@ -141,6 +141,8 @@ export const ProfileSchema = o({
       amount: s(),
       currency: s(),
       period: z.enum(["hour", "year", ""]).catch(""),
+      // Where in a posting's pay range to answer; "" always answers `amount`, which is also the lowest answer.
+      strategy: z.enum(["", "min", "q1", "mid", "q3", "max"]).catch(""),
       notes: s(),
     }),
     willingToTravelPercent: s(),

@@ -13,7 +13,7 @@ import type {
   RuntimeConfig,
   StatusCounts,
 } from "../shared/types";
-import { extractJobContext } from "./jobContextExtract";
+import { extractJobContext, jobUrl, readPay } from "./jobContextExtract";
 import { deterministicValue, isFreeText, matchLearned } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
@@ -88,6 +88,9 @@ let overlay: Overlay | null = null;
 let noForm = false;
 const NO_FORM: ApiError = { kind: "other", message: "No job application form found on this page." };
 const childFrames = new Map<number, FrameStatus>();
+/** This instance owns the frame and answers messages (main passed its bail-outs). */
+let active = false;
+let listening = false;
 /** Aborted when a newer instance (extension reload/update) takes over this frame. */
 const life = new AbortController();
 
@@ -406,7 +409,6 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     return;
   }
   running = true;
-  document.dispatchEvent(new Event("autoapply-fill-start")); // see pageTimers.ts
   lastError = null;
   clearTimeout(retryTimer);
   const ctrl = new AbortController();
@@ -418,6 +420,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   const jobs: Promise<void>[] = [];
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
+    if (!config.excluded && !config.settings.excludedHosts.includes(HOST)) listen();
+    document.dispatchEvent(new Event("autoapply-fill-start")); // see pageTimers.ts
     setBadgesVisible(config.settings.showBadges);
     report(); // running: the top frame waits for us while we reveal
     if (!TOP && rescan().length) await revealFrame();
@@ -436,6 +440,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
     if (TOP || jc.text) await send({ type: "SET_JOB_CONTEXT", ctx: jc });
+    sendPay(false);
 
     // PHASE A: deterministic and learned answers — no network to Gemini.
     const det = config.profileSnapshotForDeterministic;
@@ -703,7 +708,7 @@ function onUserCommit(e: Event) {
 
 // ---------- messages ----------
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
-  if (!config) return false;
+  if (!active) return false;
   switch (msg.type) {
     case "TRIGGER_FILL":
       void runPipeline({ rerun: msg.rerun ?? msg.force });
@@ -717,7 +722,12 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
     case "FRAME_STATUS":
       if (TOP) {
         childFrames.set(msg.status.frameId, msg.status);
-        renderOverlay();
+        // A child frame may report before this frame's own fill has the config (the overlay's saved position).
+        if (config) renderOverlay();
+        else
+          send({ type: "GET_RUNTIME_CONFIG" })
+            .then((c) => ((config ??= c), renderOverlay()))
+            .catch(() => undefined);
       }
       break;
     default:
@@ -728,6 +738,27 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
 });
 
 // ---------- bootstrap (§11.1) ----------
+/** Shares the pay of the posting on the page; returns whether there is one. */
+function sendPay(passive = true): boolean {
+  const pays = readPay();
+  if (pays) send({ type: "SET_JOB_PAY", pays, passive }).catch(() => undefined);
+  return !!pays;
+}
+
+/**
+ * Reads a posting's pay once it renders (again after a single-page app's navigation), for later application pages.
+ * Other addresses cost one URL test: no timer, no DOM read (battery).
+ */
+function watchPay() {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const soon = () => {
+    clearTimeout(timer);
+    if (jobUrl(location)) timer = setTimeout(() => sendPay() || (timer = setTimeout(sendPay, 4000)), 1500);
+  };
+  soon();
+  window.navigation?.addEventListener("navigatesuccess", soon, { signal: life.signal });
+}
+
 async function main() {
   if (!TOP) relayClicksToTop(life.signal); // before the bail-outs: about:blank editor frames are outside clicks too
   if (!/^https?:$/.test(location.protocol) || !document.body) return;
@@ -740,13 +771,15 @@ async function main() {
     queued = null;
     clearTimeout(retryTimer);
   });
-  try {
-    config = await send({ type: "GET_RUNTIME_CONFIG" });
-  } catch {
-    return; // extension context gone (reloaded)
-  }
-  if (config.excluded || config.settings.excludedHosts.includes(HOST)) return;
+  // No message to the background until a fill: waking its service worker on every page load costs battery.
+  active = true;
+  watchPay();
+}
 
+/** Edit tracking and page timers, from the first fill on a site that isn't excluded (they only act on its fields). */
+function listen() {
+  if (listening) return;
+  listening = true;
   const opts = { capture: true, signal: life.signal };
   document.addEventListener("input", onUserInput, opts);
   for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, opts);

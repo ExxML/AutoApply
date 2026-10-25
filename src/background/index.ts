@@ -16,7 +16,7 @@ import {
 } from "./gemini/errors";
 import { KeyPool } from "./gemini/keyPool";
 import { defaultModel, updateCatalog, visibleModels } from "./gemini/models";
-import { getJobContext, setJobContext } from "./jobContext";
+import { getJobContext, getJobPay, setJobContext, setJobPay } from "./jobContext";
 import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
 import { draftEssays } from "./services/draftEssays";
@@ -146,6 +146,31 @@ async function updateTabStatus(tabId: number, fn: (s: TabStatus) => void) {
   await session.setTabStatus(tabId, s);
 }
 
+const isExcluded = (host: string) => settings.excludedHosts.some((h) => h && (host === h || host.endsWith("." + h)));
+
+/**
+ * The tab's status from the page it now shows: frames that reported before that page's navigation began are an
+ * earlier page's. Checked when the popup asks, instead of a tabs.onUpdated listener waking the service worker on
+ * every tab change.
+ */
+async function currentTabStatus(tabId: number): Promise<TabStatus | null> {
+  const s = await session.getTabStatus(tabId);
+  if (!s) return null;
+  const since = await chrome.scripting
+    // Immediately: by default it waits for a loading page to go idle, delaying the popup.
+    .executeScript({ target: { tabId, frameIds: [0] }, injectImmediately: true, func: () => performance.timeOrigin })
+    .then(([r]) => Number(r?.result ?? Infinity))
+    .catch(() => Infinity); // a browser page: nothing of ours runs there
+  const frames = Object.fromEntries(Object.entries(s.frames).filter(([, f]) => (f.at ?? 0) >= since));
+  if (Object.keys(frames).length === Object.keys(s.frames).length) return s;
+  const fresh = { ...s, frames };
+  await session.setTabStatus(tabId, fresh);
+  return fresh;
+}
+
+/** Drops closed tabs' session data on a fill, instead of a tabs.onRemoved listener waking the worker on every close. */
+const pruneClosedTabs = () => chrome.tabs.query({}).then((tabs) => session.pruneTabs(new Set(tabs.map((t) => t.id))));
+
 const sendToTab = (tabId: number, msg: Message, frameId?: number) =>
   chrome.tabs.sendMessage(tabId, msg, frameId === undefined ? {} : { frameId }).catch(() => undefined);
 
@@ -173,7 +198,7 @@ const handlers: Handlers = {
   async GET_RUNTIME_CONFIG(_m, sender) {
     const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos"]);
     const host = hostOf(sender.tab?.url ?? sender.url);
-    const excluded = settings.excludedHosts.some((h) => h && (host === h || host.endsWith("." + h)));
+    const excluded = isExcluded(host);
     return {
       settings,
       profileSnapshotForDeterministic: {
@@ -205,6 +230,15 @@ const handlers: Handlers = {
   async SET_JOB_CONTEXT({ ctx }, sender) {
     if (sender.tab?.id !== undefined)
       await setJobContext(sender.tab.id, ctx, sender.frameId ? (sender.tab.url ?? "") : undefined);
+    void pruneClosedTabs().catch(() => undefined);
+    return { ok: true };
+  },
+
+  async SET_JOB_PAY({ pays, passive }, sender) {
+    // Content scripts no longer ask on load whether a site is excluded; a read there on its own is dropped here.
+    const excluded =
+      isExcluded(hostOf(sender.tab?.url ?? sender.url)) || settings.excludedHosts.includes(hostOf(sender.url));
+    if (sender.tab && !(passive && excluded)) await setJobPay(sender.tab, pays);
     return { ok: true };
   },
 
@@ -213,7 +247,8 @@ const handlers: Handlers = {
     if ("error" in ctx) return ctx;
     const s = await store.getMany(["profile", "documentsIndex"]);
     const job = sender.tab?.id !== undefined ? await getJobContext(sender.tab.id) : null;
-    return mapFields(ctx, { fields, profile: s.profile, documents: s.documentsIndex, job });
+    const pays = sender.tab ? await getJobPay(sender.tab) : [];
+    return mapFields(ctx, { fields, profile: s.profile, documents: s.documentsIndex, job, pays });
   },
 
   async CHOOSE_OPTIONS({ items, groupId }, sender) {
@@ -265,7 +300,7 @@ const handlers: Handlers = {
     const tabId = sender.tab?.id;
     if (tabId === undefined) return { ok: true };
     const frameId = sender.frameId ?? 0;
-    const st = { ...status, frameId };
+    const st = { ...status, frameId, at: Date.now() };
     await updateTabStatus(tabId, (s) => void (s.frames[String(frameId)] = st));
     if (frameId !== 0) await sendToTab(tabId, { type: "FRAME_STATUS", status: st }, 0);
     return { ok: true };
@@ -306,7 +341,7 @@ const handlers: Handlers = {
   async TAB_STATUS({ tabId }) {
     const selectedModel = await store.get("selectedModel");
     return {
-      status: await session.getTabStatus(tabId),
+      status: await currentTabStatus(tabId),
       model: selectedModel,
       keysTotal: pool.keys.length,
       keysHealthy: pool.healthyCount(selectedModel),
@@ -393,8 +428,3 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command === "fill-page") await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
   else if (command === "toggle-overlay") await sendToTab(tab.id, { type: "TOGGLE_OVERLAY" }, 0); // overlay lives in the top frame
 });
-
-chrome.tabs.onUpdated.addListener((tabId, info) => {
-  if (info.status === "loading") void session.setTabStatus(tabId, { frames: {}, updatedAt: Date.now() });
-});
-chrome.tabs.onRemoved.addListener((tabId) => void session.clearTab(tabId));

@@ -5,6 +5,7 @@ import type {
   FieldDescriptor,
   FieldKind,
   JobContext,
+  Pay,
   Profile,
   Settings,
 } from "../../shared/types";
@@ -850,6 +851,77 @@ function durationDecision(f: FieldDescriptor, prefs: Profile["preferences"]): De
   };
 }
 
+const RE_PAY_Q = /\b(compensation|salary|pay|wages?|(hourly|pay) rate)\b/i;
+// "Current salary" isn't the pay asked for, and "Are you comfortable with the range?" is a yes/no question.
+const RE_NOT_DESIRED = /\b(current|previous|last|prior|currency)\b|^(are|do|does|is|would|will|can|have)\b/i;
+const YEAR_HOURS = 2080;
+const POINTS = { min: 0, q1: 0.25, mid: 0.5, q3: 0.75, max: 1 };
+const DOLLARS: Record<string, string> = { [US]: "USD", canada: "CAD" };
+const SYMBOLS: Record<string, string> = { USD: "$", CAD: "$", AUD: "$", GBP: "£", EUR: "€" };
+
+export interface PayTarget {
+  amount: number;
+  period: Pay["period"];
+  currency: string;
+}
+
+const per = (amount: number, from: Pay["period"], to: Pay["period"]) =>
+  from === to ? amount : from === "hour" ? amount * YEAR_HOURS : amount / YEAR_HOURS;
+const rounded = (amount: number, period: Pay["period"]) =>
+  period === "hour" ? Math.round(amount * 100) / 100 : Math.round(amount);
+
+/**
+ * The pay to answer: the profile's chosen point in the posting's lowest range in the profile's currency (else the
+ * job country's, else any), never below the profile's lowest pay, which is the answer when no range is known.
+ * shortcut: no exchange rates, so the lowest pay compares to another currency's range by number (fine for CAD vs
+ * USD); a bare "$" is the job country's dollar, else the profile's currency.
+ */
+export function payTarget(
+  c: Profile["preferences"]["desiredCompensation"],
+  pays: Pay[],
+  country?: string,
+): PayTarget | null {
+  const n = Number(c.amount.replace(/[^\d.]/g, "")) * (/\dk\b/i.test(c.amount) ? 1000 : 1);
+  const currency = c.currency.trim().toUpperCase();
+  const floor: PayTarget | null =
+    n > 0 ? { amount: n, period: c.period || (n < 500 ? "hour" : "year"), currency } : null;
+  if (!c.strategy || !pays.length) return floor;
+  const local = (country && DOLLARS[country]) || "";
+  const ranges = pays.map((p) => ({ ...p, currency: p.currency || local || currency }));
+  const mine = [currency, local].map((cur) => ranges.filter((p) => cur && p.currency === cur)).find((r) => r.length);
+  const [r] = (mine ?? ranges).sort((a, b) => per(a.min, a.period, "year") - per(b.min, b.period, "year"));
+  const at = r.min + (r.max - r.min) * POINTS[c.strategy];
+  if (floor && per(floor.amount, floor.period, r.period) > at) return floor;
+  return { amount: at, period: r.period, currency: r.currency };
+}
+
+/**
+ * Desired pay in a text or number box, in the period the question names, else the target's: "$85,000 CAD per year",
+ * or digits for a number box or a bare-number example.
+ */
+function compensationDecision(f: FieldDescriptor, pay: PayTarget | null): Decision | null {
+  if (!pay || !["text", "textarea", "number"].includes(f.kind)) return null;
+  if (!RE_PAY_Q.test(f.label) || RE_NOT_DESIRED.test(f.label)) return null;
+  const asked = `${f.label} ${f.hint ?? ""} ${f.placeholder ?? ""}`;
+  const period = /\bhour(ly)?\b|\/\s?hr\b/i.test(asked)
+    ? "hour"
+    : /\b(annual(ly)?|yearly|per year|annum)\b/i.test(asked)
+      ? "year"
+      : pay.period;
+  const amount = rounded(per(pay.amount, pay.period, period), period);
+  const shown = amount.toLocaleString("en-US", { minimumFractionDigits: amount % 1 ? 2 : 0 });
+  const text = [`${SYMBOLS[pay.currency] ?? ""}${shown}`, pay.currency, `per ${period}`].filter(Boolean).join(" ");
+  const digits =
+    f.kind === "number" || /^\D{0,6}\d[\d,.]*$/.test(f.placeholder?.trim() ?? "") || (f.maxLength ?? 1e9) < text.length;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    text: digits ? String(amount) : text,
+    confidence: "high",
+    sources: ["preferences.desiredCompensation"],
+  };
+}
+
 /**
  * An age bracket ("18-20", "21-29", "60 or older") from the date of birth. Lever's "What is your age range?" got
  * "21-29" for a 20-year-old on Tala and Paytm.
@@ -1230,16 +1302,23 @@ export interface MapInput {
   profile: Profile;
   documents: DocumentMeta[];
   job: JobContext | null;
+  /** Pay ranges of the posting the application is for, which may be on an earlier page. */
+  pays?: Pay[];
 }
 
 // The model miscounts positions in long lists (picked "Cape Verde +238", the option after "Canada +1"),
 // so each option carries its index for the model to read back.
 export const numbered = (options: string[]) => options.map((o, i) => `${i}: ${o}`);
 
-export function mappingPayloadBase(input: Omit<MapInput, "fields">) {
+export function mappingPayloadBase(input: Omit<MapInput, "fields">, pay: PayTarget | null = null) {
   const { resumeText, learnedAnswers, ...rest } = input.profile;
+  // The model gets the pay to answer for this job, not the rule for choosing it.
+  const { strategy: _, ...comp } = rest.preferences.desiredCompensation;
+  const desiredCompensation = pay
+    ? { ...comp, amount: String(rounded(pay.amount, pay.period)), period: pay.period, currency: pay.currency }
+    : comp;
   return {
-    profile: compactProfile(rest) ?? {},
+    profile: compactProfile({ ...rest, preferences: { ...rest.preferences, desiredCompensation } }) ?? {},
     resume: resumeText.slice(0, 12000),
     learnedAnswers: [...learnedAnswers]
       .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
@@ -1263,9 +1342,10 @@ export async function mapFields(
   ctx: ServiceCtx,
   input: MapInput,
 ): Promise<{ decisions: Decision[]; usedModel: string }> {
-  const base = mappingPayloadBase(input);
   const home = input.profile.personal.address.country;
   const job = input.job?.location ? jobCountry(input.job.location) : undefined;
+  const pay = payTarget(input.profile.preferences.desiredCompensation, input.pays ?? [], job);
+  const base = mappingPayloadBase(input, pay);
   const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job)]));
   const months = experienceMonths(input.profile.experience);
   const local = new Map<string, Decision>();
@@ -1294,6 +1374,7 @@ export async function mapFields(
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       durationDecision(f, input.profile.preferences) ??
+      compensationDecision(f, pay) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
       countryDecision(f, home) ??

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ProfileSchema } from "./profileSchema";
 import { SettingsSchema } from "./settings";
-import type { DocumentMeta, JobContext, TabStatus } from "./types";
+import type { DocumentMeta, JobContext, Pay, TabStatus } from "./types";
 
 export const SCHEMA_VERSION = 1;
 
@@ -184,14 +184,32 @@ export async function migrate(): Promise<void> {
 }
 
 // ---------- chrome.storage.session (background only) ----------
+/** The pay ranges of the last job posting a tab showed, and that tab's address then. */
+export interface JobPay {
+  pays: Pay[];
+  url: string;
+  at: number;
+}
+
 export const session = {
   async getJobContext(tabId: number): Promise<JobContext | null> {
     return ((await chrome.storage.session.get(`jobContext:${tabId}`))[`jobContext:${tabId}`] as JobContext) ?? null;
   },
   setJobContext: (tabId: number, ctx: JobContext) => chrome.storage.session.set({ [`jobContext:${tabId}`]: ctx }),
+  async getJobPay(tabId: number): Promise<JobPay | null> {
+    return ((await chrome.storage.session.get(`jobPay:${tabId}`))[`jobPay:${tabId}`] as JobPay) ?? null;
+  },
+  setJobPay: (tabId: number, p: JobPay) => chrome.storage.session.set({ [`jobPay:${tabId}`]: p }),
   async getTabStatus(tabId: number): Promise<TabStatus | null> {
     return ((await chrome.storage.session.get(`tabStatus:${tabId}`))[`tabStatus:${tabId}`] as TabStatus) ?? null;
   },
   setTabStatus: (tabId: number, s: TabStatus) => chrome.storage.session.set({ [`tabStatus:${tabId}`]: s }),
-  clearTab: (tabId: number) => chrome.storage.session.remove([`jobContext:${tabId}`, `tabStatus:${tabId}`]),
+  /** Removes the per-tab keys of tabs not in `open`. */
+  async pruneTabs(open: Set<number | undefined>) {
+    const closed = Object.keys(await chrome.storage.session.get(null)).filter((k) => {
+      const id = /^(jobContext|jobPay|tabStatus):(\d+)$/.exec(k)?.[2];
+      return id !== undefined && !open.has(Number(id));
+    });
+    if (closed.length) await chrome.storage.session.remove(closed);
+  },
 };

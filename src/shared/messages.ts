@@ -9,6 +9,7 @@ import type {
   FrameStatus,
   JobContext,
   LearnedAnswerInput,
+  Pay,
   Profile,
   RuntimeConfig,
   TabStatus,
@@ -20,6 +21,8 @@ export type Message =
   | { type: "GET_RUNTIME_CONFIG" }
   | { type: "GET_DOCUMENT"; id: string }
   | { type: "SET_JOB_CONTEXT"; ctx: JobContext }
+  /** `passive`: read on page load, outside a fill. */
+  | { type: "SET_JOB_PAY"; pays: Pay[]; passive?: boolean }
   | { type: "MAP_FIELDS"; fields: FieldDescriptor[]; host: string; groupId: string }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }
   | { type: "DRAFT_ESSAYS"; items: EssayItem[]; groupId: string }
@@ -58,6 +61,7 @@ export interface Responses {
   GET_RUNTIME_CONFIG: RuntimeConfig;
   GET_DOCUMENT: { meta: DocumentMeta; base64: string } | null;
   SET_JOB_CONTEXT: Ok;
+  SET_JOB_PAY: Ok;
   MAP_FIELDS: { decisions: Decision[]; usedModel: string } | Err;
   CHOOSE_OPTIONS: { choices: Choice[] } | Err;
   DRAFT_ESSAYS: { essays: { fieldId: string; text: string | null; note?: string }[] } | Err;

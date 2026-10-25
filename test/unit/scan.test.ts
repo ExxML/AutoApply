@@ -3,7 +3,7 @@ import { setBody, stubLayout } from "./dom";
 import { consentPair, newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
 import { RE_OPTIONAL_CONSENT } from "../../src/shared/constants";
-import { extractJobContext } from "../../src/content/jobContextExtract";
+import { extractJobContext, payIn, readPay } from "../../src/content/jobContextExtract";
 import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 
 beforeAll(stubLayout);
@@ -519,6 +519,36 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
 });
 
 describe("job context (§11.7)", () => {
+  it("reads pay ranges and rates from posting text, not funding or perks", () => {
+    const pay = (t: string) => payIn(t).map((p) => `${p.min}-${p.max}/${p.period} ${p.currency}`);
+    expect(pay("The base salary range is $120,000 – $150,000 USD + bonus + equity.")).toEqual([
+      "120000-150000/year USD",
+    ]);
+    expect(pay("Pay: CA$80K to CA$100K")).toEqual(["80000-100000/year CAD"]);
+    expect(pay("Hourly rate: $45.50 - $55")).toEqual(["45.5-55/hour "]);
+    expect(pay("This co-op pays $28/hr.")).toEqual(["28-28/hour "]);
+    expect(pay("Salary range $120-150K")).toEqual(["120000-150000/year "]);
+    expect(pay("We raised $50M in funding. A $10,000 signing bonus. $1,500 monthly housing allowance.")).toEqual([]);
+  });
+
+  it("reads a posting's pay from its JSON-LD, else from its description only", () => {
+    const ld = { "@type": "JobPosting", description: "x" };
+    const baseSalary = { currency: "USD", value: { minValue: 40, maxValue: 50, unitText: "HOUR" } };
+    setBody(`<script type="application/ld+json">${JSON.stringify({ ...ld, baseSalary })}</script>`);
+    expect(readPay(document, location)).toEqual([{ min: 40, max: 50, period: "hour", currency: "USD" }]);
+    setBody(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`);
+    expect(readPay(document, location)).toEqual([]);
+    // A job board: another job's card and the form's example answer stay out.
+    const board = new URL("https://example.com/jobs/123") as unknown as Location;
+    setBody(`<ul><li>Other job · $200K/yr</li></ul>
+      <div><h3>Responsibilities</h3><p>Build</p><h3>Qualifications</h3><p>Java</p><p>Pay range: $90,000 - $110,000</p></div>
+      <form><label>Desired salary (e.g. $50,000 - $60,000) <input></label></form>`);
+    expect(readPay(document, board)).toEqual([{ min: 90000, max: 110000, period: "year", currency: "" }]);
+    setBody(`<p>Pay range: $90,000 - $110,000</p>`);
+    expect(readPay(document, board)).toBeNull();
+    expect(readPay(document, new URL("https://example.com/blog") as unknown as Location)).toBeNull();
+  });
+
   it("keeps the text above the form when the page has no description (Lever's apply page)", () => {
     setBody(`<div class="posting-headline"><h2>Infrastructure Engineer, Internship</h2><div>Washington, D.C. / Internship</div></div>
       <form><label>Full name <input></label><p>Not part of the header</p></form>`);
