@@ -292,6 +292,8 @@ function rescan(): FieldHandle[] {
  * Chrome stops rendering a cross-origin frame that lies wholly outside the viewport, so its dropdowns never open
  * (Riot's Greenhouse form, far below the job description): scroll the frame into view first. Its viewport size, stale
  * meanwhile (150 px for Riot's 6582 px frame), updates some 100 ms after it shows; fills before that still fail.
+ * Work the page deferred meanwhile runs then: Lyft's Greenhouse form hydrates only once shown, and our badges or
+ * fills during that lose every dropdown its handlers. Wait until the page goes idle.
  */
 async function revealFrame() {
   const root = document.documentElement;
@@ -308,6 +310,8 @@ async function revealFrame() {
   const stale = innerHeight;
   root.scrollIntoView({ block: "start" });
   await waitFor(() => innerHeight !== stale, 1000);
+  // The page's own idle callback (Remix's hydrate) runs first; ours then waits out the work it queued.
+  for (let i = 0; i < 2; i++) await new Promise((r) => requestIdleCallback(r, { timeout: 1000 }));
 }
 
 /** The last fill applied to each field, to re-apply as is if the page empties it. */
@@ -407,6 +411,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG" });
     setBadgesVisible(config.settings.showBadges);
+    report(); // running: the top frame waits for us while we reveal
+    if (!TOP && rescan().length) await revealFrame();
     unsaved.push(...(await addEntries(config.entryCounts, ctrl.signal)));
     const all = rescan();
     mark("scan");
@@ -418,7 +424,6 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     });
     for (const h of targets) setStatus(h, "pending");
     report();
-    if (!TOP && targets.length) await revealFrame();
 
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
