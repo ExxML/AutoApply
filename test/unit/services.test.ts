@@ -148,6 +148,7 @@ describe("response validation (§10.8.1)", () => {
         field("q6", { label: "Date" }),
         field("q7", { kind: "dropdown", label: "Please read the agreement below", options: ["I will read it."] }),
         field("q8", { kind: "dropdown", label: "AI Policy for Application", options: ["Yes", "No"] }),
+        field("q9", { label: "Today's Date of Application (MM/DD/YY Format)" }),
       ],
       [
         { fieldId: "q1", action: "fill", optionIndexes: [1], confidence: "high", sources: [] },
@@ -158,9 +159,10 @@ describe("response validation (§10.8.1)", () => {
         { fieldId: "q6", action: "fill", text: `${today[1]}/${today[2]}/${today[0]}`, confidence: "high" },
         { fieldId: "q7", action: "fill", optionIndexes: [0], confidence: "high", sources: ["profile"] },
         { fieldId: "q8", action: "fill", optionIndexes: [0], confidence: "high", sources: ["profile"] },
+        { fieldId: "q9", action: "fill", text: `${today[1]}/${today[2]}/${today[0].slice(2)}`, confidence: "high" },
       ],
     );
-    expect(out.map((d) => d.action)).toEqual(["flag", "flag", "fill", "fill", "fill", "fill", "fill", "fill"]);
+    expect(out.map((d) => d.action)).toEqual(["flag", "flag", "fill", "fill", "fill", "fill", "fill", "fill", "fill"]);
     expect(out[0]).toMatchObject({ note: "Not in your profile" });
     expect(out[0].suggestion).toBeUndefined();
   });

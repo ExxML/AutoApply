@@ -91,13 +91,11 @@ const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence|
 const CANDIDATE_DATA = new Set([...Object.keys(emptyProfile()).filter((k) => k !== "resumeText"), "resume"]);
 const citesCandidate = (source: string) => CANDIDATE_DATA.has(source.replace(/^profile\./, "").split(/[.[]/)[0]);
 
-/** A signature date: the answer holds today's year, month and day. */
+/** A signature date: the answer holds today's year (or its last two digits: SoFi's "MM/DD/YY"), month and day. */
 function isToday(text = ""): boolean {
   const nums = (text.match(/\d+/g) ?? []).map(Number);
-  return todayIso()
-    .split("-")
-    .map(Number)
-    .every((n) => nums.includes(n));
+  const [y, m, d] = todayIso().split("-").map(Number);
+  return (nums.includes(y) || nums.includes(y % 100)) && nums.includes(m) && nums.includes(d);
 }
 
 /**
