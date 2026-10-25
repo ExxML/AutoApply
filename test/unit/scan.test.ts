@@ -353,7 +353,9 @@ describe("widget classification (Appendix C.3)", () => {
     expect(h.desc).toMatchObject({ kind: "dropdown", label: "Select your college" });
     expect(findOptionsContainer(h, snapshot())).toBe(document.getElementById("opts"));
     // A follow-up shown inside the widget's wrapper keeps the question's label on it.
-    document.querySelector(".standard-dropdown")!.insertAdjacentHTML("beforeend", `<input placeholder="Please specify">`);
+    document
+      .querySelector(".standard-dropdown")!
+      .insertAdjacentHTML("beforeend", `<input placeholder="Please specify">`);
     const [d, spec] = fields();
     expect(d.desc.label).toBe("Select your college");
     expect(spec.desc.hint).toContain("Select your college");

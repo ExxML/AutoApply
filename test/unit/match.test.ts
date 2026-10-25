@@ -103,7 +103,8 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Current Location", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
     expect(deterministicValue(f("City", { kind: "typeahead" }), q)).toEqual({ ...loc, query: "Langley" });
     expect(deterministicValue(f("Location (City)"), q)?.value).toBe(loc.value);
-    const confirm = "Can you please confirm your current location? Note: the successful individual must be based in Poland.";
+    const confirm =
+      "Can you please confirm your current location? Note: the successful individual must be based in Poland.";
     expect(deterministicValue(f(confirm), q)?.value).toBe(loc.value);
     expect(deterministicValue(f("Is your current location in the US?"), q)).toBeNull();
     const search = { kind: "dropdown" as const, optionsKnown: false };

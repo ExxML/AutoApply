@@ -362,7 +362,9 @@ describe("how-heard typeaheads", () => {
     const input = document.querySelector("input")!;
     let picked = "";
     input.addEventListener("input", () => {
-      const hits = ["LinkedIn Jobs", "Other", "Otta"].filter((o) => o.toLowerCase().startsWith(input.value.toLowerCase()));
+      const hits = ["LinkedIn Jobs", "Other", "Otta"].filter((o) =>
+        o.toLowerCase().startsWith(input.value.toLowerCase()),
+      );
       document.getElementById("res")!.innerHTML = hits.map((o) => `<div role="option">${o}</div>`).join("");
       for (const o of document.querySelectorAll("[role=option]"))
         o.addEventListener("click", () => (input.value = picked = o.textContent!));
