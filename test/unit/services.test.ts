@@ -630,6 +630,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     } as unknown as Gemini;
     const profile = emptyProfile();
     profile.education = [{ ...profile.education[0], school: "UBC", expectedGraduation: "2028-05" }];
+    profile.highSchool.graduationYear = "2024";
     const label = "What is your anticipated graduation month and year?";
     const ask = (options: string[]) => field(options.join(), { label, kind: "select", options });
     const r = await mapFields(
@@ -640,6 +641,16 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           ask(["May 2028", "Dec 2028"]),
           ask(["2027", "2028", "2029+"]),
           ask(["Fall 2028", "Winter 2028"]),
+          field("hs", {
+            label: "Please confirm the month and year of your high school graduation",
+            kind: "select",
+            options: ["Spring/Summer 2025", "Spring/Summer 2024", "Earlier than the above options"],
+          }),
+          field("ms", {
+            label: "If considering a master's degree, when is your potential master's graduation date?",
+            kind: "select",
+            options: ["Spring/Summer 2028", "Spring/Summer 2029"],
+          }),
         ],
         profile,
         documents: [],
@@ -650,6 +661,8 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Spring/Summer 2028",
       "May 2028",
       "2028",
+      "flag",
+      "Spring/Summer 2024",
       "flag",
     ]);
   });

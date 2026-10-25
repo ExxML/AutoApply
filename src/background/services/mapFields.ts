@@ -963,17 +963,21 @@ function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | nul
 /**
  * A graduation date among options, matched by year and month or season ("2028-05" → "Spring/Summer 2028"). The
  * model picked "Other" for Lyft's "anticipated graduation month and year?" with the note "Graduation is May 2028".
+ * High school by its year alone (Akuna's 2024 got "Earlier than the above options" beside "Spring/Summer 2024"); a
+ * master's or PhD the profile doesn't plan stays with the model (Akuna's got the bachelor's date).
  */
-function graduationDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
-  const when = education.find((e) => e.expectedGraduation || e.endDate);
-  if (!f.options || isMulti(f) || !/graduat/i.test(f.label) || /high school|secondary/i.test(f.label) || !when)
-    return null;
-  const [year, month] = (when.expectedGraduation || when.endDate).split("-").map(Number);
+function graduationDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  const school = /high school|secondary/i.test(f.label);
+  const when = profile.education.find((e) => e.expectedGraduation || e.endDate);
+  const date = school ? profile.highSchool.graduationYear : when?.expectedGraduation || when?.endDate;
+  if (!f.options || isMulti(f) || !/graduat/i.test(f.label) || !date) return null;
+  if (!school && /\b(master|ph\.?\s?d|doctora|mba)/i.test(f.label)) return null;
+  const [year, month] = date.split("-").map(Number);
   const hits = f.options.flatMap((o, i) => {
     if (!new RegExp(`\\b${year}\\b`).test(o)) return [];
     const names = MONTHS.filter((m) => new RegExp(`\\b${m}`, "i").test(o));
     const seasons = SEASONS.filter(([re]) => re.test(o));
-    if (!names.length && !seasons.length) return [i];
+    if (!month || (!names.length && !seasons.length)) return [i];
     return names.includes(MONTHS[month - 1]) || seasons.some(([, ms]) => ms.includes(month)) ? [i] : [];
   });
   if (hits.length !== 1) return null;
@@ -984,7 +988,7 @@ function graduationDecision(f: FieldDescriptor, education: Profile["education"])
     optionIndexes: [i],
     intendedAnswer: f.options[i],
     confidence: "high",
-    sources: ["education"],
+    sources: [school ? "highSchool" : "education"],
   };
 }
 
@@ -1137,7 +1141,7 @@ export async function mapFields(
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
-      graduationDecision(f, input.profile.education) ??
+      graduationDecision(f, input.profile) ??
       entryDateDecision(f, input.profile) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault, input.job?.company) ??
