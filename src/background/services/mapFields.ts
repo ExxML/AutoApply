@@ -655,6 +655,24 @@ function languagesDecision(f: FieldDescriptor, profile: Profile): Decision | nul
 }
 
 /**
+ * "How many prior internships have you had?" counted from the profile's internship and co-op roles: Harvey and Notion
+ * got "1" for two.
+ */
+function internshipsDecision(f: FieldDescriptor, experience: Profile["experience"]): Decision | null {
+  if (!/\bhow many\b[^?]*\b(internships?|co-?ops?)\b/i.test(f.label) || isMulti(f)) return null;
+  const n = experience.filter((e) => /\b(intern(ship)?|co-?op)\b/i.test(`${e.employmentType} ${e.title}`)).length;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["experience"] };
+  if (!f.options) return f.kind === "text" || f.kind === "number" ? { ...base, text: String(n) } : null;
+  const hits = f.options.flatMap((o, i) => {
+    const m = (o.match(/\d+/g) ?? []).map(Number);
+    const ok =
+      m.length === 2 ? n >= m[0] && n <= m[1] : m.length === 1 && /\+|or more/.test(o) ? n >= m[0] : m[0] === n;
+    return ok || (n === 0 && /^(none|no|zero)\b/i.test(o)) ? [i] : [];
+  });
+  return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1153,6 +1171,7 @@ export async function mapFields(
       obtainedEducationDecision(f, input.profile) ??
       basicsDecision(f, input.profile) ??
       languagesDecision(f, input.profile) ??
+      internshipsDecision(f, input.profile.experience) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??

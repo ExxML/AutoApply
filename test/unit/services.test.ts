@@ -926,6 +926,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag"]);
   });
 
+  it("counts prior internships", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "fill", text: "x" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const job = (title: string, employmentType: string) => ({ ...emptyProfile().experience[0], title, employmentType });
+    profile.experience = [
+      job("Software Engineer Intern", "Co-op"),
+      job("IT Technician", "Internship"),
+      job("Cashier", ""),
+    ];
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label: "How many prior internships have you had?" }),
+          field("b", {
+            label: "How many internships have you completed?",
+            kind: "select",
+            options: ["0", "1", "2-3", "4+"],
+          }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3"]);
+  });
+
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
