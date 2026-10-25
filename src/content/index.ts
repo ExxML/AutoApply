@@ -490,29 +490,37 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       // Required ones first: SpaceX's 15th, "Citizenship Status", answered blind as "Citizen", got "U.S. citizen".
       const toHarvest = pending
         .filter((h) => h.desc.kind === "dropdown" && !h.desc.optionsKnown)
-        .sort((a, b) => Number(b.desc.required) - Number(a.desc.required))
-        .slice(0, 15);
+        .sort((a, b) => Number(b.desc.required) - Number(a.desc.required));
       const later = new Set(toHarvest);
       const now = pending.filter((h) => !later.has(h));
       const essays: EssayItem[] = [];
+      // Mapped 15 at a time, so the first answers don't wait for a long form's last lists. All are read: past a
+      // cap of 15, Riot's last 4 required questions were answered blind.
       const harvestThenMap = async () => {
-        for (const h of toHarvest)
-          await serial(async () => {
-            if (ctrl.signal.aborted || harvested.has(h.id)) return;
-            const opts = await harvestOptions(h, 400);
-            if (opts) harvested.set(h.id, opts);
+        const maps: Promise<void>[] = [];
+        for (let i = 0; i < toHarvest.length; i += 15) {
+          const chunk = toHarvest.slice(i, i + 15);
+          for (const h of chunk)
+            await serial(async () => {
+              if (ctrl.signal.aborted || harvested.has(h.id)) return;
+              const opts = await harvestOptions(h, 400);
+              if (opts) harvested.set(h.id, opts);
+            });
+          const fields = chunk.map((h) => {
+            const options = harvested.get(h.id);
+            return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
           });
-        const fields = toHarvest.map((h) => {
-          const options = harvested.get(h.id);
-          return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
-        });
-        // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
-        const consents = new Set(fields.filter(isConsent).map((f) => f.id));
-        for (const h of toHarvest) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
-        await mapAndApply(
-          toHarvest.filter((h) => !consents.has(h.id)),
-          fields.filter((f) => !consents.has(f.id)),
-        );
+          // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
+          const consents = new Set(fields.filter(isConsent).map((f) => f.id));
+          for (const h of chunk) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
+          maps.push(
+            mapAndApply(
+              chunk.filter((h) => !consents.has(h.id)),
+              fields.filter((f) => !consents.has(f.id)),
+            ),
+          );
+        }
+        await Promise.all(maps);
       };
       const mapAndApply = async (hs: FieldHandle[], fields: FieldDescriptor[]) => {
         if (!hs.length || ctrl.signal.aborted) return;
