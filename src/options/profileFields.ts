@@ -288,7 +288,7 @@ export const PROFILE_GROUPS: GroupSpec[] = [
       },
       t("preferences.desiredCompensation.notes", "Compensation notes", "e.g. Negotiable."),
       t("preferences.willingToTravelPercent", "Willing to travel (%)", "e.g. 25."),
-      t("preferences.noticePeriod", "Notice period", "e.g. 2 weeks."),
+      t("preferences.noticePeriod", "Notice period", "e.g. Immediately, 2 weeks."),
       t("preferences.employmentTypes", "Employment types", "e.g. Co-op, Internship, Full-time.", "tags"),
       t("preferences.hoursPerWeek", "Hours per week", "e.g. 40."),
       t("preferences.canWorkWeekends", "Can work weekends", "Answers weekend availability questions.", "yn"),
