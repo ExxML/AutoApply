@@ -109,8 +109,9 @@ export function realClick(el: HTMLElement, at?: { x: number; y: number }) {
     t.dispatchEvent(p("pointerenter"));
     t.dispatchEvent(m("mouseover"));
     t.dispatchEvent(p("pointerdown"));
-    t.dispatchEvent(m("mousedown"));
-    el.focus?.({ preventScroll: true });
+    // As in a browser, a cancelled mousedown moves no focus: older react-select menus (Epic's phone country) cancel
+    // it to keep their input focused, and a focused option blurred the input and closed the menu before the click.
+    if (t.dispatchEvent(m("mousedown"))) el.focus?.({ preventScroll: true });
     t.dispatchEvent(p("pointerup"));
     t.dispatchEvent(m("mouseup"));
     t.dispatchEvent(m("click"));
