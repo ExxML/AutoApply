@@ -711,6 +711,15 @@ function aiUseDecision(f: FieldDescriptor): Decision | null {
     : null;
 }
 
+/**
+ * A school email, or "I don't have a school email": the profile holds neither. Jane Street's "Your primary
+ * college/university/school email" got the personal address, with "I don't have a school email" ticked too.
+ */
+const schoolEmailDecision = (f: FieldDescriptor): Decision | null =>
+  /\b(school|university|college|student|\.?edu)\b[^?]*\be-?mail\b/i.test(f.label)
+    ? flag(f.id, "Your school email isn't in your profile")
+    : null;
+
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
 function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
   if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
@@ -990,6 +999,7 @@ export async function mapFields(
   for (const f of input.fields) {
     const d =
       aiUseDecision(f) ??
+      schoolEmailDecision(f) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??

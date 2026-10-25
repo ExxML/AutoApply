@@ -1088,6 +1088,33 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["d", "g"]);
   });
 
+  it("leaves school email fields to the user", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "fill", text: "a@b.com", confidence: "high" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label: "Your primary college/university/school email", kind: "email" }),
+          field("b", { label: "I don't have a school email", kind: "checkbox" }),
+          field("c", { label: "Work email", kind: "email" }),
+        ],
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.slice(0, 2).map((d) => d.action)).toEqual(["flag", "flag"]);
+    expect(asked).toEqual(["c"]);
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
