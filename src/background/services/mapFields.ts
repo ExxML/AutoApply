@@ -520,6 +520,39 @@ function officeDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
 }
 
 /**
+ * "Are you located in or willing to relocate to the United Kingdom?" for a candidate living in another country, from
+ * the relocation preference: Tailscale's got "No, and I am not willing to relocate." for one willing to go anywhere.
+ * The same country stays with the model: where in it they live decides.
+ */
+function relocationDecision(f: FieldDescriptor, prefs: Profile["preferences"], home: string): Decision | null {
+  const willing = prefs.willingToRelocate;
+  if (!f.options || isMulti(f) || !/\brelocat/i.test(f.label) || /\bnot\b|n['’]t\b|^if\b/i.test(f.label)) return null;
+  if ((willing !== "yes" && willing !== "no") || !/^(any(where)?)?$/i.test(prefs.relocationNotes.trim())) return null;
+  const words = ` ${normalize(f.label)} `;
+  const hub = Object.keys(HUBS).find((c) => words.includes(` ${c} `));
+  const there = countryIn(f.label) ?? (hub ? (canonicalCountry(HUBS[hub]) ?? HUBS[hub]) : undefined);
+  const mine = canonicalCountry(home);
+  if (!there || !mine || there === mine) return null;
+  const neg = /\bnot\b|n['’]t\b|\bunwilling\b|\bunable\b/i;
+  const only = (ok: (o: string) => boolean) => {
+    const hits = f.options!.flatMap((o, i) => (ok(o) ? [i] : []));
+    return hits.length === 1 ? hits[0] : -1;
+  };
+  const yes = willing === "yes";
+  const named = only((o) => /\brelocat/i.test(o) && neg.test(o) !== yes);
+  const i = named >= 0 ? named : only((o) => (yes ? /^yes\W*$/i : /^no\W*$/i).test(o.trim()));
+  if (i < 0) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["preferences.willingToRelocate"],
+  };
+}
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1008,6 +1041,7 @@ export async function mapFields(
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
       officeDecision(f, input.profile.preferences) ??
+      relocationDecision(f, input.profile.preferences, home) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??

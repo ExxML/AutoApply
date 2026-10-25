@@ -691,6 +691,43 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag", "flag", "flag"]);
   });
 
+  it("answers relocation to another country from the relocation preference", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    profile.preferences.willingToRelocate = "yes";
+    profile.preferences.relocationNotes = "Anywhere";
+    const three = ["Yes, I live in the UK.", "No, but I am willing to relocate.", "No, and I am not willing to relocate."];
+    const sel = (label: string, options = ["Yes", "No"]) => field(label, { label, kind: "select", options });
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              sel("Are you located in or willing to relocate to the United Kingdom?", three),
+              sel("Are you willing to relocate to London?"),
+              sel("Are you willing to relocate to Toronto?"),
+              sel("Are you willing to relocate?"),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask()).toEqual(["No, but I am willing to relocate.", "Yes", "flag", "flag"]);
+    profile.preferences.willingToRelocate = "no";
+    expect(await ask()).toEqual(["No, and I am not willing to relocate.", "No", "flag", "flag"]);
+    profile.preferences.relocationNotes = "Only within BC";
+    expect(await ask()).toEqual(["flag", "flag", "flag", "flag"]);
+  });
+
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
