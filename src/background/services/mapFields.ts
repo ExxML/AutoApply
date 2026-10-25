@@ -298,7 +298,11 @@ function deniesNeededSponsorship(
   entries: Profile["workAuthorization"]["entries"],
 ): boolean {
   // Only "will you require/need …": "If you are currently on a visa sponsorship, what type?" → "N/A" is right (Fastly).
-  const asks = /\b(requir|need)\w*\b[^?]*\bsponsor/i.test(f.label) && !/\bcurrently (on|hold)/i.test(f.label);
+  // Not "authorized … without requiring sponsorship?", where "No" is the answer that admits needing it.
+  const asks =
+    /\b(requir|need)\w*\b[^?]*\bsponsor/i.test(f.label) &&
+    !/\bcurrently (on|hold)/i.test(f.label) &&
+    !/\bwithout\b[^?]*\bsponsor/i.test(f.label);
   if (!country || !asks || !/^(none|no|n\/?a|not applicable)\b/i.test(answer)) return false;
   const e = entryFor(country, entries);
   return !e || e.requiresSponsorshipNow === "yes" || e.requiresSponsorshipFuture === "yes";
@@ -307,7 +311,7 @@ function deniesNeededSponsorship(
 /**
  * Yes/no "authorized to work?" / "require sponsorship?" questions with a known country, answered from the profile.
  * The model, even told the country, still answered from the home country's entry (Okta, Dublin: "require
- * sponsorship?" → "No"). Negated or combined questions ("authorized without sponsorship?") stay with the model.
+ * sponsorship?" → "No"). Negated questions ("do you not require sponsorship?") stay with the model.
  */
 function workAuthDecision(
   f: FieldDescriptor,
@@ -323,7 +327,9 @@ function workAuthDecision(
     return null;
   const sponsor = RE_SPONSOR_Q.test(f.label);
   const authorized = /authori[sz]ed/i.test(f.label) || RE_ELIGIBLE.test(f.label);
-  if (sponsor === authorized || (authorized && /sponsor/i.test(f.label))) return null;
+  // "Authorized … without requiring sponsorship?" (Funnel): yes only if authorized and needing none.
+  const without = authorized && /\bwithout\b[^?]*\bsponsor/i.test(f.label);
+  if (!without && (sponsor === authorized || (authorized && /sponsor/i.test(f.label)))) return null;
   const only = (re: RegExp) => {
     const hits = (f.options ?? []).flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
@@ -342,7 +348,25 @@ function workAuthDecision(
     : sponsor
       ? [e.requiresSponsorshipNow, ...(/future/i.test(f.label) ? [e.requiresSponsorshipFuture] : [])]
       : [e.authorized];
-  const answer = says.includes("yes") ? true : says.every((s) => s === "no") ? false : null;
+  const flip = (s: string) => (s === "yes" ? "no" : s === "no" ? "yes" : s);
+  const all = !e
+    ? ["no"]
+    : [
+        e.authorized,
+        flip(e.requiresSponsorshipNow),
+        ...(/future/i.test(f.label) ? [flip(e.requiresSponsorshipFuture)] : []),
+      ];
+  const answer = without
+    ? all.includes("no")
+      ? false
+      : all.every((s) => s === "yes")
+        ? true
+        : null
+    : says.includes("yes")
+      ? true
+      : says.every((s) => s === "no")
+        ? false
+        : null;
   if (answer === null) return null;
   const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["workAuthorization"] };
   if (text) return { ...base, text: answer ? "Yes" : "No" };

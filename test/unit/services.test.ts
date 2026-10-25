@@ -357,6 +357,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             "No, I will not require sponsorship.",
           ]),
           yn("Will you require sponsorship to work here?", ["No", "Yes", "Yes (I have OPT / CPT)"]),
+          yn("Are you authorized to work in the United States now and in the future without requiring sponsorship?"),
         ],
         profile,
         documents: [],
@@ -366,7 +367,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual([
       "Yes",
       "Yes, I will",
-      "flag",
+      "Yes",
       "flag",
       "Yes",
       "Yes",
@@ -375,9 +376,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "No",
       "Yes, I will require sponsorship now.",
       "Yes",
+      "No",
     ]);
     expect(sent.map((f) => f.id)).toEqual([
-      "Are you authorized to work in Canada without sponsorship?",
       "Do you not require sponsorship?",
       "Please describe your right to work in Ireland.",
     ]);
