@@ -799,6 +799,45 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("fills résumé-section dates from the section's entry", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "skip", confidence: "high" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const job = { title: "", company: "A", location: "", employmentType: "", description: "", current: false };
+    profile.experience = [
+      { ...job, startDate: "2026-01", endDate: "2026-08" },
+      { ...job, startDate: "2023-06", endDate: "2023-08" },
+    ];
+    profile.education = [{ ...emptyProfile().education[0], startDate: "2024-09", expectedGraduation: "2028-05" }];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September"];
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label: "Start date month", section: "Employment", kind: "dropdown", options: months }),
+          field("b", { label: "End date year", section: "Employment" }),
+          field("c", { label: "Start date month", section: "Work Experience 2", kind: "dropdown", options: months }),
+          field("d", { label: "End date month", section: "Education", kind: "dropdown", options: months }),
+          field("e", { label: "Start date month", section: "Employment" }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual([
+      "January",
+      "2026",
+      "June",
+      "May",
+      "skip",
+    ]);
+  });
+
   it("picks U.S. status from citizen / permanent resident / other lists", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

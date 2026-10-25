@@ -781,6 +781,42 @@ function citedDateCheck(f: FieldDescriptor, d: Decision, profile: Profile): Deci
 }
 
 /**
+ * A month or year in a résumé section ("Employment": "Start date month"), from that entry: asked about the month
+ * lists read apart from the section's company and title, the model skipped Lyft's required ones.
+ */
+function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  const sec = /^(employment|work experience|experience|education)(?: (\d+))?$/i.exec(f.section ?? "");
+  const part = /^(start|end)(?: date)? (month|year)$/i.exec(f.label.trim());
+  if (!sec || !part || isMulti(f)) return null;
+  const edu = /education/i.test(sec[1]);
+  const i = (Number(sec[2]) || 1) - 1;
+  const job = edu ? undefined : profile.experience[i];
+  const school = edu ? profile.education[i] : undefined;
+  const end = /end/i.test(part[1]);
+  const date = end
+    ? job?.current
+      ? ""
+      : (job?.endDate ?? school?.endDate) || school?.expectedGraduation
+    : (job ?? school)?.startDate;
+  if (!date || !/^\d{4}-\d\d/.test(date)) return null;
+  const [year, month] = date.split("-").map(Number);
+  const isMonth = /month/i.test(part[2]);
+  const base = {
+    fieldId: f.id,
+    action: "fill" as const,
+    confidence: "high" as const,
+    sources: [edu ? "education" : "experience"],
+  };
+  // Text month formats vary ("01", "Jan", "1"): only a typed year is safe.
+  if (!f.options) return isMonth ? null : { ...base, text: String(year) };
+  const monthOf = (o: string) => MONTHS.findIndex((m) => new RegExp(`^${m}[a-z]*\\.?$`, "i").test(o.trim())) + 1;
+  const hits = f.options.flatMap((o, k) =>
+    (isMonth ? monthOf(o) === month || Number(o.trim()) === month : o.trim() === String(year)) ? [k] : [],
+  );
+  return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
+}
+
+/**
  * A graduation date among options, matched by year and month or season ("2028-05" → "Spring/Summer 2028"). The
  * model picked "Other" for Lyft's "anticipated graduation month and year?" with the note "Graduation is May 2028".
  */
@@ -956,6 +992,7 @@ export async function mapFields(
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile.education) ??
+      entryDateDecision(f, input.profile) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault) ??
       officeDecision(f, input.profile.preferences) ??
