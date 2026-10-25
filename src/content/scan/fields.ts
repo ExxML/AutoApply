@@ -92,6 +92,21 @@ function buildOwnerMap(units: Unit[]): Map<Element, Set<Unit>> {
 }
 
 /**
+ * Text before a control from ancestors above its container that hold only later fields: a follow-up shown inside the
+ * widget's own wrapper (Jane Street's "Please specify" under "How did you hear about us?") stops the climb early.
+ */
+function labelAbove(unit: Unit, container: Element, owner: Map<Element, Set<Unit>>, order: Map<Element, number>) {
+  const at = order.get(unit.el) ?? 0;
+  let p = parentOf(container);
+  for (let i = 0; i < 3 && p && p !== document.body && p.tagName !== "FORM"; i++, p = parentOf(p)) {
+    if ([...(owner.get(p) ?? [])].some((o) => o !== unit && (order.get(o.el) ?? 0) < at)) break;
+    const t = precedingText(p, unit.el);
+    if (t) return t;
+  }
+  return "";
+}
+
+/**
  * Upload widgets (e.g. Greenhouse) label the input "Attach"; the question sits on an enclosing group of its own.
  * So does a lone box labelled only "Yes" (Ashby's "I certify the information … is true" fieldset).
  */
@@ -172,6 +187,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         : ownLabel(el, u, owner) ||
           (u.searchInput ? controlLabel(u.searchInput) : "") ||
           precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
+      labelAbove(u, container, owner, collected.order) ||
       fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
     const nameId = `${el.getAttribute("name") ?? ""} ${el.id}`;
