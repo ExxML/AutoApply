@@ -587,7 +587,9 @@ function timezoneDecision(f: FieldDescriptor, address: Profile["personal"]["addr
   const zone = code && ZONES.find(([, , codes]) => codes.includes(code));
   if (!zone) return null;
   const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["personal.address"] };
-  if (!f.options) return f.kind === "text" || f.kind === "textarea" ? { ...base, text: `${zone[0]} Time` } : null;
+  // Grafana's "What country and time zone are you based in?" wants both.
+  const text = /\bcountry\b/i.test(f.label) ? `${address.country}, ${zone[0]} Time` : `${zone[0]} Time`;
+  if (!f.options) return f.kind === "text" || f.kind === "textarea" ? { ...base, text } : null;
   const hits = f.options.flatMap((o, i) => (zone[1].test(o) ? [i] : []));
   return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
 }

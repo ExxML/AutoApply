@@ -803,6 +803,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     } as unknown as Gemini;
     const profile = emptyProfile();
     profile.personal.address.region = "British Columbia";
+    profile.personal.address.country = "Canada";
     const zones = ["Central European Time (CET)", "Eastern Time (ET)", "Central Time (CT)", "Pacific Time (PT)"];
     const ask = async () =>
       (
@@ -812,6 +813,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             fields: [
               field("a", { label: "What time zone are you based in?", kind: "dropdown", options: zones }),
               field("b", { label: "Which time zone do you work in?", kind: "text" }),
+              field("c", { label: "What country and time zone are you based in?", kind: "text" }),
             ],
             profile,
             documents: [],
@@ -819,11 +821,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
         )
       ).decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action);
-    expect(await ask()).toEqual(["Pacific Time (PT)", "Pacific Time"]);
+    expect(await ask()).toEqual(["Pacific Time (PT)", "Pacific Time", "Canada, Pacific Time"]);
     profile.personal.address.region = "Saskatchewan";
-    expect(await ask()).toEqual(["Central Time (CT)", "Central Time"]);
+    expect(await ask()).toEqual(["Central Time (CT)", "Central Time", "Canada, Central Time"]);
     profile.personal.address.region = "Bavaria";
-    expect(await ask()).toEqual(["flag", "flag"]);
+    expect(await ask()).toEqual(["flag", "flag", "flag"]);
   });
 
   it("answers the highest education obtained as high school while no degree is finished", async () => {
