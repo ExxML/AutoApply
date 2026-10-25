@@ -414,6 +414,27 @@ function currentCompanyDecision(f: FieldDescriptor, experience: Profile["experie
 }
 
 /**
+ * "Do you currently work at/for …?" with no current role in the profile: "No". Huntress's "currently work at a company
+ * or partner that uses or sells Huntress products?" was left blank.
+ */
+function notWorkingDecision(f: FieldDescriptor, experience: Profile["experience"]): Decision | null {
+  if (!f.options || isMulti(f) || !/^(do|are) you currently (work|employed)\w*\b[^?]*\b(at|for|by)\b/i.test(f.label))
+    return null;
+  const today = todayIso().slice(0, 7);
+  if (experience.some((e) => e.current || (e.startDate && (!e.endDate || e.endDate >= today)))) return null;
+  const no = f.options.flatMap((o, i) => (/^no\b/i.test(o) ? [i] : []));
+  if (no.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: no,
+    intendedAnswer: f.options[no[0]],
+    confidence: "high",
+    sources: ["experience"],
+  };
+}
+
+/**
  * U.S. status picked from a list naming citizen, permanent resident and a catch-all (Shield AI's export-control
  * "Are you any of the following?": "Other" for a Canadian, which the model flagged instead).
  */
@@ -1244,6 +1265,7 @@ export async function mapFields(
       regionDecision(f, input.profile.personal.address) ??
       raceDecision(f, input.profile.demographics.raceEthnicity) ??
       currentCompanyDecision(f, input.profile.experience) ??
+      notWorkingDecision(f, input.profile.experience) ??
       usStatusDecision(f, input.profile.workAuthorization.entries);
     if (d) local.set(f.id, d);
   }
