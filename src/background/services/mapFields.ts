@@ -673,6 +673,16 @@ function internshipsDecision(f: FieldDescriptor, experience: Profile["experience
 }
 
 /**
+ * "How do you pronounce your name?": the profile doesn't say. Sierra's "Name pronounciation" got the pronouns.
+ */
+const pronunciationDecision = (f: FieldDescriptor): Decision | null =>
+  /\bpronoun(ce|ci?ation)\b|\bpronunciation\b/i.test(f.label)
+    ? f.required
+      ? flag(f.id, "Add how your name is pronounced")
+      : { fieldId: f.id, action: "skip", confidence: "high" }
+    : null;
+
+/**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
  */
@@ -1172,6 +1182,7 @@ export async function mapFields(
       basicsDecision(f, input.profile) ??
       languagesDecision(f, input.profile) ??
       internshipsDecision(f, input.profile.experience) ??
+      pronunciationDecision(f) ??
       gpaDecision(f, input.profile.education) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??

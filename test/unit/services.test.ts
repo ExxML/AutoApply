@@ -926,7 +926,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag"]);
   });
 
-  it("counts prior internships", async () => {
+  it("counts prior internships and leaves name pronunciation to the user", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "fill", text: "x" }));
@@ -950,13 +950,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             kind: "select",
             options: ["0", "1", "2-3", "4+"],
           }),
+          field("c", { label: "Name pronounciation", required: true }),
+          field("d", { label: "How do you pronounce your name?" }),
         ],
         profile,
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {
