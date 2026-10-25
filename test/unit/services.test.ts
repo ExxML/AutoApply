@@ -799,6 +799,41 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("picks U.S. status from citizen / permanent resident / other lists", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const options = [
+      "A United States Citizen",
+      "A lawful permanent resident (Greencard holder)",
+      "A protected individual",
+      "Other",
+    ];
+    const ask = async () => {
+      const f = field("a", { label: "Are you any of the following?", kind: "dropdown", options });
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(await ask()).toBe("Other");
+    const entry = {
+      authorized: "yes",
+      requiresSponsorshipNow: "no",
+      requiresSponsorshipFuture: "no",
+      notes: "",
+    } as const;
+    profile.workAuthorization.entries = [{ ...entry, country: "United States", status: "Green card" }];
+    expect(await ask()).toBe("A lawful permanent resident (Greencard holder)");
+    profile.workAuthorization.entries = [{ ...entry, country: "USA", status: "Citizen" }];
+    expect(await ask()).toBe("A United States Citizen");
+  });
+
   it("answers 'current company' from a current role only", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

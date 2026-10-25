@@ -426,6 +426,33 @@ function currentCompanyDecision(f: FieldDescriptor, experience: Profile["experie
   return f.required ? { ...base, action: "fill", text: NOT_APPLICABLE } : { ...base, action: "skip" };
 }
 
+/**
+ * U.S. status picked from a list naming citizen, permanent resident and a catch-all (Shield AI's export-control
+ * "Are you any of the following?": "Other" for a Canadian, which the model flagged instead).
+ */
+function usStatusDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
+  if (!f.options || isMulti(f)) return null;
+  const only = (re: RegExp) => {
+    const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
+    return hits.length === 1 ? hits[0] : -1;
+  };
+  const citizen = only(/\b(u\.?s\.?|united states) citizen/i);
+  const resident = only(/\bpermanent resident\b|\bgreen ?card\b/i);
+  const other = only(/^(other|none( of the above)?|neither|not applicable|n\/a)\b/i);
+  if (citizen < 0 || resident < 0 || other < 0) return null;
+  const status = entryFor(US, entries)?.status ?? "none";
+  if (!status || /refugee|asyl/i.test(status)) return null;
+  const i = /citizen/i.test(status) ? citizen : /permanent|green ?card/i.test(status) ? resident : other;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
+
 /** Months of work experience in the profile, end dates included ("2026-01" to "2026-08" is 8). */
 function experienceMonths(experience: Profile["experience"]): number {
   const month = (d: string) => {
@@ -939,7 +966,8 @@ export async function mapFields(
       countryDecision(f, home) ??
       regionDecision(f, input.profile.personal.address) ??
       raceDecision(f, input.profile.demographics.raceEthnicity) ??
-      currentCompanyDecision(f, input.profile.experience);
+      currentCompanyDecision(f, input.profile.experience) ??
+      usStatusDecision(f, input.profile.workAuthorization.entries);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {
