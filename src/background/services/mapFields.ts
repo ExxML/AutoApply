@@ -615,6 +615,31 @@ function regionDecision(f: FieldDescriptor, address: Profile["personal"]["addres
   };
 }
 
+/**
+ * Race/ethnicity options for the profile's: the same name, else the one option naming its last word ("East Asian" →
+ * "Asian or Asian American"). The audit rejected that pick on Ashby's own survey.
+ */
+function raceDecision(f: FieldDescriptor, races: string[]): Decision | null {
+  if (!f.options || !races.length || !/\b(race|racial|ethnicit)/i.test(f.label)) return null;
+  const opts = f.options.map(normalize);
+  const picks = races.map((r) => {
+    const exact = opts.indexOf(normalize(r));
+    if (exact >= 0) return exact;
+    const word = normalize(r).split(" ").pop()!;
+    const hits = opts.flatMap((o, i) => (o.split(" ").includes(word) && !/two or more|multi/.test(o) ? [i] : []));
+    return hits.length === 1 ? hits[0] : -1;
+  });
+  if (picks.includes(-1) || (!isMulti(f) && picks.length !== 1)) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [...new Set(picks)],
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["demographics.raceEthnicity"],
+  };
+}
+
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
@@ -895,7 +920,8 @@ export async function mapFields(
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
       countryDecision(f, home) ??
-      regionDecision(f, input.profile.personal.address);
+      regionDecision(f, input.profile.personal.address) ??
+      raceDecision(f, input.profile.demographics.raceEthnicity);
     if (d) local.set(f.id, d);
   }
   const sent = (f: FieldDescriptor) => {

@@ -797,6 +797,31 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
+  it("picks the race option naming the profile's", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.demographics.raceEthnicity = ["East Asian"];
+    const ask = async (options: string[]) => {
+      const f = field("a", { label: "Which ethnicity(ies) do you identify with?", kind: "checkbox_group", options });
+      f.multiple = true;
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [f], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    expect(
+      await ask(["Asian or Asian American", "Black or African American", "White", "Two or more races (Asian, White)"]),
+    ).toBe("Asian or Asian American");
+    expect(await ask(["South Asian", "East Asian", "White"])).toBe("East Asian");
+    expect(await ask(["South Asian", "Southeast Asian", "White"])).toBe("flag");
+  });
+
   it("picks 'Not Applicable' from another country's state list", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
