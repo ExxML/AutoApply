@@ -57,14 +57,18 @@ export async function fillTypeahead(
     return c;
   };
   let c = await suggest();
-  // A place search may find nothing for "Vancouver, BC" and plenty for "Vancouver" (SmartRecruiters).
-  const head = typed.split(",")[0].trim();
+  // A place search may find nothing for "Vancouver, BC" and plenty for "Vancouver" (SmartRecruiters). An address
+  // search finds "7396 202 Street Langley", not the full address or its street alone (Teamtailor): street and city
+  // first, then the first part.
+  const parts = typed.split(",").map((p) => p.trim());
+  const first = normalize(parts[0]).split(" ").slice(0, 2).join(" "); // "7396 202" lists as "7396 202 St"
   const lists = (box: HTMLElement | null) =>
-    !!box && optionElements(box).some((o) => normalize(optText(o)).includes(normalize(head)));
-  if (head !== typed.trim() && !lists(c)) {
+    !!box && optionElements(box).some((o) => normalize(optText(o)).includes(first));
+  for (const next of new Set([parts.length > 2 ? `${parts[0]} ${parts[1]}` : parts[0], parts[0]])) {
+    if (next === typed.trim() || lists(c)) continue;
     // Closed first, so the reopened list reads as new.
     await closeDropdown(h, c);
-    typed = head;
+    typed = next;
     c = await suggest();
   }
   if (!c) {
@@ -103,6 +107,9 @@ export async function fillTypeahead(
   }
   realClick(el);
   await sleep(40);
+  // A place pick may look up its details before the box shows it (Teamtailor's address, ~1.5 s).
+  if (h.desc.kind !== "dropdown" && normalize(input.value) === normalize(typed) && normalize(want) !== normalize(typed))
+    await waitFor(() => normalize(input.value) !== normalize(typed), 3000);
   blur(input);
   // A dropdown's search box empties once an option is picked; the widget shows the pick.
   if (h.desc.kind === "dropdown")
