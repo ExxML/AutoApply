@@ -33,7 +33,9 @@ describe("YOLO page kinds", () => {
     setBody(`<h1>Just a moment...</h1>`);
     expect(classify(0)).toBe("blocked");
     // Ashby's bot score turned it down and left no form: load the page again.
-    setBody(`<h2>We couldn't submit your application</h2><p>Your application submission was flagged as possible spam.</p>`);
+    setBody(
+      `<h2>We couldn't submit your application</h2><p>Your application submission was flagged as possible spam.</p>`,
+    );
     expect(classify(0)).toBe("flagged");
   });
 
@@ -72,6 +74,31 @@ describe("YOLO page kinds", () => {
     // Once solved, the widget stays but its response token is set.
     document.body.insertAdjacentHTML("beforeend", `<textarea name="g-recaptcha-response">tok</textarea>`);
     expect(captchaShown()).toBe(false);
+  });
+
+  it("sees hCaptcha's challenge in its page-sized frame only while shown (Lever)", () => {
+    const enclave = (style: string) =>
+      `<iframe style="${style}" src="https://newassets.hcaptcha.com/captcha/v1/x/static/hcaptcha-enclave.html#frame=en"></iframe>`;
+    const big = () => {
+      const f = document.querySelector("iframe")!;
+      f.getBoundingClientRect = () => ({
+        width: 1366,
+        height: 900,
+        top: 0,
+        left: 0,
+        right: 1366,
+        bottom: 900,
+        x: 0,
+        y: 0,
+        toJSON() {},
+      });
+    };
+    setBody(enclave("visibility:hidden"));
+    big();
+    expect(captchaShown()).toBe(false);
+    setBody(enclave(""));
+    big();
+    expect(captchaShown()).toBe(true);
   });
 
   it("sends a Cloudflare check in the hidden frame to a tab, where it often passes by itself", () => {

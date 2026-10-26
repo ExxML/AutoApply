@@ -41,7 +41,9 @@ function challenge(): HTMLIFrameElement | undefined {
       (/recaptcha\/(api2|enterprise)\/anchor|hcaptcha\.com.*frame=checkbox/.test(f.src) &&
         !/size=invisible/.test(f.src));
     const r = f.getBoundingClientRect();
-    return shown && r.width > 100 && r.height > 60 && isVisible(f);
+    // hCaptcha shows its challenge in a page-sized "enclave" frame (Lever's submit); otherwise that frame is tiny.
+    const enclave = /hcaptcha\.com/.test(f.src) && r.width > 300 && r.height > 300;
+    return (shown || enclave) && r.width > 100 && r.height > 60 && isVisible(f);
   });
 }
 export const captchaShown = () => !!challenge();
