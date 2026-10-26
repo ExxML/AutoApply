@@ -1308,6 +1308,39 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toBe("flag");
   });
 
+  it("answers 'may we contact your current employer?' without a current role", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const role = (endDate: string) => ({
+      ...emptyProfile().experience[0],
+      company: "Co",
+      startDate: "2020-01",
+      endDate,
+    });
+    const ask = async (options: string[]) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("a", { label: "May we contact your current employer?", kind: "select", options })],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    profile.experience = [role("2021-01")];
+    expect(await ask(["Yes", "No"])).toBe("Yes");
+    expect(await ask(["Yes", "No", "Not applicable"])).toBe("Not applicable");
+    profile.experience = [role("")];
+    expect(await ask(["Yes", "No"])).toBe("flag");
+  });
+
   it("picks the race option naming the profile's", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
