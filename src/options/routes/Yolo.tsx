@@ -150,7 +150,7 @@ export function Yolo() {
       <div class="form">
         <TagInput
           label="Search queries"
-          help='Every word must be in the job title (plurals and synonyms count: "intern" matches "Internship" and "Co-op").'
+          help='A job matches a query when its title contains every word of it, in any order (plurals and synonyms count: "intern" matches "Internship" and "Co-op"). A job needs to match only one query, so add one query per role, e.g. "software intern" and "data intern". Each query is searched separately on every job board.'
           value={y.queries}
           onChange={(queries) => set({ queries })}
         />
