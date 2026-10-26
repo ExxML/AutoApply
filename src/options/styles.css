@@ -131,6 +131,9 @@ main {
 .field.wide {
   grid-column: span 2;
 }
+.field.full {
+  grid-column: 1 / -1;
+}
 /* One-column grid: spanning 2 would add an overflowing implicit column. */
 @container (max-width: 539px) {
   .field.wide {

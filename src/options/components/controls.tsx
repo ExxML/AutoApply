@@ -8,12 +8,12 @@ export function Field(props: {
   label: string;
   help?: string;
   extra?: ComponentChildren;
-  wide?: boolean;
+  wide?: boolean | "full";
   children: (id: string) => ComponentChildren;
 }) {
   const id = useId();
   return (
-    <div class={props.wide ? "field wide" : "field"}>
+    <div class={props.wide === "full" ? "field full" : props.wide ? "field wide" : "field"}>
       <label for={id}>{props.label}</label>
       {props.children(id)}
       {props.extra}
@@ -31,7 +31,7 @@ export function TextInput(props: {
   multiline?: boolean;
   placeholder?: string;
   extra?: ComponentChildren;
-  wide?: boolean;
+  wide?: boolean | "full";
 }) {
   return (
     <Field label={props.label} help={props.help} extra={props.extra} wide={props.wide}>

@@ -1,7 +1,7 @@
 // Declarative layout of the profile editor: one sub-page per top-level §7 group.
 import { EducationSchema, ExperienceSchema, ProjectSchema, WorkAuthEntrySchema } from "../shared/profileSchema";
 
-export type FieldSpec = { path: string; label: string; help: string; extra?: FieldSpec; wide?: true } & (
+export type FieldSpec = { path: string; label: string; help: string; extra?: FieldSpec; wide?: true | "full" } & (
   | { k: "text" | "email" | "tel" | "url" | "date" | "month" | "textarea" | "yn" | "ynd" | "tags" | "bool" }
   | { k: "select" | "multi"; options: [string, string][] }
   | { k: "decl" | "tagsdecl" }
@@ -434,12 +434,15 @@ export const PROFILE_GROUPS: GroupSpec[] = [
       t("essayGuidance.strengthsToEmphasize", "Strengths to emphasize", "What drafts should highlight.", "textarea"),
       t("essayGuidance.tone", "Tone", "e.g. confident, warm, concise."),
       t("essayGuidance.thingsToAvoid", "Things to avoid", "Topics or phrases drafts must not use.", "textarea"),
-      t(
-        "essayGuidance.coverLetterTemplate",
-        "Cover letter template",
-        "Optional base cover letter the AI adapts.",
-        "textarea",
-      ),
+      {
+        ...t(
+          "essayGuidance.coverLetterTemplate",
+          "Cover letter template",
+          "Optional base cover letter the AI adapts.",
+          "textarea",
+        ),
+        wide: "full",
+      },
     ],
   },
 ];
