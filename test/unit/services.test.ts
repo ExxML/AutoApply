@@ -1972,6 +1972,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             "I am an advanced AI user and have directly used AI to completely systemize workflows.",
             "I prefer to rely primarily on human-driven workflows.",
           ]),
+          yn("j", "Have you built AI agents, especially using LangChain, LangGraph, or similar frameworks?"),
         ],
         profile: emptyProfile(),
         documents: [],
@@ -1988,8 +1989,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "flag",
       "flag",
       "fill",
+      "fill",
     ]);
-    expect(asked).toEqual(["d", "g"]);
+    expect(asked).toEqual(["d", "g", "j"]);
   });
 
   it("leaves school email fields to the user", async () => {

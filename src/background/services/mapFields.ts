@@ -1340,8 +1340,9 @@ function raceDecision(f: FieldDescriptor, races: string[]): Decision | null {
 const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
 const RE_AI_USE = new RegExp(
   String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
-    // Clever: "we do not permit candidates to use generative AI ... to draft responses"; Attentive: "If you are an AI Agent".
-    String.raw`|\bnot (permit|allow)\w*\b[^?.]*\b(use|using)\b[^?.]*${RE_AI}|\bAI agents?\b` +
+    // Clever: "we do not permit candidates to use generative AI ... to draft responses"; Attentive: "If you are an AI
+    // Agent" (not LangChain's "Have you built AI agents?").
+    String.raw`|\bnot (permit|allow)\w*\b[^?.]*\b(use|using)\b[^?.]*${RE_AI}|\b(are|you're) an? AI agent\b` +
     // Medium: "You confirm that ... no portion of the following responses were generated using the assistance of AI".
     String.raw`|\bgenerated\b[^?.]*\b(using|with|by)\b[^?.]*${RE_AI}` +
     // Calendly: "Was this application prepared or submitted in whole or in part by an AI system …?".
