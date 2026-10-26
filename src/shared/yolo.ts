@@ -92,6 +92,8 @@ export const YoloStateSchema = z.object({
   pausedUntil: z.number().catch(0),
   pauseReason: z.string().catch(""),
   gmailNeedsAuth: b(false),
+  /** Gmail last answered as signed in (Connect, or the options page's silent check). */
+  gmailConnected: b(false),
 });
 export type YoloState = z.infer<typeof YoloStateSchema>;
 

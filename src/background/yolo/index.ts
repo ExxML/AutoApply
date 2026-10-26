@@ -20,7 +20,7 @@ import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
 import { confirmation, kindOf, refused, signature } from "./classify";
 import { applied, discover } from "./discover";
-import { GmailAuthError, gmailToken, waitForEmail, waitForFeedCode } from "./gmail";
+import { checkGmail, GmailAuthError, gmailToken, waitForEmail, waitForFeedCode } from "./gmail";
 import { closeFrame } from "./host";
 import { altKey, applyUrl, jobKey } from "./jobKey";
 import { textPdf } from "./pdf";
@@ -378,11 +378,24 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     try {
       await session.remove("gmailToken");
       await gmailToken(yolo.gmailClientId, await accountEmail(), true);
-      await setState({ gmailNeedsAuth: false });
+      await setState({ gmailNeedsAuth: false, gmailConnected: true });
       return { ok: true };
     } catch (e) {
       return { error: { kind: "other", message: (e as Error).message } };
     }
+  },
+
+  async YOLO_GMAIL_CHECK() {
+    try {
+      await checkGmail(yolo.gmailClientId, await accountEmail());
+      await setState({ gmailNeedsAuth: false, gmailConnected: true });
+    } catch (e) {
+      // A network error says nothing about the sign-in: keep the last known state.
+      if (!(e instanceof GmailAuthError)) return { ok: true };
+      const { gmailConnected, gmailNeedsAuth } = await store.get("yoloState");
+      await setState({ gmailConnected: false, gmailNeedsAuth: gmailNeedsAuth || gmailConnected });
+    }
+    return { ok: true };
   },
 
   async YOLO_ACCOUNTS() {
@@ -472,7 +485,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       return want === "link" ? { link: found } : { code: found };
     } catch (e) {
       if (e instanceof GmailAuthError) {
-        await setState({ gmailNeedsAuth: true });
+        await setState({ gmailNeedsAuth: true, gmailConnected: false });
         notify(
           "yolo-gmail",
           "AutoApply: reconnect Gmail",

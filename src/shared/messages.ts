@@ -93,6 +93,7 @@ export type Message =
   | { type: "YOLO_RESUME"; key: string }
   | { type: "YOLO_FORGET"; key: string }
   | { type: "YOLO_GMAIL_CONNECT" }
+  | { type: "YOLO_GMAIL_CHECK" }
   | { type: "YOLO_ACCOUNTS" }
   | { type: "YOLO_REVEAL"; site: string }
   | { type: "YOLO_DELETE_ACCOUNT"; site: string }
@@ -171,6 +172,7 @@ export interface Responses {
   YOLO_RESUME: Ok | Err;
   YOLO_FORGET: Ok;
   YOLO_GMAIL_CONNECT: Ok | Err;
+  YOLO_GMAIL_CHECK: Ok;
   YOLO_ACCOUNTS: { site: string; email: string; createdAt: number }[];
   YOLO_REVEAL: { password: string } | Err;
   YOLO_DELETE_ACCOUNT: Ok;

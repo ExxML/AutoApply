@@ -64,8 +64,13 @@ function Accounts() {
 
 function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) {
   const state = useStored("yoloState");
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
   const redirect = chrome.identity?.getRedirectURL() ?? "";
+  // Gmail can be disconnected from Google's side: ask once per visit. Later failures arrive through yoloState.
+  useEffect(() => {
+    if (props.y.gmailClientId) void send({ type: "YOLO_GMAIL_CHECK" });
+  }, []);
+  const status = error || (state?.gmailNeedsAuth ? "Gmail needs to be reconnected." : "");
   return (
     <div class="field wide">
       <TextInput
@@ -95,13 +100,13 @@ function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) 
           disabled={!props.y.gmailClientId}
           onClick={async () => {
             const r = await send({ type: "YOLO_GMAIL_CONNECT" });
-            setMsg(isErr(r) ? r.error.message : "Connected.");
+            setError(isErr(r) ? r.error.message : "");
           }}
         >
           Connect Gmail
         </button>{" "}
-        <span class={state?.gmailNeedsAuth ? "err" : "muted"} role="status">
-          {msg || (state?.gmailNeedsAuth ? "Gmail needs to be reconnected." : "")}
+        <span class={status ? "err" : "ok"} role="status">
+          {status || (state?.gmailConnected ? "Connected." : "")}
         </span>
       </div>
     </div>

@@ -30,6 +30,16 @@ export async function gmailToken(clientId: string, email: string, interactive: b
   return token;
 }
 
+/** Throws GmailAuthError when the YOLO inbox can't be read without the user (access revoked, sign-in expired). */
+export async function checkGmail(clientId: string, email: string): Promise<void> {
+  const r = await fetch(`${API}/profile`, {
+    headers: { authorization: `Bearer ${await gmailToken(clientId, email, false)}` },
+  });
+  if (r.status !== 401) return;
+  await session.remove("gmailToken");
+  throw new GmailAuthError("Gmail sign-in expired");
+}
+
 interface Part {
   mimeType?: string;
   body?: { data?: string };
