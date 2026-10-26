@@ -433,4 +433,17 @@ describe("place typeaheads", () => {
     expect(r).toMatchObject({ outcome: "ok", shown: "Vancouver, British Columbia, Canada" });
     expect(input.value).toBe("Vancouver, British Columbia, Canada");
   });
+
+  it("search by the country when the picker lists only countries (Airwallex)", async () => {
+    setBody(`<div><label for="o">Location</label><input id="o" role="combobox"><div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    const res = document.getElementById("res")!;
+    input.addEventListener("input", () => {
+      res.innerHTML = /^canada$/i.test(input.value) ? `<div role="option">Canada</div>` : "";
+    });
+    res.addEventListener("click", (e) => (input.value = (e.target as HTMLElement).textContent!));
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Langley", "Langley, British Columbia, Canada", async () => 0);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Canada" });
+  }, 15000);
 });
