@@ -953,11 +953,12 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
 /**
  * "How soon could you start?" among ranges ("2 weeks or less", "8 - 12 weeks", "more than 12 weeks"), counted from
  * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away. Asked in
- * a text box, that date: Netomi's "How soon are you able to join if selected?" got "Immediately" for January.
+ * a text box, that date: Netomi's "How soon are you able to join if selected?" and Hugging Face's "Notice period /
+ * availability" got "Immediately" for January.
  */
 function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
   const label =
-    /\bhow soon\b|\bwhen (can|could|would) you (start|begin|join)\b|\b(availability|able) to (start|begin)\b/i;
+    /\bhow soon\b|\bwhen (can|could|would) you (start|begin|join)\b|\b(availability|able) to (start|begin)\b|\bnotice period\b[^?]*\bavailab/i;
   // A return offer starts after graduating (returnOfferDecision), not at the internship's start.
   if (isMulti(f) || !earliest || !label.test(f.label) || RE_RETURN_OFFER.test(f.label)) return null;
   const weeks = Math.max(0, (Date.parse(earliest) - Date.parse(todayIso())) / 6048e5);

@@ -1225,7 +1225,13 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip", "skip"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual([
+      "2",
+      "2-3",
+      "flag",
+      "skip",
+      "skip",
+    ]);
   });
 
   it("ticks the cohorts inside the availability window and every relocation option for anywhere", async () => {
@@ -1731,6 +1737,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         fields: [
           field("a", { label: "How soon are you able to join if selected?", kind: "textarea" }),
           field("b", { label: "How many months are you available? Please specify the duration", kind: "textarea" }),
+          field("c", { label: "Notice period / availability" }),
         ],
         profile,
         documents: [],
@@ -1740,6 +1747,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions.map((d) => d.text ?? d.action)).toEqual([
       "From January 1, 2099",
       "16 months – January 2099 to May 2100",
+      "From January 1, 2099",
     ]);
   });
 
