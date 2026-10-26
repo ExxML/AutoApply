@@ -1,6 +1,7 @@
 // One YOLO run at a time: a queued job (or a page read for discovery) loaded in a host and driven by the content
 // script inside it (src/content/yolo), which reports each step and the outcome. The run lives in session storage, so
 // a service-worker restart mid-application loses nothing but in-memory waiters.
+import { CAPTCHA_WAIT_MS } from "../../shared/constants";
 import type { YoloResult } from "../../shared/messages";
 import { session } from "../../shared/storage";
 import type { Guess, QueueItem } from "../../shared/yolo";
@@ -106,8 +107,12 @@ export function resolveScrape(run: Run, r: YoloResult) {
 export function overdue(run: Run, now = Date.now()): YoloResult | null {
   const blocked = run.host === "frame" ? "blocked" : "failed";
   if (!run.helloAt && now - run.startedAt > HELLO_MS) return { status: blocked, reason: "The page didn't load" };
-  if (now - run.stepAt > STEP_MS) return { status: "failed", reason: "No progress for 3 minutes" };
-  if (now - run.startedAt > RUN_MS) return { status: "failed", reason: "Took over 12 minutes" };
+  // A visible tab waits on the user: a CAPTCHA step gets the driver's whole wait, and the run no time limit.
+  const visible = run.host === "visible";
+  const captcha = visible && run.steps.at(-1)?.startsWith("captcha|");
+  if (now - run.stepAt > (captcha ? CAPTCHA_WAIT_MS + STEP_MS : STEP_MS))
+    return { status: "failed", reason: captcha ? "The CAPTCHA wasn't solved" : "No progress for 3 minutes" };
+  if (!visible && now - run.startedAt > RUN_MS) return { status: "failed", reason: "Took over 12 minutes" };
   return null;
 }
 

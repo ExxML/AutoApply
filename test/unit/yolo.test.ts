@@ -10,6 +10,7 @@ import { extract, feedTexts } from "../../src/background/yolo/gmail";
 import { textPdf, wrap } from "../../src/background/yolo/pdf";
 import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
 import { applied, discover } from "../../src/background/yolo/discover";
+import { overdue, type Run } from "../../src/background/yolo/runner";
 import { mapFields } from "../../src/background/services/mapFields";
 import type { Gemini } from "../../src/background/gemini/client";
 import { defaultSettings } from "../../src/shared/settings";
@@ -596,5 +597,22 @@ describe("YOLO best guesses", () => {
       { fields, profile: emptyProfile(), documents: [], job: null, yolo: true },
     );
     expect(asked).toEqual([["deadline"]]);
+  });
+});
+
+describe("run watchdog", () => {
+  const min = 60_000;
+  const run = (host: Run["host"], step: string): Run =>
+    ({ host, startedAt: 0, helloAt: 1, stepAt: 11 * min, steps: [`${step}|/apply||5`] }) as Run;
+
+  it("gives a visible tab the whole CAPTCHA wait, past the run's time limit", () => {
+    expect(overdue(run("visible", "captcha"), 20 * min)).toBeNull();
+    expect(overdue(run("visible", "captcha"), 25 * min)).toMatchObject({ reason: "The CAPTCHA wasn't solved" });
+  });
+
+  it("still ends stalled or overlong runs", () => {
+    expect(overdue(run("visible", "form"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
+    expect(overdue(run("frame", "captcha"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
+    expect(overdue(run("tab", "form"), 13 * min)).toMatchObject({ reason: "Took over 12 minutes" });
   });
 });

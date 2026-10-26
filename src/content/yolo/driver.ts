@@ -1,6 +1,7 @@
 // YOLO's driver: runs in the page a YOLO run loaded and takes it from posting to confirmation, one step at a time
 // (Apply → account → each form page → Submit). A step that loads a new document ends this script there; the new
 // page's driver asks the background where the run stands and carries on.
+import { CAPTCHA_WAIT_MS } from "../../shared/constants";
 import { send, type StepKind, type YoloResult } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
 import type { Guess } from "../../shared/yolo";
@@ -120,7 +121,7 @@ export async function drive(deps: DriverDeps) {
           if (!hello.visible) return needs("CAPTCHA");
           // Everything else first, so the user only has the challenge left to do.
           if (facts.fields) await fill();
-          await waitFor(() => !captchaShown(), 10 * 60_000);
+          await waitFor(() => !captchaShown(), CAPTCHA_WAIT_MS);
           continue;
         case "blocked":
           return result({ status: "blocked", reason: "The site's bot check stopped it" });
