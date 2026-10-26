@@ -1004,8 +1004,16 @@ function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]):
 function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
   const e = education.find((x) => x.gpa);
   const [gpa, scale] = [Number(e?.gpa), Number(e?.gpaScale || 4)];
-  if (!f.options || isMulti(f) || !/\bGPA\b|grade point/i.test(f.label) || !gpa || !scale) return null;
+  if (isMulti(f) || !/\bGPA\b|grade point/i.test(f.label) || !gpa || !scale) return null;
   if (/\b(graduate|doctorate|master'?s?|ph\.?d|high school)\b/i.test(f.label)) return null;
+  if (!f.options) {
+    // Asked on a stated scale in a box: Airwallex's "on a 5.0 scale … please convert" got 4.33 (of 4.33).
+    const m = /\b(\d+(?:\.\d+)?)[- ]?(?:point )?scale\b|\bout of (\d+(?:\.\d+)?)\b/i.exec(f.label);
+    const to = Number(m?.[1] ?? m?.[2]);
+    if (!to || (f.kind !== "text" && f.kind !== "number")) return null;
+    const text = String(to === scale ? gpa : Math.round((gpa / scale) * to * 100) / 100);
+    return { fieldId: f.id, action: "fill", text, confidence: "high", sources: ["education"] };
+  }
   const v = scale >= 4 && scale <= 4.34 ? Math.min(gpa, 4) : (gpa / scale) * 4;
   let best = -1;
   let bestLow = -Infinity;

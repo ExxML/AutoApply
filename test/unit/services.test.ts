@@ -1387,17 +1387,18 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             field("b", { label: "GPA (Graduate)", kind: "select", options: outOf }),
             field("c", { label: "Undergraduate GPA", kind: "select", options: ranges }),
             field("d", { label: "What is your GPA?", kind: "select", options: ["<2.0", "3.8", "3.9", "4.0", ">4.0"] }),
+            field("e", { label: "Cumulative GPA (Bachelor's Degree, 5.0 scale)", kind: "number" }),
           ],
           profile,
           documents: [],
           job: null,
         },
       );
-      return r.decisions.map((d) => d.intendedAnswer ?? d.action);
+      return r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action);
     };
-    expect(await ask("4.33", "4.33")).toEqual(["4.0 out of 4.0", "flag", "3.5 - 4.0", "4.0"]);
-    expect(await ask("3.85", "4.0")).toEqual(["3.8 out of 4.0", "flag", "3.5 - 4.0", "3.8"]);
-    expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49", "flag"]);
+    expect(await ask("4.33", "4.33")).toEqual(["4.0 out of 4.0", "flag", "3.5 - 4.0", "4.0", "5"]);
+    expect(await ask("3.85", "4.0")).toEqual(["3.8 out of 4.0", "flag", "3.5 - 4.0", "3.8", "4.81"]);
+    expect(await ask("3.2", "4.33")).toEqual(["flag", "flag", "3.0 - 3.49", "flag", "3.7"]);
   });
 
   it("checks a picked year or month against the profile date the model cites", async () => {
