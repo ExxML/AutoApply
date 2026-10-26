@@ -5,7 +5,7 @@ import { localMatch, localMatchAll } from "../match/localMatch";
 import type { FieldHandle } from "../scan/fields";
 import { nativeOptions } from "../scan/widgets";
 import { fillDropdown, harvestOptions, searchOptions } from "./dropdown";
-import { holdScroll } from "./events";
+import { holdScroll, sleep, waitFor } from "./events";
 import { compatibleDoc, fillFile } from "./file";
 import {
   fillCheckbox,
@@ -43,9 +43,23 @@ const RE_HEARD_Q = /\b(hear|heard|learn(ed)?) (about|of)\b|\bbrought you to\b/i;
 const HARVEST_MS = 3000;
 let chain: Promise<unknown> = Promise.resolve();
 
+/**
+ * Ashby saves each answer in its own request and keeps only the last of overlapping ones (submitting then reports
+ * "Missing entry" for answers it showed as given). pageTimers.ts counts its requests in flight on the page; the next
+ * fill waits for them.
+ */
+async function savesDone() {
+  const root = document.documentElement;
+  if (!root.hasAttribute("data-autoapply-net")) return;
+  await sleep(50); // a save may start a moment after the change that causes it
+  await waitFor(() => root.getAttribute("data-autoapply-net") === "0", 3000);
+}
+
 export function fill(h: FieldHandle, op: FillOp, deps: EngineDeps): Promise<FillResult> {
   const run = () =>
-    deps.signal.aborted ? Promise.resolve<FillResult>({ outcome: "flag", note: "Stopped" }) : dispatch(h, op, deps);
+    deps.signal.aborted
+      ? Promise.resolve<FillResult>({ outcome: "flag", note: "Stopped" })
+      : dispatch(h, op, deps).finally(savesDone);
   // One at a time: every fill moves focus, and a widget left mid-search closes when focus leaves it (Ashby's location
   // emptied while its date picker opened). Text fills take milliseconds, so the queue costs little.
   return serial(run);

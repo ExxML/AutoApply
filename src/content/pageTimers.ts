@@ -35,6 +35,22 @@ window.clearTimeout = ((id?: number) => {
 
 document.addEventListener("autoapply-timer-fire", (e) => pending.get((e as CustomEvent<string>).detail)?.());
 
+// Ashby saves each answer as its own request and keeps only the last of overlapping ones: a fill waits for the ones
+// in flight (fill/engine.ts), counted here where the page's own fetch runs.
+if (/(^|\.)ashbyhq\.com$/.test(location.hostname)) {
+  const f = window.fetch;
+  let n = 0;
+  const mark = () => document.documentElement?.setAttribute("data-autoapply-net", String(n));
+  window.fetch = function (this: unknown, ...a: Parameters<typeof fetch>) {
+    n++;
+    mark();
+    return f.apply(this, a).finally(() => {
+      n--;
+      mark();
+    });
+  } as typeof fetch;
+}
+
 // The host renders no frames, so Chrome never has idle time to give: a page hydrating from an idle callback (Remix:
 // Greenhouse's job boards) would never get its event handlers, and every dropdown stays dead. Run them on a timer.
 // Animation frames never come either, and resize and intersection observers, which report from the rendering steps,
