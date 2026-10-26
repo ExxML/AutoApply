@@ -178,6 +178,33 @@ export function send<M extends Message>(msg: M): Promise<Responses[M["type"]]> {
   return chrome.runtime.sendMessage(msg) as Promise<Responses[M["type"]]>;
 }
 
+/**
+ * Injects the content script into the tab's frames that have no live instance, so a fill reaches them: a tab open
+ * since before an install, or an injection that raced an extension reload and bailed (content/index.ts main).
+ * Frames that have one cost a tiny probe. Resolves false when a frame's world itself has no extension bindings:
+ * a fresh copy would bail there too, and only reloading the page helps.
+ */
+export async function ensureContentScript(tabId: number): Promise<boolean> {
+  const probes = await chrome.scripting
+    .executeScript({
+      target: { tabId, allFrames: true },
+      injectImmediately: true,
+      // Frames main() skips on purpose (not http) count as served.
+      func: () =>
+        (globalThis as { __autoapply?: boolean }).__autoapply || !/^https?:$/.test(location.protocol)
+          ? "ok"
+          : chrome.runtime?.id
+            ? "missing"
+            : "dead",
+    })
+    .catch(() => []); // a browser page: nothing of ours runs there
+  const frameIds = probes.filter((p) => p.result === "missing").map((p) => p.frameId);
+  const files = chrome.runtime.getManifest().content_scripts?.[0]?.js ?? [];
+  if (frameIds.length)
+    await chrome.scripting.executeScript({ target: { tabId, frameIds }, files }).catch(() => undefined);
+  return !probes.some((p) => p.result === "dead");
+}
+
 export function isErr(r: unknown): r is Err {
   return !!r && typeof r === "object" && "error" in r;
 }

@@ -1,5 +1,5 @@
 // Service worker: message router, commands, onInstalled.
-import type { Message, Responses } from "../shared/messages";
+import { ensureContentScript, type Message, type Responses } from "../shared/messages";
 import { createStorage, migrate, session } from "../shared/storage";
 import { normalize } from "../shared/normalize";
 import { formatTime } from "../shared/time";
@@ -331,7 +331,10 @@ const handlers: Handlers = {
   SLEEP: ({ ms }) => new Promise((r) => setTimeout(() => r({ ok: true }), ms)),
 
   async BROADCAST_FILL({ rerun }, sender) {
-    if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "TRIGGER_FILL", force: true, rerun });
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return { ok: true };
+    await ensureContentScript(tabId);
+    await sendToTab(tabId, { type: "TRIGGER_FILL", force: true, rerun });
     return { ok: true };
   },
 
@@ -431,16 +434,16 @@ chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await ready;
   if (reason === "install") void chrome.tabs.create({ url: chrome.runtime.getURL("src/options/index.html#/setup") });
-  const files = chrome.runtime.getManifest().content_scripts?.[0]?.js ?? [];
   for (const tab of await chrome.tabs.query({})) {
-    if (tab.id === undefined || !/^https?:/.test(tab.url ?? "")) continue;
-    chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files }).catch(() => undefined);
+    if (tab.id !== undefined && /^https?:/.test(tab.url ?? "")) void ensureContentScript(tab.id);
   }
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id === undefined) return;
-  if (command === "fill-page") await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
-  else if (command === "toggle-overlay") await sendToTab(tab.id, { type: "TOGGLE_OVERLAY" }, 0); // overlay lives in the top frame
+  if (command === "fill-page") {
+    await ensureContentScript(tab.id);
+    await sendToTab(tab.id, { type: "TRIGGER_FILL", force: true });
+  } else if (command === "toggle-overlay") await sendToTab(tab.id, { type: "TOGGLE_OVERLAY" }, 0); // overlay lives in the top frame
 });

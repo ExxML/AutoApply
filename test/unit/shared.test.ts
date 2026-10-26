@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
 import { cleanLabel, humanize, normalize } from "../../src/shared/normalize";
 import {
@@ -13,6 +13,7 @@ import { createStorage } from "../../src/shared/storage";
 import type { JobContext } from "../../src/shared/types";
 import { ProfileSchema } from "../../src/shared/profileSchema";
 import { defaultSettings } from "../../src/shared/settings";
+import { ensureContentScript } from "../../src/shared/messages";
 
 describe("normalize", () => {
   it("strips diacritics, lowercases, maps & and drops punctuation except + and #", () => {
@@ -200,5 +201,27 @@ describe("job context", () => {
     await chrome.storage.session.set({ "jobContext:1": 1, "jobPay:2": 2, "tabStatus:1": 3, other: 4 });
     await session.pruneTabs(new Set([1]));
     expect(Object.keys(mock.storage.session.data()).sort()).toEqual(["jobContext:1", "other", "tabStatus:1"]);
+  });
+});
+
+describe("ensureContentScript", () => {
+  it("injects only frames without an instance and reports frames a fresh copy can't reach", async () => {
+    const executeScript = vi.fn(async (o: { target: { frameIds?: number[] } }) =>
+      o.target.frameIds
+        ? []
+        : [
+            { frameId: 0, result: "ok" },
+            { frameId: 3, result: "missing" },
+            { frameId: 5, result: "dead" },
+          ],
+    );
+    const getManifest = () => ({ content_scripts: [{ js: ["src/content/index.js"] }] });
+    vi.stubGlobal("chrome", { scripting: { executeScript }, runtime: { getManifest } });
+    expect(await ensureContentScript(7)).toBe(false);
+    expect(executeScript).toHaveBeenLastCalledWith({
+      target: { tabId: 7, frameIds: [3] },
+      files: ["src/content/index.js"],
+    });
+    vi.unstubAllGlobals();
   });
 });

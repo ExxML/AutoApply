@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { send, type TabStatusResponse } from "../shared/messages";
+import { ensureContentScript, send, type TabStatusResponse } from "../shared/messages";
 import { formatTime } from "../shared/time";
 import type { StatusCounts } from "../shared/types";
 import type { YoloStatus } from "../shared/yolo";
@@ -73,8 +73,9 @@ export function Popup() {
   const fill = async () => {
     if (tab?.id === undefined) return;
     try {
+      const reachable = await ensureContentScript(tab.id);
       await chrome.tabs.sendMessage(tab.id, { type: "TRIGGER_FILL", force: true });
-      setMsg("");
+      setMsg(reachable ? "" : "Part of this page can't be filled until you reload it.");
     } catch {
       setMsg("This page can't be filled (reload it, or it's a browser page).");
     }

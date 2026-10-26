@@ -96,8 +96,6 @@ let overlay: Overlay | null = null;
 let noForm = false;
 const NO_FORM: ApiError = { kind: "other", message: "No job application form found on this page." };
 const childFrames = new Map<number, FrameStatus>();
-/** This instance owns the frame and answers messages (main passed its bail-outs). */
-let active = false;
 let listening = false;
 /** Aborted when a newer instance (extension reload/update) takes over this frame. */
 const life = new AbortController();
@@ -851,8 +849,7 @@ function onSubmitAttempt(e: Event) {
 }
 
 // ---------- messages ----------
-chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
-  if (!active) return false;
+function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) => void) {
   switch (msg.type) {
     case "TRIGGER_FILL":
       void runPipeline({ rerun: msg.rerun ?? msg.force });
@@ -882,7 +879,7 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
   }
   sendResponse({ ok: true });
   return false;
-});
+}
 
 // ---------- bootstrap (§11.1) ----------
 /** Shares the pay of the posting on the page; returns whether there is one. */
@@ -907,6 +904,9 @@ function watchPay() {
 }
 
 async function main() {
+  // Injected as the extension reloaded, this context can have no live bindings (chrome.runtime reads undefined):
+  // nothing here works, and claiming the frame would evict the instance that does.
+  if (!chrome.runtime?.id) return;
   if (!TOP) relayClicksToTop(life.signal); // before the bail-outs: about:blank editor frames are outside clicks too
   if (!/^https?:$/.test(location.protocol) || !document.body) return;
   const g = globalThis as { __autoapply?: boolean };
@@ -919,7 +919,7 @@ async function main() {
     clearTimeout(retryTimer);
   });
   // No message to the background until a fill: waking its service worker on every page load costs battery.
-  active = true;
+  chrome.runtime.onMessage.addListener(onMessage);
   watchPay();
   if (DRIVER_FRAME) void startYolo();
 }
