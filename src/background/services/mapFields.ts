@@ -1372,6 +1372,17 @@ const schoolEmailDecision = (f: FieldDescriptor): Decision | null =>
     ? flag(f.id, "Your school email isn't in your profile")
     : null;
 
+/**
+ * A take-home exercise's submission: only the candidate has it. Perplexity's required "Exercise Submission (Shared
+ * URL)" got a résumé project's link, and the audit passed it.
+ */
+const exerciseDecision = (f: FieldDescriptor): Decision | null =>
+  !f.options &&
+  /\b(exercise|take[- ]home|assignment|coding challenge)\b/i.test(f.label) &&
+  /\b(submission|submit|url|link)\b/i.test(f.label)
+    ? flag(f.id, "Complete the exercise and add your submission")
+    : null;
+
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
 function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
   if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
@@ -1745,6 +1756,7 @@ export async function mapFields(
     const d =
       aiUseDecision(f) ??
       schoolEmailDecision(f) ??
+      exerciseDecision(f) ??
       currentStatusDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??

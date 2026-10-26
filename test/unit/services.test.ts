@@ -2016,6 +2016,25 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["c"]);
   });
 
+  it("leaves a take-home exercise submission to the user", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "fill", text: "x" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [field("a", { label: "Exercise Submission (Shared URL)", kind: "url", required: true })],
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions[0].action).toBe("flag");
+  });
+
   it("re-asks once for fields the model left out", async () => {
     const sent: string[][] = [];
     const gemini = {
