@@ -503,7 +503,7 @@ label.inline {
   margin: 4px 0 12px;
   color: var(--muted);
 }
-.popup .btn.primary {
+.popup > .btn.primary {
   width: 100%;
   padding: 10px;
   font-weight: 600;
@@ -518,6 +518,12 @@ label.inline {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
+}
+.popup .yolo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
 }
 .popup .links {
   display: flex;

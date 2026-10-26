@@ -1,5 +1,4 @@
 import { useEffect, useState } from "preact/hooks";
-import { Toggle } from "../options/components/controls";
 import { send, type TabStatusResponse } from "../shared/messages";
 import { formatTime } from "../shared/time";
 import type { StatusCounts } from "../shared/types";
@@ -104,21 +103,29 @@ export function Popup() {
       </div>
       {yolo && (
         <div class="yolo">
-          {yolo.searches ? (
-            <Toggle
-              label="YOLO mode"
-              help={yoloText(yolo)}
-              checked={yolo.enabled}
-              onChange={(v) => void setYoloOn(v)}
-            />
-          ) : (
-            <p class="help">
-              YOLO mode applies to new jobs for you.{" "}
+          <div class="yolo-head">
+            <span id="yolo-label">YOLO mode</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={yolo.enabled}
+              aria-labelledby="yolo-label"
+              class={`btn small${yolo.enabled ? " primary" : ""}`}
+              disabled={!yolo.searches && !yolo.enabled}
+              onClick={() => void setYoloOn(!yolo.enabled)}
+            >
+              {yolo.enabled ? "On" : "Off"}
+            </button>
+          </div>
+          <p class="help">
+            {yolo.searches ? (
+              yoloText(yolo)
+            ) : (
               <a href="#" onClick={(e) => (e.preventDefault(), openOptions("/yolo"))}>
-                Add a job search to turn it on
+                Add a job search query to turn it on
               </a>
-            </p>
-          )}
+            )}
+          </p>
         </div>
       )}
       <div class="links">

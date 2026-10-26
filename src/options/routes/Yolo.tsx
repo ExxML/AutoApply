@@ -120,16 +120,10 @@ export function Yolo() {
         While on, AutoApply checks your searches on a timer and applies to new matching jobs by itself: it creates site
         accounts when needed, fills every field (with its best guess where your profile has no answer), and submits. It
         works in a hidden page, so nothing opens on screen. Everything it does is listed under Applications, with the
-        answers it guessed.
+        answers it guessed. Turn it on or off from the toolbar popup.
       </p>
-      <h2>Mode</h2>
+      <h2>Schedule</h2>
       <div class="form">
-        <Toggle
-          label="YOLO mode"
-          help={y.queries.length ? "Also in the toolbar popup." : "Add a search query below first."}
-          checked={y.enabled}
-          onChange={(enabled) => void send({ type: "YOLO_SET", enabled })}
-        />
         <NumberInput
           label="Check every (minutes)"
           value={y.intervalMin}
@@ -187,7 +181,11 @@ export function Yolo() {
           {BOARDS.map((b) => (
             <Toggle
               label={BOARD_NAMES[b]}
-              help={b === "indeed" ? "Indeed loads its results with scripts, so they're read from a hidden browser page. Slower than the other sources." : undefined}
+              help={
+                b === "indeed"
+                  ? "Indeed loads its results with scripts, so they're read from a hidden browser page. Slower than the other sources."
+                  : undefined
+              }
               checked={y.boards.includes(b)}
               onChange={(on) => set({ boards: on ? [...y.boards, b] : y.boards.filter((x) => x !== b) })}
             />
