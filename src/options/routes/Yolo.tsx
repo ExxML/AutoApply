@@ -133,7 +133,7 @@ export function Yolo() {
         />
         <NumberInput
           label="Applications per day"
-          help="0 finds and queues jobs without applying (a dry run)."
+          help="Capped at 500 (~1 AI call every 3 mins). Higher numbers mean more Gemini usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 pauses YOLO."
           value={y.dailyCap}
           min={0}
           max={500}
@@ -150,7 +150,7 @@ export function Yolo() {
         />
         <TagInput
           label="Locations"
-          help="Countries, provinces or cities, e.g. Canada, Seattle. Empty: anywhere."
+          help={`Countries, provinces/states/regions or cities, e.g. "Canada", "Ontario", "Seattle". Empty: anywhere. A country covers every region and city in it, and a region every city in it: "Canada" matches a job in "Kelowna" or "Ontario". A job must match only one entry. Edge cases that can skip a job you wanted: a bare city name means its largest namesake ("London" is England's, "Vancouver" British Columbia's), so a job listed as just "London" doesn't match "Canada"; a job that names only a country or region doesn't match a city in it ("Canada" doesn't match "Toronto", so add "Canada" too); towns under 5,000 people in Canada and the US (15,000 elsewhere), neighbourhoods and nicknames ("GTA", "Silicon Valley") match only by their exact words; regions outside Canada and the US need their English name ("Bavaria"), and codes like "CA" mean both California and Canada, so prefer full names. Remote jobs that name no place match only with "Include remote jobs" on; "Remote - Ontario" doesn't match "British Columbia". Jobs from your career sites that state no location always pass.`}
           value={y.locations}
           onChange={(locations) => set({ locations })}
         />
