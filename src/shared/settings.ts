@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_DAILY_APPLICATIONS } from "./yolo";
 
 const b = (d: boolean) => z.boolean().catch(d);
 const n = (d: number, min: number, max: number) => z.number().int().min(min).max(max).catch(d);
@@ -17,6 +18,8 @@ const base = z.object({
   requestTimeoutMs: n(25000, 1000, 120000),
   maxConcurrentRequests: n(4, 1, 16),
   debugLogging: b(false),
+  /** How many YOLO applications' debug logs are kept. */
+  debugLogLimit: n(25, 1, MAX_DAILY_APPLICATIONS),
 });
 
 export const SettingsSchema = base.catch(() => base.parse({}));

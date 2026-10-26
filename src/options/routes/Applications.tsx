@@ -15,9 +15,12 @@ const STATUS: Record<Application["status"], string> = {
 export function Applications() {
   const apps = useStored("applications");
   const queue = useStored("yoloQueue");
+  const settings = useStored("settings");
+  const logs = useStored("yoloLogs");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  if (!apps || !queue) return <p>Loading…</p>;
+  const [showLogs, setShowLogs] = useState(false);
+  if (!apps || !queue || !settings || !logs) return <p>Loading…</p>;
   const nq = normalize(q);
   const rows = [...apps]
     .reverse()
@@ -49,7 +52,34 @@ export function Applications() {
             <option value={v}>{t}</option>
           ))}
         </select>
+        <button
+          type="button"
+          class="btn small"
+          disabled={!settings.debugLogging}
+          title={
+            settings.debugLogging
+              ? `What YOLO filled in and saw on its last ${settings.debugLogLimit} applications`
+              : "Turn on Debug logging in Behavior first"
+          }
+          aria-expanded={showLogs && settings.debugLogging}
+          onClick={() => setShowLogs(!showLogs)}
+        >
+          Debug logs
+        </button>
       </div>
+      {showLogs &&
+        settings.debugLogging &&
+        (logs.length ? (
+          <div class="logs">
+            {[...logs].reverse().map((l) => (
+              <pre class="mono">
+                {formatDateTime(l.at)} {l.text}
+              </pre>
+            ))}
+          </div>
+        ) : (
+          <p class="muted">No logs yet: they're kept for YOLO applications made while Debug logging is on.</p>
+        ))}
       {rows.length === 0 ? (
         <p class="muted">{apps.length ? "No matches." : "Nothing yet."}</p>
       ) : (

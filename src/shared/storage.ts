@@ -102,6 +102,8 @@ export const LOCAL_SCHEMAS = {
   /** Every application YOLO made and every one the user submitted after a fill: what is never applied to twice. */
   applications: list(ApplicationSchema),
   yoloQueue: list(QueueItemSchema),
+  /** Debug logging: the latest YOLO applications' steps, answers and confirmations, oldest first. */
+  yoloLogs: list(z.object({ at: z.number(), text: z.string() })),
   /** Job keys already looked at → when first seen. */
   yoloSeen: rec(z.number()),
   /** Company → its ATS board ("greenhouse:lyft"), "" when none was found (yolo/careers.ts). */

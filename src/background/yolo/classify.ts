@@ -2,6 +2,7 @@
 // wording tests live here, out of the content script every page loads.
 import { RE_APPLIED } from "../../shared/constants";
 import type { PageFacts, StepKind } from "../../shared/messages";
+import { collapse } from "../../shared/normalize";
 
 const RE_BLOCKED =
   /just a moment|verify(ing)? (that )?you are (a )?human|access denied|attention required|unusual traffic|are you a robot|request unsuccessful|you have been blocked/i;
@@ -45,3 +46,10 @@ export const refused = (f: PageFacts) => RE_REFUSED.test(f.alerts);
 
 /** What tells one step from the next, for loop detection. */
 export const signature = (kind: StepKind, f: PageFacts) => `${kind}|${f.path}|${f.headings}|${f.fields}`;
+
+/** What a confirmation page says ("Thank you for applying…"): the lines from RE_APPLIED's match, else its headings. */
+export function confirmation(f: PageFacts): string {
+  const lines = f.text.split("\n").map(collapse).filter(Boolean);
+  const i = lines.findIndex((l) => RE_APPLIED.test(l));
+  return (i < 0 ? f.headings : lines.slice(i, i + 3).join(" ")).slice(0, 400);
+}

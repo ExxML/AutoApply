@@ -463,6 +463,19 @@ label.inline {
 .queue li + li {
   margin-top: 8px;
 }
+.logs {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 12px 0;
+}
+.logs pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
 .search {
   max-width: 360px;
   margin-bottom: 12px;

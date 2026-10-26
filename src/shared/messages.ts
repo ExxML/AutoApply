@@ -78,6 +78,8 @@ export type Message =
   /** `guesses`: this page's made-up answers so far; the run keeps every page's. */
   | { type: "YOLO_STEP"; facts: PageFacts; url: string; guesses: Guess[] }
   | { type: "YOLO_RESULT"; result: YoloResult }
+  /** Debug logging: each field on the page and its answer after a fill, keyed by document and field. */
+  | { type: "YOLO_ANSWERS"; answers: Record<string, Guess> }
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
   | { type: "YOLO_COVER_LETTER"; question: string }
@@ -157,6 +159,7 @@ export interface Responses {
   /** `refused`: the site turned down our sign-in or sign-up (an account we hold no password for). */
   YOLO_STEP: { kind: StepKind; stop?: string; refused?: boolean };
   YOLO_RESULT: Ok;
+  YOLO_ANSWERS: Ok;
   YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
   YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;
   YOLO_COVER_LETTER: { meta: DocumentMeta } | Err;

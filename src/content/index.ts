@@ -808,6 +808,22 @@ function refill(errors: HTMLElement[]) {
   }
 }
 
+/** Every field shown on the page and its answer, blank or not, for the run's log. Keys are per document: a field's id
+ * repeats on the next page. */
+function answers(): Record<string, Guess> {
+  const out: Record<string, Guess> = {};
+  for (const h of handles.values()) {
+    if (!h.el.isConnected || !isVisible(h.container ?? h.el)) continue;
+    const v = (h.el as HTMLInputElement).type === "password" ? "••••" : readValue(h);
+    const a = v.length > 300 ? `${v.slice(0, 300)}…` : v || "(blank)";
+    out[`${performance.timeOrigin}|${h.id}`] = {
+      q: h.desc.label || "(unlabeled field)",
+      a: `${a} [${states.get(h.id)?.status ?? "unscanned"}]`,
+    };
+  }
+  return out;
+}
+
 async function startYolo() {
   if (yolo) return;
   yolo = true;
@@ -820,13 +836,8 @@ async function startYolo() {
     refill,
     guesses: () => [...guesses.values()],
     email: () => config.profileSnapshotForDeterministic.personal.email,
-    values: () =>
-      import.meta.env.VITE_YOLO_DRY === "1"
-        ? [...handles.values()]
-            .filter((h) => h.el.isConnected)
-            .map((h) => `${h.desc.label} = ${readValue(h)} [${states.get(h.id)?.status}]`)
-            .join("\n")
-        : "",
+    answers,
+    debug: config.settings.debugLogging,
   });
 }
 

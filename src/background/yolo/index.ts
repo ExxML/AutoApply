@@ -18,7 +18,7 @@ import { RELEVANCE_SCHEMA, RelevanceZ } from "../gemini/schemas";
 import { draftEssays } from "../services/draftEssays";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
-import { kindOf, refused, signature } from "./classify";
+import { confirmation, kindOf, refused, signature } from "./classify";
 import { applied, discover } from "./discover";
 import { GmailAuthError, gmailToken, waitForEmail, waitForFeedCode } from "./gmail";
 import { closeFrame } from "./host";
@@ -50,6 +50,8 @@ type Handler<T extends Message["type"]> = (
 
 export interface YoloDeps {
   serviceCtx: () => Promise<ServiceCtx | { error: ApiError }>;
+  /** How many applications' debug logs to keep: 0 with debug logging off. */
+  logLimit: () => number;
 }
 
 let yolo: Yolo = defaultYolo();
@@ -199,6 +201,8 @@ async function requeue(item: QueueItem) {
 async function finish(run: Run, r: YoloResult) {
   if (!(await end(run.id))) return;
   if (run.mode === "scrape") return resolveScrape(run, r);
+  const limit = deps.logLimit();
+  if (limit) await logRun(run, r, limit);
   if (r.status === "blocked" && run.host === "frame" && yolo.tabFallback) {
     await start(run.item, "apply", "tab");
     return;
@@ -228,6 +232,23 @@ async function finish(run: Run, r: YoloResult) {
   if (a.status === "needs" && run.host !== "visible")
     notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: ${a.reason}`);
   void pump();
+}
+
+/** Debug logging: one entry per application with its steps, every field's answer, and what the page said at the end. */
+async function logRun(run: Run, r: YoloResult, limit: number) {
+  const answers = Object.values(run.answers ?? {});
+  const text = [
+    `${r.status}: ${run.item.company} – ${run.item.title} (${run.host})`,
+    run.atsUrl ?? run.item.url,
+    `Steps: ${run.steps.map((s) => s.split("|")[0]).join(" → ") || "none"}`,
+    "reason" in r && r.reason && `Reason: ${r.reason}`,
+    run.confirmation && `Confirmation: ${run.confirmation}`,
+    `Answers (${answers.length}):`,
+    ...answers.map((g) => `  ${g.q} = ${g.a}`),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  await store.set({ yoloLogs: [...(await store.get("yoloLogs")), { at: Date.now(), text }].slice(-limit) });
 }
 
 async function watchdog() {
@@ -400,6 +421,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     if (kind === "flagged") run.steps = run.steps.filter((s) => s.startsWith("flagged|"));
     run.steps.push(sig);
     run.stepAt = Date.now();
+    if (kind === "success") run.confirmation = confirmation(facts);
     // Reached the employer's own posting from a board link: it may be one applied to through another source.
     let stop: string | undefined;
     const host = (u: string) => new URL(u).hostname.replace(/^www\./, "");
@@ -418,6 +440,13 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_RESULT({ result }, sender) {
     const run = await getRun();
     if (fromRun(run, sender)) await finish(run, result);
+    return { ok: true };
+  },
+
+  async YOLO_ANSWERS({ answers }, sender) {
+    const run = await getRun();
+    // A later pass over the same field (a refill) replaces its answer.
+    if (fromRun(run, sender)) await saveRun({ ...run, answers: { ...run.answers, ...answers } });
     return { ok: true };
   },
 

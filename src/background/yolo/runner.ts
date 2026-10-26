@@ -22,6 +22,10 @@ export interface Run {
   guesses: Guess[];
   /** The employer's posting the run reached, when the queued link was a job board's. */
   atsUrl?: string;
+  /** Debug logging: every field the run filled and its answer, by document and field. */
+  answers?: Record<string, Guess>;
+  /** What the confirmation page said. */
+  confirmation?: string;
 }
 
 const KEY = "yoloRun";

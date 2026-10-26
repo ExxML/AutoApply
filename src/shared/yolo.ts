@@ -12,11 +12,14 @@ export const SIMPLIFY_FEED =
 export const BOARDS = ["linkedin", "indeed", "glassdoor"] as const;
 export type Board = (typeof BOARDS)[number];
 
+/** The most YOLO applies to in a day, and so the most applications' debug logs worth keeping. */
+export const MAX_DAILY_APPLICATIONS = 500;
+
 const base = z.object({
   enabled: b(false),
   intervalMin: n(30, 5, 1440),
   /** 0 finds jobs without applying (a dry run). */
-  dailyCap: n(25, 0, 500),
+  dailyCap: n(25, 0, MAX_DAILY_APPLICATIONS),
   queries: strs(),
   locations: strs(),
   remoteOk: b(true),

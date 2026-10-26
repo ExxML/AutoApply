@@ -3,7 +3,7 @@ import { NumberInput, TagInput, TextInput, Toggle } from "../components/controls
 import { save, useStored } from "../store";
 import { isErr, send, type Responses } from "../../shared/messages";
 import { formatDateTime } from "../../shared/time";
-import { BOARDS, type Board, type Yolo as YoloConfig } from "../../shared/yolo";
+import { BOARDS, MAX_DAILY_APPLICATIONS, type Board, type Yolo as YoloConfig } from "../../shared/yolo";
 
 const BOARD_NAMES: Record<Board, string> = { linkedin: "LinkedIn", indeed: "Indeed", glassdoor: "Glassdoor" };
 
@@ -133,10 +133,10 @@ export function Yolo() {
         />
         <NumberInput
           label="Applications per day"
-          help="Capped at 500 (~1 AI call every 3 mins). Higher numbers mean more Gemini usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 pauses YOLO."
+          help={`Capped at ${MAX_DAILY_APPLICATIONS} (~1 AI call every 3 mins). Higher numbers mean more Gemini usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 pauses YOLO.`}
           value={y.dailyCap}
           min={0}
-          max={500}
+          max={MAX_DAILY_APPLICATIONS}
           onChange={(dailyCap) => set({ dailyCap })}
         />
       </div>

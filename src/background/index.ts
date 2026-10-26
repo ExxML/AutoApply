@@ -68,7 +68,10 @@ const ready = (async () => {
   if (!changed.has("settings")) settings = s.settings;
   pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
   caps = { ...s.modelCapabilities, ...caps };
-  await initYolo({ serviceCtx: () => serviceCtx() });
+  await initYolo({
+    serviceCtx: () => serviceCtx(),
+    logLimit: () => (settings.debugLogging ? settings.debugLogLimit : 0),
+  });
 })();
 
 // ---------- helpers ----------

@@ -30,8 +30,10 @@ export interface DriverDeps {
   guesses(): Guess[];
   /** The address the run applies with. */
   email(): string;
-  /** Every field's label and value (dry-run builds only). */
-  values(): string;
+  /** Every field shown on the page and its answer, blank or not, keyed by document and field. */
+  answers(): Record<string, Guess>;
+  /** Debug logging is on: each page's answers go to the background's log of the run. */
+  debug: boolean;
 }
 
 /** A test build (VITE_YOLO_DRY=1) stops before the final submit and reports what it filled; others compile it out. */
@@ -154,6 +156,7 @@ export async function drive(deps: DriverDeps) {
         }
         case "form": {
           const rep = await fill();
+          if (deps.debug) await send({ type: "YOLO_ANSWERS", answers: deps.answers() }).catch(() => undefined);
           if (rep.retryAt) return result({ status: "failed", reason: "Gemini quota used up", retryAt: rep.retryAt });
           if (rep.fatal) return needs(rep.fatal);
           if (rep.unfilled.length) return needs(`Couldn't fill: ${rep.unfilled.slice(0, 3).join(", ")}`);
@@ -161,7 +164,11 @@ export async function drive(deps: DriverDeps) {
           const b = next ?? findSubmit();
           if (!b) return result({ status: "failed", reason: "No Next or Submit button", guesses: deps.guesses() });
           if (DRY && (!next || /submit/i.test(labelOf(b))))
-            return needs(`Dry run before "${labelOf(b)}":\n${deps.values()}`);
+            return needs(
+              `Dry run before "${labelOf(b)}":\n${Object.values(deps.answers())
+                .map((g) => `${g.q} = ${g.a}`)
+                .join("\n")}`,
+            );
           press(b);
           if (!(await changed(before, 20_000))) continue;
           const errors = validationErrors();

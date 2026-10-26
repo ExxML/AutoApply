@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { captchaShown, pageFacts } from "../../src/content/yolo/classify";
-import { kindOf } from "../../src/background/yolo/classify";
+import { confirmation, kindOf } from "../../src/background/yolo/classify";
 
 const classify = (fields: number, hidden = false) => kindOf(pageFacts(fields), hidden);
 import { findApply, findNext, findSubmit, validationErrors } from "../../src/content/yolo/nav";
@@ -37,6 +37,14 @@ describe("YOLO page kinds", () => {
       `<h2>We couldn't submit your application</h2><p>Your application submission was flagged as possible spam.</p>`,
     );
     expect(classify(0)).toBe("flagged");
+  });
+
+  it("quotes a confirmation page's message, else its headings", () => {
+    setBody(`<h1>Application received</h1>`);
+    const f = pageFacts(0);
+    const text = "Careers\nJobs\nThank you for applying!\n  We'll be   in touch.\n\nOpen roles\nFooter";
+    expect(confirmation({ ...f, text })).toBe("Thank you for applying! We'll be in touch. Open roles");
+    expect(confirmation({ ...f, text: "Careers\nAll done" })).toBe(f.headings);
   });
 
   it("asks for an emailed code, or a link", () => {
