@@ -608,7 +608,7 @@ function contactEmployerDecision(f: FieldDescriptor, experience: Profile["experi
 /**
  * A country's status picked from a list naming its citizen, permanent resident and a catch-all (Shield AI's
  * export-control "Are you any of the following?": "Other" for a Canadian, which the model flagged instead; Airwallex's
- * "Working Rights in Singapore" was left blank).
+ * "Working Rights in Singapore" was left blank, Qualtrics' "Individual born or naturalized in Mexico" list flagged).
  */
 function statusDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
   if (!f.options || isMulti(f)) return null;
@@ -616,7 +616,7 @@ function statusDecision(f: FieldDescriptor, entries: Profile["workAuthorization"
     const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
   };
-  const citizen = only(/\bcitizen\b/i);
+  const citizen = only(/\bcitizen\b|\bborn or naturali[sz]ed\b/i);
   const resident = only(/\bpermanent resident\b|\bgreen ?card\b/i);
   const other = only(/^(other|none( of the above)?|neither|not applicable|n\/a)\b/i);
   const country = citizen < 0 ? undefined : countryIn(f.options[citizen]);

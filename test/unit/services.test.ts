@@ -1570,6 +1570,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const other = "Other (e.g. PEP, ONE Pass or other)";
     options.splice(0, options.length, "Singapore Citizen", "Singapore Permanent Resident", other);
     expect(await ask()).toBe(other);
+    const mx = ["Individual born or naturalized in Mexico", "Permanent Resident", "Temporary Resident", "Other"];
+    options.splice(0, options.length, ...mx);
+    expect(await ask()).toBe("Other");
   });
 
   it("answers 'current company' from a current role only", async () => {
