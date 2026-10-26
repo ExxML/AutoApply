@@ -483,6 +483,33 @@ function needsSponsorshipDecision(
 }
 
 /**
+ * A work authorization status list for a country the profile is a citizen of: its one option saying so by
+ * citizenship or nationality. Vercel's "Your authorization to work in the country where you live" got "I am not
+ * authorized to work in the country and need visa support" for a Canadian in Canada.
+ */
+function nationalityDecision(
+  f: FieldDescriptor,
+  country: string | undefined,
+  entries: Profile["workAuthorization"]["entries"],
+): Decision | null {
+  if (!country || !f.options || isMulti(f)) return null;
+  const e = entryFor(country, entries);
+  if (e?.authorized !== "yes" || !/\bcitizen/i.test(e.status)) return null;
+  const hits = f.options.flatMap((o, i) =>
+    /\b(citizen\w*|nationality)\b/i.test(o) && !/\bnot\b|n['’]t\b|^no\b|\bsponsor|\bpermit\b/i.test(o) ? [i] : [],
+  );
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
+
+/**
  * "Are you a U.S. citizen?" Yes/No from the status the profile gives that country: the audit flagged MongoDB's
  * "meet the special requirements …, specifically being a U.S. Citizen?" → "No" for a Canadian citizen.
  */
@@ -1713,6 +1740,7 @@ export async function mapFields(
       currentStatusDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
+      nationalityDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile) ??

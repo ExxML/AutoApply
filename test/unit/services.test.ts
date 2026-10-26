@@ -727,6 +727,27 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ).decisions.map((d) => d.intendedAnswer ?? d.action);
     expect(await ask("London (GB)")).toEqual(["I will need visa sponsorship to start this role"]);
     expect(await ask("Toronto, Canada")).toEqual(["flag"]);
+    const vercel = [
+      "I am authorized to work in the country due to my nationality",
+      "I am authorized to work in the country based on a valid work permit and do not need a company to sponsor my visa",
+      "I am not authorized to work in the country and need visa support",
+      "Other",
+    ];
+    const live =
+      "Your authorization to work in the country where you live. Please choose the option that describes it.";
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [field("v", { label: live, kind: "dropdown", options: vercel })],
+        profile: {
+          ...profile,
+          personal: { ...profile.personal, address: { ...profile.personal.address, country: "Canada" } },
+        },
+        documents: [],
+        job: { url: "", title: "", company: "", jobTitle: "", text: "", location: "San Francisco, CA", capturedAt: 0 },
+      },
+    );
+    expect(r.decisions[0].intendedAnswer).toBe(vercel[0]);
   });
 
   it('flags an AI "None" to sponsorship where the candidate needs it', async () => {
