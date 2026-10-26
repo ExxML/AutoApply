@@ -438,7 +438,7 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         ...t(
           "essayGuidance.coverLetterTemplate",
           "Cover letter template",
-          "Optional base cover letter the AI adapts.",
+          "Optional base cover letter the AI adapts when writing one: cover-letter text boxes, and required uploads (YOLO) when Documents has no cover letter.",
           "textarea",
         ),
         wide: "full",

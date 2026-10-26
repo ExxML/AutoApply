@@ -14,10 +14,10 @@ const NAV: [string, string][] = [
   ["/setup", "Setup"],
   ["/profile", "Profile"],
   ["/documents", "Documents"],
-  ["/saved", "Saved answers"],
+  ["/saved", "Saved Answers"],
   ["/ai", "AI (Gemini)"],
   ["/behavior", "Behavior"],
-  ["/yolo", "YOLO mode"],
+  ["/yolo", "YOLO Mode"],
   ["/applications", "Applications"],
   ["/data", "Data"],
 ];

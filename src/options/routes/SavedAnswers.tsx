@@ -18,7 +18,7 @@ export function SavedAnswers() {
     });
   return (
     <section>
-      <h1>Saved answers</h1>
+      <h1>Saved Answers</h1>
       <p class="intro">
         Answers you gave on job pages. They fill matching questions instantly next time, without an AI call.
       </p>

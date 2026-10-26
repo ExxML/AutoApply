@@ -113,7 +113,7 @@ export function Popup() {
           onClick={() => void (yolo.searches || yolo.enabled ? setYoloOn(!yolo.enabled) : openOptions("/yolo"))}
         >
           <span class="yolo-head">
-            <span id="yolo-label">YOLO mode</span>
+            <span id="yolo-label">YOLO Mode</span>
             <span class={`btn small${yolo.enabled ? " primary" : ""}`}>{yolo.enabled ? "On" : "Off"}</span>
           </span>
           <span id="yolo-help" class="help">
