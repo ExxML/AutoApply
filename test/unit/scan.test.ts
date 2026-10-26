@@ -388,6 +388,13 @@ describe("widget classification (Appendix C.3)", () => {
     expect(spec.desc.hint).toContain("Select your college");
   });
 
+  it("reads a react-select multi-select from its value container (Datadog)", () => {
+    setBody(`<div><label for="q">Please select all the languages you speak fluently.</label>
+      <div class="select__control"><div class="select__value-container select__value-container--is-multi">
+      <input id="q" role="combobox" aria-expanded="false" aria-haspopup="true"></div></div></div>`);
+    expect(fields()[0].desc).toMatchObject({ kind: "dropdown", multiple: true });
+  });
+
   it("harvests options from a hidden native select backing a widget", () => {
     setBody(`<div><label>Province</label><div class="select__control">Select…</div>
       <select style="display:none"><option value="">Select</option><option>Alberta</option><option>British Columbia</option></select></div>`);

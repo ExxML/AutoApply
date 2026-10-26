@@ -245,7 +245,10 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
         else d.optionsKnown = false;
       } else {
         d.optionsKnown = false;
-        if (el.getAttribute("aria-multiselectable") === "true") d.multiple = true;
+        // react-select marks a multi-select only on its value container (Datadog's "select all the languages").
+        const multi = "[class*='value-container--is-multi']";
+        if (el.getAttribute("aria-multiselectable") === "true" || el.closest(multi) || el.querySelector(multi))
+          d.multiple = true;
       }
     } else if (kind === "typeahead") d.optionsKnown = false;
     if (d.options && d.options.length > 300) {
