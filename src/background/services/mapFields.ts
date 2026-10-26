@@ -193,6 +193,31 @@ function countryIn(text: string): string | undefined {
 const US = "united states";
 
 /**
+ * "Which office are you applying to?": the one option the job's location names. Sentry's "Vienna" for a Vienna job
+ * cited only the job, so it was dropped as a guess.
+ */
+function appliedOfficeDecision(f: FieldDescriptor, location: string | undefined): Decision | null {
+  if (!f.options || isMulti(f) || !location) return null;
+  if (
+    !/\b(which|what) (office|location)s? are you applying\b|\bapplying (to|for) which (office|location)\b/i.test(
+      f.label,
+    )
+  )
+    return null;
+  const where = ` ${normalize(location)} `;
+  const hits = f.options.flatMap((o, i) => (normalize(o) && where.includes(` ${normalize(o)} `) ? [i] : []));
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["job.location"],
+  };
+}
+
+/**
  * "Are you applying to a role in:" a list of countries: the job's, else "Other". Waymo's Warsaw internship got
  * "Other", and a blank on a later run; it asks about the role, not the candidate.
  */
@@ -1673,6 +1698,7 @@ export async function mapFields(
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
       roleCountryDecision(f, job) ??
+      appliedOfficeDecision(f, input.job?.location) ??
       countryDecision(f, home) ??
       regionDecision(f, input.profile.personal.address) ??
       raceDecision(f, input.profile.demographics.raceEthnicity) ??

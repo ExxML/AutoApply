@@ -386,6 +386,30 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Mountain View, CA")).toBe("Other");
   });
 
+  it("picks the office the job's location names", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const options = ["San Francisco", "Toronto", "Vienna"];
+    const ask = async (location: string) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("o", { label: "Which office are you applying to?", kind: "radio_group", options })],
+            profile: emptyProfile(),
+            documents: [],
+            job: { company: "Sentry", title: "", jobTitle: "Intern", url: "", location, text: "", capturedAt: 0 },
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(await ask("Vienna, Austria; Remote (Austria)")).toBe("Vienna");
+    expect(await ask("Toronto, ON; San Francisco, CA")).toBe("flag");
+  });
+
   it("ticks the terms inside the availability window", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
