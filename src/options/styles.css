@@ -464,6 +464,17 @@ label.inline {
 .field .field.toggle {
   margin: 6px 0 0;
 }
+/* Unstretched cells keep a toggle's help under its label, and toggles level with neighbors' labels. */
+.yolo .form {
+  align-items: start;
+}
+.yolo .field .row {
+  margin: 8px 0 0;
+}
+.yolo .tag {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 
 /* popup */
 .popup {

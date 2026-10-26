@@ -67,14 +67,13 @@ function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) 
   const [msg, setMsg] = useState("");
   const redirect = chrome.identity?.getRedirectURL() ?? "";
   return (
-    <>
+    <div class="field wide">
       <TextInput
         label="Gmail OAuth client ID"
         value={props.y.gmailClientId}
         onInput={(v) => props.set({ gmailClientId: v.trim() })}
         placeholder="1234-abc.apps.googleusercontent.com"
         help="Lets YOLO read verification emails sent to the YOLO email (read-only). Without it, emailed codes are read from the Gmail inbox signed in to this browser; sites that email a link are left for you."
-        wide
       />
       <details class="help">
         <summary>Set up the client ID (once, about 5 minutes)</summary>
@@ -89,7 +88,7 @@ function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) 
           <li>If this extension's folder moves, its redirect URI changes: update it in the client.</li>
         </ol>
       </details>
-      <div class="row-actions">
+      <div class="row">
         <button
           type="button"
           class="btn"
@@ -105,7 +104,7 @@ function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) 
           {msg || (state?.gmailNeedsAuth ? "Gmail needs to be reconnected." : "")}
         </span>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -115,7 +114,7 @@ export function Yolo() {
   const set = (patch: Partial<YoloConfig>) => void save({ yolo: { ...y, ...patch } });
   const urls = (v: string[]) => v.filter((u) => /^https?:\/\//i.test(u));
   return (
-    <section>
+    <section class="yolo">
       <h1>YOLO mode</h1>
       <p class="intro">
         While on, AutoApply checks your searches on a timer and applies to new matching jobs by itself: it creates site
@@ -184,14 +183,16 @@ export function Yolo() {
       </div>
       <h2>Sources</h2>
       <div class="form">
-        {BOARDS.map((b) => (
-          <Toggle
-            label={BOARD_NAMES[b]}
-            help={b === "indeed" ? "Read in the hidden page (its results need rendering)." : undefined}
-            checked={y.boards.includes(b)}
-            onChange={(on) => set({ boards: on ? [...y.boards, b] : y.boards.filter((x) => x !== b) })}
-          />
-        ))}
+        <div>
+          {BOARDS.map((b) => (
+            <Toggle
+              label={BOARD_NAMES[b]}
+              help={b === "indeed" ? "Read in the hidden page (its results need rendering)." : undefined}
+              checked={y.boards.includes(b)}
+              onChange={(on) => set({ boards: on ? [...y.boards, b] : y.boards.filter((x) => x !== b) })}
+            />
+          ))}
+        </div>
         <TagInput
           label="GitHub job lists"
           help="Raw URLs of a listings.json (SimplifyJobs format) or a README with a job table."
