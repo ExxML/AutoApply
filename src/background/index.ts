@@ -21,7 +21,7 @@ import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
 import { draftEssays } from "./services/draftEssays";
 import { parseResume } from "./services/parseResume";
-import { initYolo, isYoloDoc, runTab, yoloApplied, yoloDoc, yoloHandlers, yoloOverrides } from "./yolo";
+import { initYolo, isYoloDoc, runTab, yoloApplied, yoloDoc, yoloHandlers, yoloJob, yoloOverrides } from "./yolo";
 
 const store = createStorage("background");
 
@@ -234,6 +234,8 @@ const handlers: Handlers = {
 
   async SET_JOB_CONTEXT({ ctx }, sender) {
     const tab = await runTab(sender);
+    const job = await yoloJob(sender);
+    if (job) ctx = { ...ctx, company: job.company || ctx.company, jobTitle: job.title || ctx.jobTitle };
     // A YOLO frame's driver is the page's top frame; it has no tab.
     if (tab?.id !== undefined)
       await setJobContext(tab.id, ctx, sender.frameId && sender.tab ? (tab.url ?? "") : undefined);

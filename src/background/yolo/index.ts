@@ -255,6 +255,18 @@ const confirmed = (src: string) => (new RegExp(src, "i").test(document.body?.inn
 
 const accountEmail = async () => yolo.email || (await store.get("profile")).personal.email;
 
+/**
+ * A YOLO run's job as its source listed it: a proper company name and title where the page offers only a slug
+ * ("nuovophotography" on Workable), for essays and cover letters. Career sites' listings know no better than the page.
+ */
+export async function yoloJob(
+  sender: chrome.runtime.MessageSender,
+): Promise<{ company: string; title: string } | null> {
+  const run = await getRun();
+  if (!fromRun(run, sender) || run.mode !== "apply" || run.item.source === "careers") return null;
+  return { company: run.item.company, title: run.item.title };
+}
+
 /** The run's tab as the rest of the background sees it; the hidden frame has none, so it stands in as tab -1. */
 export async function runTab(sender: chrome.runtime.MessageSender): Promise<chrome.tabs.Tab | undefined> {
   if (sender.tab) return sender.tab;

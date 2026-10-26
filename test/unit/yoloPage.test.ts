@@ -66,6 +66,9 @@ describe("YOLO page kinds", () => {
     });
     expect(captchaShown()).toBe(true);
     expect(classify(1)).toBe("captcha");
+    // Once solved, the widget stays but its response token is set.
+    document.body.insertAdjacentHTML("beforeend", `<textarea name="g-recaptcha-response">tok</textarea>`);
+    expect(captchaShown()).toBe(false);
   });
 
   it("sends a Cloudflare check in the hidden frame to a tab, where it often passes by itself", () => {
@@ -113,6 +116,8 @@ describe("YOLO buttons", () => {
   it("skips third-party sign-ins and back buttons, and takes the form's own submit", () => {
     setBody(`<button>Apply with LinkedIn</button><button>Apply</button>`);
     expect(findApply()?.textContent).toBe("Apply");
+    setBody(`<h2>Data Consent</h2><button>I Accept</button>`);
+    expect(findNext()?.textContent).toBe("I Accept");
     setBody(`<button>Back</button><button>Continue</button>`);
     expect(findNext()?.textContent).toBe("Continue");
     setBody(`<button>Save as draft</button><button type="submit">Submit application</button>`);

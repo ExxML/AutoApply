@@ -28,8 +28,13 @@ export function codeInput(): HTMLInputElement | null {
   );
 }
 
-/** A challenge someone must solve: a visible image/checkbox frame, never the invisible score badge. */
+/** A challenge someone must solve: a visible image/checkbox frame, never the invisible score badge or one solved. */
 function challenge(): HTMLIFrameElement | undefined {
+  // A solved widget stays on the page; its response token says it's done.
+  const tokens = deepQueryAll(
+    '[name="g-recaptcha-response"],[name="h-captcha-response"],[name="cf-turnstile-response"]',
+  );
+  if (tokens.some((t) => (t as HTMLTextAreaElement).value)) return undefined;
   return (deepQueryAll("iframe") as HTMLIFrameElement[]).find((f) => {
     const shown =
       /recaptcha\/(api2|enterprise)\/bframe|hcaptcha\.com.*frame=challenge|challenges\.cloudflare\.com/.test(f.src) ||

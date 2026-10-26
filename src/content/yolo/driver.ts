@@ -92,9 +92,10 @@ export async function drive(deps: DriverDeps) {
     let refills = 0;
     for (let i = 0; i < 30; i++) {
       await settle();
+      const facts = pageFacts(deps.count());
       const step = await send({
         type: "YOLO_STEP",
-        facts: pageFacts(deps.count()),
+        facts,
         url: location.href,
         guesses: deps.guesses(),
       });
@@ -114,6 +115,8 @@ export async function drive(deps: DriverDeps) {
         case "captcha":
           // Never solved by us. In a visible tab the user solves it and the run goes on.
           if (!hello.visible) return needs("CAPTCHA");
+          // Everything else first, so the user only has the challenge left to do.
+          if (facts.fields) await fill();
           await waitFor(() => !captchaShown(), 10 * 60_000);
           continue;
         case "blocked":
