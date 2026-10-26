@@ -1294,17 +1294,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
                 kind: "checkbox_group",
                 options: ["New York, NY", "San Francisco, CA", "None of these"],
               }),
+              field("c", {
+                label: "What are your preferred office location(s) to work from? Select 1-2 from below.",
+                kind: "checkbox_group",
+                options: ["New York, NY", "Seattle, WA", "Denver, CO"],
+              }),
+              field("d", { label: "Insert other preferred location(s) and/or further context on preference." }),
             ],
             profile,
             documents: [],
             job: null,
           },
         )
-      ).decisions.map((d) => d.intendedAnswer ?? d.action);
-    expect(await ask()).toEqual([cohorts.slice(0, 2).join(", "), "New York, NY, San Francisco, CA"]);
+      ).decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action);
+    expect(await ask()).toEqual([
+      cohorts.slice(0, 2).join(", "),
+      "New York, NY, San Francisco, CA",
+      "New York, NY, Seattle, WA",
+      "Open to any location; willing to relocate.",
+    ]);
     profile.preferences.relocationNotes = "Only New York";
     profile.preferences.earliestStartDate = "2027-09-01";
-    expect(await ask()).toEqual(["flag", "flag"]);
+    expect(await ask()).toEqual(["flag", "flag", "flag", "flag"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {

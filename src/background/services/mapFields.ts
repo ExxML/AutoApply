@@ -926,14 +926,28 @@ function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
 
 /**
  * "Indicate all locations you would be interested in relocating to" for a candidate willing to relocate anywhere:
- * every one. Notion's got only "San Francisco, CA" of New York and San Francisco.
+ * every one. Notion's got only "San Francisco, CA" of New York and San Francisco. "Preferred office location(s) …
+ * Select 1-3" takes the first that many (Palantir's was left blank).
  */
 function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
-  if (!f.options || !isMulti(f) || !/\ball\b[^?]*\blocations?\b|\blocations?\b[^?]*\ball that apply\b/i.test(f.label))
-    return null;
+  const all = /\ball\b[^?]*\blocations?\b|\blocations?\b[^?]*\ball that apply\b/i.test(f.label);
+  const preferred = /\bpreferred (office )?locations?\b/i.test(f.label);
   const anywhere = /^(any(where)?)?$/i.test(prefs.relocationNotes.trim()) && prefs.preferredLocations.includes("Any");
-  if (prefs.willingToRelocate !== "yes" || !anywhere) return null;
-  const picks = f.options.flatMap((o, i) => (/^(none|other|n\/a|not applicable|remote)\b/i.test(o) ? [] : [i]));
+  if (prefs.willingToRelocate !== "yes" || !anywhere || !(all || preferred)) return null;
+  // Its text box ("Insert other preferred location(s) and/or further context on preference").
+  if (!f.options && preferred && (f.kind === "text" || f.kind === "textarea"))
+    return {
+      fieldId: f.id,
+      action: "fill",
+      text: "Open to any location; willing to relocate.",
+      confidence: "high",
+      sources: ["preferences.willingToRelocate", "preferences.preferredLocations"],
+    };
+  if (!f.options || !isMulti(f)) return null;
+  const cap = Number(/\bselect (?:up to |\d+ ?[-–] ?|between \d+ and )?(\d+)\b/i.exec(f.label)?.[1] ?? Infinity);
+  const picks = f.options
+    .flatMap((o, i) => (/^(none|other|n\/a|not applicable|remote)\b/i.test(o) ? [] : [i]))
+    .slice(0, cap);
   if (!picks.length) return null;
   return {
     fieldId: f.id,
