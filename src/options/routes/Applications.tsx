@@ -3,7 +3,7 @@ import { send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
 import type { Application } from "../../shared/yolo";
-import { useStored } from "../store";
+import { store, useStored } from "../store";
 
 const STATUS: Record<Application["status"], string> = {
   submitted: "Submitted",
@@ -117,7 +117,17 @@ export function Applications() {
       )}
       {queue.length > 0 && (
         <>
-          <h2>Queued ({queue.length})</h2>
+          <h2>
+            Queued ({queue.length}){" "}
+            <button
+              type="button"
+              class="btn small danger"
+              title="Drop every queued job; YOLO won't find them again"
+              onClick={() => void store.set({ yoloQueue: [] })}
+            >
+              Clear queue
+            </button>
+          </h2>
           <ul>
             {queue.map((i) => (
               <li>
