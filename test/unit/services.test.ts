@@ -777,6 +777,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         },
       );
     expect((await ask("San Francisco, CA")).decisions[0]).toMatchObject({ action: "flag", suggestion: "None" });
+    const visa =
+      "Will you now or at any time in the future require sponsorship for employment visa status (e.g. H1B, OPT)?";
+    expect((await ask("San Francisco, CA", visa)).decisions[0]).toMatchObject({ action: "flag", suggestion: "None" });
     // Fastly: "None" is right when the question is about a visa held now.
     const held = "If you are currently on a VISA sponsorship, what type of VISA? (H-1B, J1, F1, OPT, etc.)";
     expect((await ask("San Francisco, CA", held)).decisions[0]).toMatchObject({ action: "fill" });

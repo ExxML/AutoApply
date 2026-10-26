@@ -336,7 +336,8 @@ function otherStatusDecision(
   return { fieldId: f.id, action: "fill", text: parts.join(" "), confidence: "high", sources: ["workAuthorization"] };
 }
 
-const lastSentence = (s: string) => s.split(/(?<=[.!])\s+(?=[A-Z])/).pop()!;
+// Not after an abbreviation: Notion's "(e.g. H1B, OPT)?" would split off.
+const lastSentence = (s: string) => s.split(/(?<=[a-z]{2}[.!])\s+(?=[A-Z])/).pop()!;
 
 /**
  * "What is your current immigration status / basis of your current work authorization?" in a country the profile
