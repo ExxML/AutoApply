@@ -572,20 +572,22 @@ function contactEmployerDecision(f: FieldDescriptor, experience: Profile["experi
 }
 
 /**
- * U.S. status picked from a list naming citizen, permanent resident and a catch-all (Shield AI's export-control
- * "Are you any of the following?": "Other" for a Canadian, which the model flagged instead).
+ * A country's status picked from a list naming its citizen, permanent resident and a catch-all (Shield AI's
+ * export-control "Are you any of the following?": "Other" for a Canadian, which the model flagged instead; Airwallex's
+ * "Working Rights in Singapore" was left blank).
  */
-function usStatusDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
+function statusDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
   if (!f.options || isMulti(f)) return null;
   const only = (re: RegExp) => {
     const hits = f.options!.flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
   };
-  const citizen = only(/\b(u\.?s\.?|united states) citizen/i);
+  const citizen = only(/\bcitizen\b/i);
   const resident = only(/\bpermanent resident\b|\bgreen ?card\b/i);
   const other = only(/^(other|none( of the above)?|neither|not applicable|n\/a)\b/i);
-  if (citizen < 0 || resident < 0 || other < 0) return null;
-  const status = entryFor(US, entries)?.status ?? "none";
+  const country = citizen < 0 ? undefined : countryIn(f.options[citizen]);
+  if (!country || resident < 0 || other < 0) return null;
+  const status = entryFor(country, entries)?.status ?? "none";
   if (!status || /refugee|asyl/i.test(status)) return null;
   const i = /citizen/i.test(status) ? citizen : /permanent|green ?card/i.test(status) ? resident : other;
   return {
@@ -1738,7 +1740,7 @@ export async function mapFields(
       currentCompanyDecision(f, input.profile.experience) ??
       notWorkingDecision(f, input.profile.experience) ??
       contactEmployerDecision(f, input.profile.experience) ??
-      usStatusDecision(f, input.profile.workAuthorization.entries) ??
+      statusDecision(f, input.profile.workAuthorization.entries) ??
       otherStatusDecision(f, input.fields, local, countries, input.profile.workAuthorization.entries);
     if (d) local.set(f.id, d);
   }

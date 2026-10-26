@@ -1506,7 +1506,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
-  it("picks U.S. status from citizen / permanent resident / other lists", async () => {
+  it("picks a country status from citizen / permanent resident / other lists", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
@@ -1539,6 +1539,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toBe("A lawful permanent resident (Greencard holder)");
     profile.workAuthorization.entries = [{ ...entry, country: "USA", status: "Citizen" }];
     expect(await ask()).toBe("A United States Citizen");
+    const other = "Other (e.g. PEP, ONE Pass or other)";
+    options.splice(0, options.length, "Singapore Citizen", "Singapore Permanent Resident", other);
+    expect(await ask()).toBe(other);
   });
 
   it("answers 'current company' from a current role only", async () => {
