@@ -606,6 +606,28 @@ function contactEmployerDecision(f: FieldDescriptor, experience: Profile["experi
 }
 
 /**
+ * "Do you hold / are you eligible for a (U.S.) security clearance?" for a U.S. job or one the label names, when the
+ * profile gives no clearance and no U.S. citizenship, which U.S. clearances require: "No". Palantir's were flagged.
+ */
+function clearanceDecision(f: FieldDescriptor, job: string | undefined, profile: Profile): Decision | null {
+  const l = f.label;
+  if (!f.options || isMulti(f) || !/\bsecurity clearance\b/i.test(l) || /\bnot\b|n['’]t\b|\bunable\b/i.test(l))
+    return null;
+  if (profile.workAuthorization.securityClearance.trim() || (countryIn(l) ?? job) !== US) return null;
+  if (/citizen/i.test(entryFor(US, profile.workAuthorization.entries)?.status ?? "")) return null;
+  const no = f.options.flatMap((o, i) => (/^no\b/i.test(o.trim()) ? [i] : []));
+  if (no.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: no,
+    intendedAnswer: f.options[no[0]],
+    confidence: "high",
+    sources: ["workAuthorization"],
+  };
+}
+
+/**
  * A country's status picked from a list naming its citizen, permanent resident and a catch-all (Shield AI's
  * export-control "Are you any of the following?": "Other" for a Canadian, which the model flagged instead; Airwallex's
  * "Working Rights in Singapore" was left blank, Qualtrics' "Individual born or naturalized in Mexico" list flagged).
@@ -1759,6 +1781,7 @@ export async function mapFields(
       aiUseDecision(f) ??
       schoolEmailDecision(f) ??
       exerciseDecision(f) ??
+      clearanceDecision(f, job, input.profile) ??
       currentStatusDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??

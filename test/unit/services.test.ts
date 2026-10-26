@@ -2024,6 +2024,36 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["c"]);
   });
 
+  it("answers U.S. security clearance questions No without U.S. citizenship", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const yn = (id: string, label: string) => field(id, { label, kind: "select", options: ["Yes", "No"] });
+    const ask = async (location: string) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              yn("a", "Do you currently hold an active US security clearance?"),
+              yn("b", "Are you eligible to obtain the security clearance specified in the job description?"),
+            ],
+            profile,
+            documents: [],
+            job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(await ask("Washington, DC")).toEqual(["No", "No"]);
+    expect(await ask("Toronto, ON")).toEqual(["No", "flag"]);
+    profile.workAuthorization.securityClearance = "Secret";
+    expect(await ask("Washington, DC")).toEqual(["flag", "flag"]);
+  });
+
   it("leaves a take-home exercise submission to the user", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
