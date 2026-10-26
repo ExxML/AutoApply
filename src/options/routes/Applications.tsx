@@ -122,8 +122,16 @@ export function Applications() {
             <button
               type="button"
               class="btn small danger"
-              title="Drop every queued job; YOLO won't find them again"
-              onClick={() => void store.set({ yoloQueue: [] })}
+              title="Drop every queued job for now; YOLO can queue them again when it next checks"
+              onClick={async () => {
+                const [q, seen] = await Promise.all([store.get("yoloQueue"), store.get("yoloSeen")]);
+                // Unmark them so a later check can queue them again: clearing isn't rejecting.
+                for (const i of q) {
+                  delete seen[i.key];
+                  delete seen[i.alt];
+                }
+                await store.set({ yoloQueue: [], yoloSeen: seen });
+              }}
             >
               Clear queue
             </button>
