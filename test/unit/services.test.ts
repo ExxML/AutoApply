@@ -329,6 +329,38 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("answers a current immigration status asked after a sponsorship lead-in", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address.country = "Canada";
+    profile.workAuthorization.entries = [
+      { ...emptyProfile().workAuthorization.entries[0], country: "Canada", authorized: "yes", status: "Citizen" },
+    ];
+    const label =
+      "If you answered “Yes” above to requiring visa sponsorship now or in the future for work authorization, please respond to the following questions. What is your current immigration status/basis of your current work authorization in the United States?";
+    const ask = async (options?: string[]) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("s", { label, kind: "dropdown", options, optionsKnown: !!options })],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(
+      await ask(["N/A (I do not require work authorization)", "F-1 OPT", "TN", "No Current Work Authorization"]),
+    ).toBe("No Current Work Authorization");
+    expect(await ask()).toBe("No current work authorization");
+  });
+
   it("answers which country the role is in from the job's location", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

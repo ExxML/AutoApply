@@ -305,6 +305,34 @@ function otherStatusDecision(
   return { fieldId: f.id, action: "fill", text: parts.join(" "), confidence: "high", sources: ["workAuthorization"] };
 }
 
+const lastSentence = (s: string) => s.split(/(?<=[.!])\s+(?=[A-Z])/).pop()!;
+
+/**
+ * "What is your current immigration status / basis of your current work authorization?" in a country the profile
+ * isn't authorized in: no current authorization. Akuna's got "None", which the list's "N/A (I do not require work
+ * authorization)" would have matched.
+ */
+function currentStatusDecision(
+  f: FieldDescriptor,
+  country: string | undefined,
+  entries: Profile["workAuthorization"]["entries"],
+): Decision | null {
+  const q = lastSentence(f.label);
+  if (
+    !country ||
+    isMulti(f) ||
+    !/\bcurrent (immigration|visa|work authori[sz]ation) status\b|\bbasis of your current work authori[sz]ation\b/i.test(
+      q,
+    )
+  )
+    return null;
+  if (entryFor(country, entries)?.authorized === "yes" || !(f.options || f.kind === "dropdown")) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["workAuthorization"] };
+  if (!f.options?.length) return { ...base, intendedAnswer: "No current work authorization" };
+  const i = f.options.findIndex((o) => /\bno (current )?(work )?(authori[sz]ation|status|visa)\b/i.test(o));
+  return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
+}
+
 /**
  * An AI answer of "None"/"No" to a sponsorship question for a country where the profile needs sponsorship (no entry,
  * or one requiring it). Notion's "will you require any of the below sponsorship? J1 / F1 / None / Other" got "None".
@@ -317,10 +345,13 @@ function deniesNeededSponsorship(
 ): boolean {
   // Only "will you require/need …": "If you are currently on a visa sponsorship, what type?" → "N/A" is right (Fastly).
   // Not "authorized … without requiring sponsorship?", where "No" is the answer that admits needing it.
+  // The question itself, not a lead-in ("If you answered Yes above to requiring visa sponsorship, … What is your
+  // current immigration status?", Akuna).
+  const q = lastSentence(f.label);
   const asks =
-    /\b(requir|need)\w*\b[^?]*\bsponsor/i.test(f.label) &&
-    !/\bcurrently (on|hold)/i.test(f.label) &&
-    !/\bwithout\b[^?]*\bsponsor/i.test(f.label);
+    /\b(requir|need)\w*\b[^?]*\bsponsor/i.test(q) &&
+    !/\bcurrently (on|hold)/i.test(q) &&
+    !/\bwithout\b[^?]*\bsponsor/i.test(q);
   if (!country || !asks || !/^(none|no|n\/?a|not applicable)\b/i.test(answer)) return false;
   const e = entryFor(country, entries);
   return !e || e.requiresSponsorshipNow === "yes" || e.requiresSponsorshipFuture === "yes";
@@ -1611,6 +1642,7 @@ export async function mapFields(
     const d =
       aiUseDecision(f) ??
       schoolEmailDecision(f) ??
+      currentStatusDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       experienceDecision(f, months) ??
