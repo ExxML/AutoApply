@@ -1541,10 +1541,22 @@ export async function mapFields(
       usStatusDecision(f, input.profile.workAuthorization.entries);
     if (d) local.set(f.id, d);
   }
+  // A follow-up to a question answered here: the model can't see that answer (Etched's "If you answered other:" was
+  // skipped after work authorization got "Other (please explain below)").
+  const answeredBefore = new Map<string, string>();
+  input.fields.forEach((f, i) => {
+    const prev = input.fields[i - 1];
+    const d = prev && local.get(prev.id);
+    const answer = d?.action === "fill" ? suggestionOf(d, prev) : undefined;
+    if (answer && f.hint?.startsWith("Follow-up to the previous question"))
+      answeredBefore.set(f.id, `${f.hint}. The candidate answered it: "${answer}".`);
+  });
   const sent = (f: FieldDescriptor) => {
     const country = countries.get(f.id);
+    const hint = answeredBefore.get(f.id);
     return {
       ...f,
+      ...(hint ? { hint } : {}),
       ...(f.options ? { options: numbered(f.options) } : {}),
       ...(country ? { workCountry: country } : {}),
     };

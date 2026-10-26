@@ -269,6 +269,32 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
 
+  it("tells the model the answer given here to the question a follow-up follows", async () => {
+    const hints: (string | undefined)[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        hints.push(...(s.payload.fields ?? []).map((f) => f.hint));
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "skip", confidence: "high" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const asked = "May we contact your current employer?";
+    const hint = `Follow-up to the previous question: "${asked}"`;
+    await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("a", { label: asked, kind: "select", options: ["Yes", "No"] }),
+          field("b", { label: "If yes, who should we contact?", hint }),
+        ],
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(hints).toEqual([`${hint}. The candidate answered it: "Yes".`]);
+  });
+
   it("shows the audit the hint a question points at", async () => {
     const questions: string[] = [];
     const gemini = {
