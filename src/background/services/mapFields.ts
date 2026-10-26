@@ -1288,6 +1288,16 @@ function graduationDecision(f: FieldDescriptor, profile: Profile): Decision | nu
 }
 
 /**
+ * The label, with the hint when the label points at it: Waymo's "export license under the circumstances described
+ * below?" was rejected without them. Other hints stay out, since any change to the payload reshuffles verdicts.
+ */
+function auditQuestion(f: FieldDescriptor): string {
+  return f.hint && /\b(described|listed|stated|outlined) (below|above)\b/i.test(f.label)
+    ? `${f.label} ${f.hint}`
+    : f.label;
+}
+
+/**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
  * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
  */
@@ -1309,7 +1319,7 @@ async function auditFills(
       d.text !== NOT_APPLICABLE &&
       // An unticked box claims nothing (Airbnb's "I decline to answer the following questions.").
       !(f.kind === "checkbox" && d.checked === false)
-      ? [{ fieldId: f.id, question: f.label, answer: answer ?? "" }]
+      ? [{ fieldId: f.id, question: auditQuestion(f), answer: answer ?? "" }]
       : [];
   });
   if (!items.length) return decisions;

@@ -150,20 +150,34 @@ export function finishLabel(s: string): string {
   return clip(cleanLabel(s), 300);
 }
 
+// Long enough for the facts a description lists last (Waymo's export-control countries end near 400 characters).
+const HINT_MAX = 600;
+
 export function hintFor(el: HTMLElement, container: Element): string {
   const d = byIds(el, "aria-describedby");
-  if (d) return clip(d, 300);
+  if (d) return clip(d, HINT_MAX);
   try {
     const desc = collapse(computeAccessibleDescription(el));
-    if (desc) return clip(desc, 300);
+    if (desc) return clip(desc, HINT_MAX);
   } catch {
     // dom-accessibility-api can throw on exotic markup; fall through to helper classes
   }
-  for (const n of container.querySelectorAll<HTMLElement>("[class]")) {
-    if (!(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) || el.contains(n)) continue;
-    if (!RE_HELPER_CLASS.test(typeof n.className === "string" ? n.className : "")) continue;
+  const helpers = [...container.querySelectorAll<HTMLElement>("[class]")].filter(
+    (n) => RE_HELPER_CLASS.test(typeof n.className === "string" ? n.className : "") && !el.contains(n),
+  );
+  const after = (n: Element) => !!(el.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING);
+  // Text after the control first; else a description between its label and it (Waymo's "described below").
+  const label = labelElementFor(el);
+  const between = (n: Element) =>
+    !after(n) &&
+    !n.contains(el) &&
+    !n.querySelector("label") &&
+    !!label &&
+    !label.contains(n) &&
+    !!(label.compareDocumentPosition(n) & 4);
+  for (const n of [...helpers.filter(after), ...helpers.filter(between)]) {
     const t = textOf(n);
-    if (t) return clip(t, 300);
+    if (t) return clip(t, HINT_MAX);
   }
   return "";
 }

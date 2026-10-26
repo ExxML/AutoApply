@@ -269,6 +269,36 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(r.decisions[1]).toMatchObject({ note: "Not in your profile" });
   });
 
+  it("shows the audit the hint a question points at", async () => {
+    const questions: string[] = [];
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: { question: string }[] } }) => {
+        if (s.system.startsWith("You audit")) {
+          questions.push(...s.payload.items!.map((i) => i.question));
+          return { data: { verdicts: [] }, usedModel: "m", keyLabel: "k" };
+        }
+        const decisions = s.payload.fields!.map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          text: "No",
+          confidence: "high",
+          sources: ["profile.workAuthorization"],
+        }));
+        return { data: { decisions }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const label = "Would you require an export license under the circumstances described below?";
+    const fields = [
+      field("a", { label, hint: "Needed by citizens of Cuba or Iran." }),
+      field("b", { label: "Do you receive active funding?", hint: "Select..." }),
+    ];
+    await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(questions).toEqual([`${label} Needed by citizens of Cuba or Iran.`, "Do you receive active funding?"]);
+  });
+
   it("tells the model which country each work authorization question is about", async () => {
     const sent: Record<string, unknown>[] = [];
     const gemini = {

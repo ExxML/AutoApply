@@ -262,7 +262,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       prev &&
       /^(if (yes|no|so|not|other)\b|please (specify|explain|elaborate)\b|if you (answered|selected))/i.test(label)
     )
-      d.hint = clip(`Follow-up to the previous question: "${prev.desc.label}"${d.hint ? `. ${d.hint}` : ""}`, 300);
+      d.hint = clip(`Follow-up to the previous question: "${prev.desc.label}"${d.hint ? `. ${d.hint}` : ""}`, 600);
     const section = sectionFor(el, collected.order, collected.headings);
     if (section && section !== label) d.section = section;
     const required =

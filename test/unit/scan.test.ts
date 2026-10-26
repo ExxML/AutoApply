@@ -120,6 +120,13 @@ describe("label extraction (§11.5)", () => {
     expect(hs[1].desc.hint).toBe("Max 100 words");
   });
 
+  it("reads a description between the label and the control (Waymo's export license)", () => {
+    setBody(`<div class="form-group"><label for="a">Would you require an export license under the circumstances described below?</label>
+      <span class="post-label-description"><p>Applies to citizens of Cuba, Iran, North Korea or Syria.</p></span>
+      <select id="a"><option>Yes</option><option>No</option></select></div>`);
+    expect(fields()[0].desc.hint).toBe("Applies to citizens of Cuba, Iran, North Korea or Syria.");
+  });
+
   it("labels controls by a <label for> naming their wrapper (Ashby's education dates)", () => {
     const sel = (o: string[]) => `<div><select>${o.map((x) => `<option>${x}</option>`).join("")}</select></div>`;
     setBody(`<div><label for="start">Start Date</label><div id="start">${sel(["Month...", "May"])}${sel(["Year...", "2024"])}</div></div>
