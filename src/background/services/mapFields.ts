@@ -777,6 +777,44 @@ function cohortDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
   };
 }
 
+// A term's middle month, to place it in the availability window.
+const TERM_MID: [RegExp, number][] = [
+  [/\bwinter\b/i, 2],
+  [/\bspring\b/i, 4],
+  [/\bsummer\b/i, 7],
+  [/\b(fall|autumn)\b/i, 10],
+];
+
+/**
+ * "Which term(s) would you like to be considered for?" (checklist of seasons): each term inside the availability
+ * window and among the co-op terms the profile lists ("All" for any). Etched's "Winter (January - May)" and "Summer
+ * (May - August)" were left blank.
+ */
+function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  const { earliestStartDate: from, availableUntil: to } = profile.preferences;
+  if (!f.options || !isMulti(f) || !/\b(terms?|semesters?|seasons?)\b/i.test(f.label) || !from) return null;
+  const terms = profile.coop.availableTerms;
+  const any = !terms.length || terms.some((t) => /^all$/i.test(t.trim()));
+  const fits = f.options.map((o) => {
+    const season = TERM_MID.find(([re]) => re.test(o));
+    if (!season || (!any && !terms.some((t) => season[0].test(t)))) return season ? false : null;
+    const year = o.match(/\b20\d\d\b/)?.[0];
+    if (!year) return true;
+    const mid = `${year}-${String(season[1]).padStart(2, "0")}`;
+    return mid >= from.slice(0, 7) && (!to || mid <= to.slice(0, 7));
+  });
+  if (fits.includes(null) || !fits.includes(true)) return null;
+  const picks = fits.flatMap((ok, i) => (ok ? [i] : []));
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: picks,
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["preferences.earliestStartDate", "preferences.availableUntil", "coop.availableTerms"],
+  };
+}
+
 /**
  * "Indicate all locations you would be interested in relocating to" for a candidate willing to relocate anywhere:
  * every one. Notion's got only "San Francisco, CA" of New York and San Francisco.
@@ -1523,6 +1561,7 @@ export async function mapFields(
       internshipsDecision(f, input.profile.experience) ??
       pronunciationDecision(f) ??
       cohortDecision(f, input.profile.preferences) ??
+      termsDecision(f, input.profile) ??
       relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       returnOfferDecision(f, input.profile) ??

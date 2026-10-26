@@ -295,6 +295,45 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(hints).toEqual([`${hint}. The candidate answered it: "Yes".`]);
   });
 
+  it("ticks the terms inside the availability window", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences.earliestStartDate = "2027-01-01";
+    profile.preferences.availableUntil = "2028-05-01";
+    const ask = async (options: string[]) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("t", {
+                label: "Which term(s) would you like to be considered for?",
+                kind: "checkbox_group",
+                options,
+                multiple: true,
+              }),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    profile.coop.availableTerms = ["All"];
+    expect(await ask(["Winter (January - May)", "Summer (May - August)"])).toBe(
+      "Winter (January - May), Summer (May - August)",
+    );
+    expect(await ask(["Fall 2026", "Summer 2027", "Fall 2028"])).toBe("Summer 2027");
+    expect(await ask(["Summer 2027", "Other"])).toBe("flag");
+    profile.coop.availableTerms = ["Summer"];
+    expect(await ask(["Winter (January - May)", "Summer (May - August)"])).toBe("Summer (May - August)");
+  });
+
   it("shows the audit the hint a question points at", async () => {
     const questions: string[] = [];
     const gemini = {
