@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { installChromeMock } from "./chromeMock";
 import { altKey, applyUrl, jobKey } from "../../src/background/yolo/jobKey";
 import { parseFeed, parseGlassdoor, parseIndeed, parseLinkedIn } from "../../src/background/yolo/sources";
 import { boardOf, findOnEmployerBoard, jobLinks, sameTitle, workdayPosted } from "../../src/background/yolo/careers";
 import { locationMatches, rejectReason, titleMatches } from "../../src/background/yolo/filter";
+import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { extract, feedTexts } from "../../src/background/yolo/gmail";
 import { textPdf, wrap } from "../../src/background/yolo/pdf";
 import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
@@ -14,6 +16,8 @@ import { defaultSettings } from "../../src/shared/settings";
 import { emptyProfile } from "../../src/shared/profileSchema";
 import { defaultYolo, type Application, type Listing } from "../../src/shared/yolo";
 import type { FieldDescriptor } from "../../src/shared/types";
+
+beforeAll(() => loadPlaces(() => readFile(`public/${PLACES_FILE}`, "utf8")));
 
 describe("job keys", () => {
   it("names a Workday requisition once across its location copies and apply steps", () => {
@@ -301,6 +305,26 @@ describe("filters", () => {
     expect(locationMatches("Remote", ["Canada"], false)).toBe(false);
     expect(locationMatches("Seattle, WA", ["Seattle"], false)).toBe(true);
     expect(locationMatches("Anywhere", [], false)).toBe(true);
+  });
+
+  it("matches a city or region inside a wanted country or region", () => {
+    expect(locationMatches("Kelowna", ["Canada"], false)).toBe(true);
+    expect(locationMatches("Kelowna, BC", ["British Columbia"], false)).toBe(true);
+    expect(locationMatches("Burnaby", ["BC"], false)).toBe(true);
+    expect(locationMatches("Toronto, ON", ["Ontario"], false)).toBe(true);
+    expect(locationMatches("Toronto, ON", ["British Columbia"], false)).toBe(false);
+    expect(locationMatches("Ontario", ["Canada"], false)).toBe(true);
+    expect(locationMatches("Redmond, Washington", ["United States"], false)).toBe(true);
+    expect(locationMatches("Munich", ["Bavaria"], false)).toBe(true);
+    expect(locationMatches("Bengaluru, IN", ["India"], false)).toBe(true);
+    // The likeliest place for a bare name; a region or country part picks another.
+    expect(locationMatches("London", ["Canada"], false)).toBe(false);
+    expect(locationMatches("London, ON", ["Canada"], false)).toBe(true);
+    expect(locationMatches("Vancouver, WA", ["British Columbia"], false)).toBe(false);
+    expect(locationMatches("Vancouver, British Columbia", ["Vancouver, BC"], false)).toBe(true);
+    // A country-wide remote job covers a wanted region; a region-wide one does not cover another region.
+    expect(locationMatches("Remote - Canada", ["Ontario"], true)).toBe(true);
+    expect(locationMatches("Remote - Ontario", ["British Columbia"], true)).toBe(false);
   });
 
   it("explains why a posting is skipped", () => {

@@ -150,7 +150,7 @@ export function Yolo() {
         />
         <TagInput
           label="Locations"
-          help={`Countries, provinces/states/regions or cities, e.g. "Canada", "Ontario", "Seattle". Empty: anywhere. A country covers every region and city in it, and a region every city in it: "Canada" matches a job in "Kelowna" or "Ontario". A job must match only one entry. Edge cases that can skip a job you wanted: a bare city name means its largest namesake ("London" is England's, "Vancouver" British Columbia's), so a job listed as just "London" doesn't match "Canada"; a job that names only a country or region doesn't match a city in it ("Canada" doesn't match "Toronto", so add "Canada" too); towns under 5,000 people in Canada and the US (15,000 elsewhere), neighbourhoods and nicknames ("GTA", "Silicon Valley") match only by their exact words; regions outside Canada and the US need their English name ("Bavaria"), and codes like "CA" mean both California and Canada, so prefer full names. Remote jobs that name no place match only with "Include remote jobs" on; "Remote - Ontario" doesn't match "British Columbia". Jobs from your career sites that state no location always pass.`}
+          help={`Countries, regions or cities, e.g. "Canada", "Ontario", "Seattle". Empty: anywhere. A country includes its regions and cities ("Canada" matches "Kelowna"). "London" matches every London; enter "London, ON" or "London, UK" for one. Can miss: small towns listed alone, jobs listing just "London" when you entered "London, ON" (a bare name means its biggest namesake), and jobs naming only a country when you entered a city. Prefer full names over codes like "CA".`}
           value={y.locations}
           onChange={(locations) => set({ locations })}
         />

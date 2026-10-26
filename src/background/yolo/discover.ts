@@ -4,6 +4,7 @@ import type { Application, Listing, QueueItem, Yolo } from "../../shared/yolo";
 import { boardOf, careerSite, findOnEmployerBoard, type Fetcher } from "./careers";
 import { rejectReason } from "./filter";
 import { altKey, jobKey } from "./jobKey";
+import { loadPlaces } from "./places";
 import {
   glassdoorSearch,
   indeedHost,
@@ -100,6 +101,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   }
 
   // New postings that fit, each looked at once.
+  await loadPlaces();
   const seen = s.yoloSeen;
   const queued = new Set(s.yoloQueue.map((i) => i.key));
   const fresh: Listing[] = [];
