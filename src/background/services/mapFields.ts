@@ -194,9 +194,14 @@ const US = "united states";
 
 /**
  * "Which office are you applying to?": the one option the job's location names. Sentry's "Vienna" for a Vienna job
- * cited only the job, so it was dropped as a guess.
+ * cited only the job, so it was dropped as a guess. With several, the first for a candidate open to anywhere (Shield
+ * AI's Dallas / San Diego / Boston).
  */
-function appliedOfficeDecision(f: FieldDescriptor, location: string | undefined): Decision | null {
+function appliedOfficeDecision(
+  f: FieldDescriptor,
+  location: string | undefined,
+  prefs: Profile["preferences"],
+): Decision | null {
   if (!f.options || isMulti(f) || !location) return null;
   if (
     !/\b(which|what) (office|location)s? are you applying\b|\bapplying (to|for) which (office|location)\b/i.test(
@@ -206,11 +211,12 @@ function appliedOfficeDecision(f: FieldDescriptor, location: string | undefined)
     return null;
   const where = ` ${normalize(location)} `;
   const hits = f.options.flatMap((o, i) => (normalize(o) && where.includes(` ${normalize(o)} `) ? [i] : []));
-  if (hits.length !== 1) return null;
+  const anywhere = /^(any(where)?)?$/i.test(prefs.relocationNotes.trim()) && prefs.preferredLocations.includes("Any");
+  if (!hits.length || (hits.length > 1 && !(anywhere && prefs.willingToRelocate === "yes"))) return null;
   return {
     fieldId: f.id,
     action: "fill",
-    optionIndexes: hits,
+    optionIndexes: hits.slice(0, 1),
     intendedAnswer: f.options[hits[0]],
     confidence: "high",
     sources: ["job.location"],
@@ -1733,7 +1739,7 @@ export async function mapFields(
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
       roleCountryDecision(f, job) ??
-      appliedOfficeDecision(f, input.job?.location) ??
+      appliedOfficeDecision(f, input.job?.location, input.profile.preferences) ??
       countryDecision(f, home) ??
       regionDecision(f, input.profile.personal.address) ??
       raceDecision(f, input.profile.demographics.raceEthnicity) ??

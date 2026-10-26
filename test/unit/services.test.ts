@@ -402,13 +402,14 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const options = ["San Francisco", "Toronto", "Vienna"];
+    const profile = emptyProfile();
     const ask = async (location: string) =>
       (
         await mapFields(
           { gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [field("o", { label: "Which office are you applying to?", kind: "radio_group", options })],
-            profile: emptyProfile(),
+            profile,
             documents: [],
             job: { company: "Sentry", title: "", jobTitle: "Intern", url: "", location, text: "", capturedAt: 0 },
           },
@@ -416,6 +417,8 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ).decisions[0].intendedAnswer ?? "flag";
     expect(await ask("Vienna, Austria; Remote (Austria)")).toBe("Vienna");
     expect(await ask("Toronto, ON; San Francisco, CA")).toBe("flag");
+    profile.preferences = { ...profile.preferences, willingToRelocate: "yes", preferredLocations: ["Any"] };
+    expect(await ask("Toronto, ON; San Francisco, CA")).toBe("San Francisco");
   });
 
   it("ticks the terms inside the availability window", async () => {
