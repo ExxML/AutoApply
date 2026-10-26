@@ -187,7 +187,7 @@ export function Yolo() {
           {BOARDS.map((b) => (
             <Toggle
               label={BOARD_NAMES[b]}
-              help={b === "indeed" ? "Read in the hidden page (its results need rendering)." : undefined}
+              help={b === "indeed" ? "Indeed loads its results with scripts, so they're read from a hidden browser page. Slower than the other sources." : undefined}
               checked={y.boards.includes(b)}
               onChange={(on) => set({ boards: on ? [...y.boards, b] : y.boards.filter((x) => x !== b) })}
             />
