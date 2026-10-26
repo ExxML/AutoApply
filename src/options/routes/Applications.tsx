@@ -34,7 +34,7 @@ export function Applications() {
         Every application YOLO made, and the ones you submitted yourself after a fill: none of these is applied to
         again. {today} submitted today.
       </p>
-      <div class="row-actions">
+      <div class="row">
         <input
           type="search"
           class="search"
@@ -42,7 +42,7 @@ export function Applications() {
           aria-label="Search applications"
           value={q}
           onInput={(e) => setQ(e.currentTarget.value)}
-        />{" "}
+        />
         <select aria-label="Status" value={status} onChange={(e) => setStatus(e.currentTarget.value)}>
           <option value="">All</option>
           {Object.entries(STATUS).map(([v, t]) => (

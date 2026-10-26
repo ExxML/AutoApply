@@ -458,6 +458,12 @@ label.inline {
   max-width: 360px;
   margin-bottom: 12px;
 }
+.row .search {
+  margin-bottom: 0;
+}
+.row select {
+  width: auto;
+}
 .danger-zone {
   border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
 }
