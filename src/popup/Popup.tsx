@@ -102,31 +102,24 @@ export function Popup() {
         {info?.keysHealthy ?? 0} healthy
       </div>
       {yolo && (
-        <div class="yolo">
-          <div class="yolo-head">
+        <button
+          type="button"
+          // Nothing to search yet: the card leads to setup instead of acting as a switch.
+          role={yolo.searches || yolo.enabled ? "switch" : undefined}
+          aria-checked={yolo.searches || yolo.enabled ? yolo.enabled : undefined}
+          aria-labelledby="yolo-label"
+          aria-describedby="yolo-help"
+          class={`yolo${yolo.enabled ? " on" : ""}`}
+          onClick={() => void (yolo.searches || yolo.enabled ? setYoloOn(!yolo.enabled) : openOptions("/yolo"))}
+        >
+          <span class="yolo-head">
             <span id="yolo-label">YOLO mode</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={yolo.enabled}
-              aria-labelledby="yolo-label"
-              class={`btn small${yolo.enabled ? " primary" : ""}`}
-              disabled={!yolo.searches && !yolo.enabled}
-              onClick={() => void setYoloOn(!yolo.enabled)}
-            >
-              {yolo.enabled ? "On" : "Off"}
-            </button>
-          </div>
-          <p class="help">
-            {yolo.searches ? (
-              yoloText(yolo)
-            ) : (
-              <a href="#" onClick={(e) => (e.preventDefault(), openOptions("/yolo"))}>
-                Add a job search query to turn it on
-              </a>
-            )}
-          </p>
-        </div>
+            <span class={`btn small${yolo.enabled ? " primary" : ""}`}>{yolo.enabled ? "On" : "Off"}</span>
+          </span>
+          <span id="yolo-help" class="help">
+            {yolo.searches ? yoloText(yolo) : "Add a job search query to turn it on"}
+          </span>
+        </button>
       )}
       <div class="links">
         <a

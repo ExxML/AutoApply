@@ -514,10 +514,23 @@ label.inline {
   color: var(--muted);
 }
 .popup .yolo {
+  display: block;
+  width: 100%;
   margin-top: 12px;
   padding: 10px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
+  cursor: pointer;
+}
+.popup .yolo.on {
+  border-color: var(--accent);
+}
+.popup .yolo .help {
+  display: block;
 }
 .popup .yolo-head {
   display: flex;
