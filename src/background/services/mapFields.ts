@@ -335,14 +335,15 @@ const lastSentence = (s: string) => s.split(/(?<=[.!])\s+(?=[A-Z])/).pop()!;
 /**
  * "What is your current immigration status / basis of your current work authorization?" in a country the profile
  * isn't authorized in: no current authorization. Akuna's got "None", which the list's "N/A (I do not require work
- * authorization)" would have matched.
+ * authorization)" would have matched. Without a job location, the country of the question it follows up.
  */
 function currentStatusDecision(
   f: FieldDescriptor,
-  country: string | undefined,
+  where: string | undefined,
   entries: Profile["workAuthorization"]["entries"],
 ): Decision | null {
   const q = lastSentence(f.label);
+  const country = where ?? countryIn(f.hint ?? "");
   if (
     !country ||
     isMulti(f) ||

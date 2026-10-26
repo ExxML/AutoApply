@@ -342,13 +342,21 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       { ...emptyProfile().workAuthorization.entries[0], country: "Canada", authorized: "yes", status: "Citizen" },
     ];
     const label =
-      "If you answered “Yes” above to requiring visa sponsorship now or in the future for work authorization, please respond to the following questions. What is your current immigration status/basis of your current work authorization in the United States?";
+      "If you answered “Yes” above to requiring visa sponsorship now or in the future for work authorization, please respond to the following questions. What is your current immigration status/basis of your current work authorization?";
     const ask = async (options?: string[]) =>
       (
         await mapFields(
           { gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
-            fields: [field("s", { label, kind: "dropdown", options, optionsKnown: !!options })],
+            fields: [
+              field("s", {
+                label,
+                hint: `Follow-up to the previous question: "Will you require visa sponsorship to work in the United States?"`,
+                kind: "dropdown",
+                options,
+                optionsKnown: !!options,
+              }),
+            ],
             profile,
             documents: [],
             job: null,
