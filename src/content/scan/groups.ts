@@ -51,7 +51,10 @@ export function memberText(m: HTMLElement): string {
     const next = m.nextSibling?.textContent?.trim();
     return next || m.value;
   }
-  return m.getAttribute("aria-label") || textOf(m, "input,select,textarea,script,style");
+  // Web components keep the text in a `label` attribute their shadow root renders (SmartRecruiters' <spl-radio>).
+  return (
+    m.getAttribute("aria-label") || textOf(m, "input,select,textarea,script,style") || m.getAttribute("label") || ""
+  );
 }
 
 const choiceVisible = (m: HTMLElement) => {

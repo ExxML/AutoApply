@@ -190,7 +190,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       labelAbove(u, container, owner, collected.order) ||
       fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
-    const nameId = `${el.getAttribute("name") ?? ""} ${el.id}`;
+    const nameId = `${el.getAttribute("name") ?? ""} ${el.id} ${el.getAttribute("data-automation-id") ?? ""}`;
     if (RE_SKIP_LABEL.test(label) || RE_SKIP_LABEL.test(nameId)) continue;
     if (excludedContext(el, label, mainForm)) continue;
     // A phone's country picker named only by its value ("Netherlands", Recruitee) follows the dial code we type.

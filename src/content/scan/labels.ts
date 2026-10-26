@@ -14,6 +14,8 @@ export function shownText(n: Node): string {
 
 /** Text content without nested controls/options, or descendants hidden in a shown element (Lever's status text). */
 export function textOf(el: Element, exclude = NON_LABEL): string {
+  // A label whose text is slotted in from its host's light DOM (SmartRecruiters' <spl-input>'s question).
+  if (el.querySelector("slot")) return collapse(shownText(el));
   const all = el.querySelectorAll("*");
   const shown = typeof el.checkVisibility === "function" && all.length && el.checkVisibility();
   const hidden = shown ? [...all].map((n) => !n.checkVisibility()) : [];

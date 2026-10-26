@@ -177,6 +177,25 @@ describe("grouping (§11.5)", () => {
     expect(fields().map((h) => [h.desc.kind, h.desc.options])).toEqual([["radio_group", ["YES", "NO"]]]);
   });
 
+  it("reads web-component radios' text from their label attribute (SmartRecruiters)", () => {
+    const opt = (v: string, n: string) =>
+      `<spl-radio role="radio" aria-checked="false" label="${v}" value="${n}"></spl-radio>`;
+    setBody(
+      `<span id="ql">Are you a current citizen of any of these countries: Iran, Cuba?</span><spl-radio-group role="radiogroup" aria-labelledby="ql">${opt("Yes", "1")}${opt("No", "0")}</spl-radio-group>`,
+    );
+    expect(fields().map((h) => h.desc.options)).toEqual([["Yes", "No"]]);
+  });
+
+  it("reads a label slotted in from a web component's light DOM (SmartRecruiters)", () => {
+    setBody(
+      `<sr-question><spl-input><span slot="label">Please confirm your Legal First and Last Name</span></spl-input></sr-question>`,
+    );
+    const host = document.querySelector("spl-input")!;
+    host.attachShadow({ mode: "open" }).innerHTML =
+      `<label for="i">*<slot name="label"></slot></label><input id="i" required>`;
+    expect(fields().map((h) => h.desc.label)).toEqual(["Please confirm your Legal First and Last Name"]);
+  });
+
   it("lone checkbox vs checkbox group", () => {
     setBody(`<label><input type="checkbox" name="terms"> I agree to the terms</label>
       <fieldset><legend>Skills</legend><label><input type="checkbox" name="s"> Python</label><label><input type="checkbox" name="s"> Go</label></fieldset>`);
@@ -447,6 +466,13 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
       <label>E <input name="e" style="display:none"></label><label>Captcha <input name="captcha"></label>
       <label>Résumé <input type="file" style="display:none"></label></form>`);
     expect(fields().map((h) => h.desc.label)).toEqual(["A", "Résumé"]);
+  });
+
+  it("skips Workday's sign-up bot trap, which a filled value makes the account fail silently", () => {
+    setBody(`<form><label for="em">Email Address*</label><input id="em" type="text" data-automation-id="email">
+      <label for="w">Enter website. This input is for robots only, do not enter if you're human.</label>
+      <input id="w" type="text" name="website" data-automation-id="beecatcher"></form>`);
+    expect(fields().map((h) => h.desc.label)).toEqual(["Email Address"]);
   });
 
   it("reports prefilled fields and keeps stable ids across rescans", () => {

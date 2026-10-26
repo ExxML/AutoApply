@@ -90,7 +90,9 @@ export const RE_RESUME_ONLY = /r[ée]sum[ée]|\bcv\b/i;
 export const RE_COVER_LETTER = /cover letter/i;
 
 // ---------- Scanning (§11.3, §11.6, §18) ----------
-export const RE_SKIP_LABEL = /captcha|honeypot|leave this (field )?(blank|empty)/i;
+// Workday's sign-up bot trap: "Enter website. This input is for robots only, do not enter if you're human."
+export const RE_SKIP_LABEL =
+  /captcha|honeypot|leave this (field )?(blank|empty)|for robots|do not (enter|fill)[^.]*human|beecatcher/i;
 export const RE_COOKIE_CONTAINER = /cookie|consent-banner|onetrust|gdpr/i;
 export const RE_NEWSLETTER = /newsletter|subscribe/i;
 export const RE_SENSITIVE_LABEL =
