@@ -218,7 +218,8 @@ export const AUTOCOMPLETE_MAP: Record<string, DetKey> = {
 export const LABEL_RULES: [RegExp, DetKey][] = [
   [/^first\s*name|given name|legal first/i, "firstName"],
   [/^last\s*name|surname|family name/i, "lastName"],
-  [/^(full\s*)?name$/i, "fullName"],
+  // Sentry's "First and Last Name" went to the AI, which added the middle name.
+  [/^(full\s*)?name$|^first (and|&) last name$/i, "fullName"],
   [/\blegal name\b/i, "legalName"],
   [/preferred (first )?name/i, "preferredName"],
   // Not a school address (Jane Street's "university email" got the personal one): the AI decides.
