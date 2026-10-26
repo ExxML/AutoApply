@@ -173,8 +173,8 @@ export function buildUnits(c: Collected): Unit[] {
   const rest = boxes.filter((b) => !taken.has(b));
   for (const g of groupBy(rest, (b) => b.closest("fieldset,[role=group]") ?? b)) {
     const sameName = new Set(g.map((b) => b.name)).size === 1;
-    // Ashby names each box of one question after its own option ("LinkedIn", "Glassdoor").
-    const namedByOption = g.every((b) => b.name && b.name === collapse(memberText(b)));
+    // Ashby names each box of one question after its own option ("LinkedIn", "Glassdoor"; Harvey's "Open to Anything ").
+    const namedByOption = g.every((b) => b.name && collapse(b.name) === collapse(memberText(b)));
     if (g.length >= 2 && (sameName || namedByOption) && g[0].closest("fieldset,[role=group]")) {
       if (g.some(choiceVisible))
         take({ kind: "checkbox_group", el: g[0], members: g, groupEl: g[0].closest("fieldset,[role=group]") });

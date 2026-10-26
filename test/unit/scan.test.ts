@@ -220,11 +220,12 @@ describe("grouping (§11.5)", () => {
   it("groups checkboxes named after their own options (Ashby), not unrelated boxes in one fieldset", () => {
     setBody(`<fieldset><label for="q1">How did you hear about us?</label>
         <div><input type="checkbox" id="a" name="LinkedIn"><label for="a">LinkedIn</label></div>
-        <div><input type="checkbox" id="b" name="Glassdoor"><label for="b">Glassdoor</label></div></fieldset>
+        <div><input type="checkbox" id="b" name="Glassdoor"><label for="b">Glassdoor</label></div>
+        <div><input type="checkbox" id="c" name="Open to Anything "><label for="c">Open to Anything </label></div></fieldset>
       <fieldset><label><input type="checkbox" name="terms"> I agree to the terms</label>
         <label><input type="checkbox" name="news"> Send me news</label></fieldset>`);
     expect(fields().map((h) => [h.desc.kind, h.desc.label, h.desc.options])).toEqual([
-      ["checkbox_group", "How did you hear about us?", ["LinkedIn", "Glassdoor"]],
+      ["checkbox_group", "How did you hear about us?", ["LinkedIn", "Glassdoor", "Open to Anything"]],
       ["checkbox", "I agree to the terms", undefined],
       ["checkbox", "Send me news", undefined],
     ]);
