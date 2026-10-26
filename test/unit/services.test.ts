@@ -1752,7 +1752,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(70)).toBe("I would be able to start in 8 - 12 weeks");
     expect(await ask(-30)).toBe("I am able to start immediately");
     expect(await ask(200)).toBe("I would be able to start in more than 12 weeks");
-    expect(await ask(21)).toBe("flag");
+    expect(await ask(21)).toBe("I would be able to start in 3 weeks");
+    options.splice(0, options.length, "Available immediately", "1 week", "1 month", "2 months", "3 months or more");
+    expect(await ask(66)).toBe("2 months");
+    expect(await ask(100)).toBe("3 months or more");
   });
 
   it("answers start-on-a-date and return-offer start questions from the profile", async () => {

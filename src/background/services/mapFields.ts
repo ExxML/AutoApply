@@ -1010,6 +1010,8 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
     const text = weeks > 0 ? `From ${on}` : "Immediately";
     return { fieldId: f.id, action: "fill", text, confidence: "high", sources: ["preferences.earliestStartDate"] };
   }
+  // Bare amounts ("1 week", "2 months"): Hugging Face's notice periods. The longest not past the start date.
+  const points: [number, number][] = [];
   const hits = f.options.flatMap((o, i) => {
     const unit = /\bmonths?\b/i.test(o) ? 4.345 : /\bweeks?\b/i.test(o) ? 1 : 0;
     const n = (o.match(/\d+(\.\d+)?/g) ?? []).map((x) => Number(x) * unit);
@@ -1019,8 +1021,11 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
     else if (n.length === 2) range = [n[0], n[1]];
     else if (n.length === 1 && /\bor less\b|\bwithin\b|\bless than\b|\bunder\b/i.test(o)) range = [0, n[0]];
     else if (n.length === 1 && /\bmore than\b|\bover\b|\bor more\b|\+/i.test(o)) range = [n[0], Infinity];
+    else if (n.length === 1) points.push([n[0], i]);
     return range && weeks >= range[0] && weeks <= range[1] ? [{ i, width: range[1] - range[0] }] : [];
   });
+  const point = points.filter(([w]) => w <= weeks).sort((a, b) => b[0] - a[0])[0];
+  if (!hits.length && point) hits.push({ i: point[1], width: 0 });
   // The narrowest wins: "immediately" over "2 weeks or less" for a start date already passed.
   hits.sort((a, b) => a.width - b.width);
   if (!hits.length || hits[1]?.width === hits[0].width) return null;
