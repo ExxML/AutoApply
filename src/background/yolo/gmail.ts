@@ -60,13 +60,51 @@ export function extract(body: string, want: "link" | "code"): string | null {
     .replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ");
+  // Letters and digits with a digit somewhere: a code, not the word after "code".
   return (
-    /\b(?:code|passcode|pin|otp)\b[^A-Za-z0-9]{0,40}(?:is[^A-Za-z0-9]{0,5})?\b(\d{4,8}|[A-Z0-9]{6,8})\b/i.exec(
-      t,
-    )?.[1] ??
+    /\b(?:code|passcode|pin|otp)\b[\s\S]{0,80}?\b(\d{4,8}|(?=[A-Za-z]*\d)[A-Za-z0-9]{6,10})\b/i.exec(t)?.[1] ??
     /\b(\d{6})\b/.exec(t)?.[1] ??
     null
   );
+}
+
+/** Messages in Gmail's unread-mail feed for `to` received after `since`, as their subject and opening text. */
+export function feedTexts(xml: string, to: string, since: number): string[] | null {
+  const account = to.toLowerCase().replace(/\+[^@]*@/, "@");
+  if (!xml.toLowerCase().includes(account)) return null; // another signed-in account's inbox
+  const unxml = (s: string) =>
+    s
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+  return xml
+    .split("<entry>")
+    .slice(1)
+    .filter((e) => Date.parse(/<issued>([^<]+)/.exec(e)?.[1] ?? "") >= since - 60_000)
+    .map((e) => unxml(`${/<title>([^<]*)/.exec(e)?.[1] ?? ""} ${/<summary>([^<]*)/.exec(e)?.[1] ?? ""}`));
+}
+
+/**
+ * Without a Gmail API client: a code from the unread-mail feed of the Gmail account signed in to this browser. Only
+ * codes: the feed holds each message's subject and opening text, not its links.
+ */
+export async function waitForFeedCode(to: string, since: number, timeoutMs = 300_000): Promise<string | null> {
+  for (const end = Date.now() + timeoutMs; Date.now() < end; await sleep(10_000)) {
+    for (let u = 0; u < 5; u++) {
+      const r = await fetch(`https://mail.google.com/mail/u/${u}/feed/atom`, { credentials: "include" }).catch(
+        () => null,
+      );
+      if (!r?.ok) break;
+      const texts = feedTexts(await r.text(), to, since);
+      if (!texts) continue;
+      const code = texts.map((t) => extract(t, "code")).find(Boolean);
+      if (code) return code;
+      break;
+    }
+  }
+  return null;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

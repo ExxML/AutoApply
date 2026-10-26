@@ -20,7 +20,7 @@ import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
 import { kindOf, refused, signature } from "./classify";
 import { applied, discover } from "./discover";
-import { GmailAuthError, gmailToken, waitForEmail } from "./gmail";
+import { GmailAuthError, gmailToken, waitForEmail, waitForFeedCode } from "./gmail";
 import { closeFrame } from "./host";
 import { altKey, applyUrl, jobKey } from "./jobKey";
 import { textPdf } from "./pdf";
@@ -431,7 +431,11 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     if (!fromRun(await getRun(), sender)) return { error: { kind: "other", message: "Not running" } };
     const email = await accountEmail();
     try {
-      const found = await waitForEmail(() => gmailToken(yolo.gmailClientId, email, false), email, since, want);
+      // No API client: codes can still come from the Gmail inbox signed in to this browser, links can't.
+      if (!yolo.gmailClientId && want === "link") return { error: { kind: "other", message: "Gmail isn't connected" } };
+      const found = yolo.gmailClientId
+        ? await waitForEmail(() => gmailToken(yolo.gmailClientId, email, false), email, since, want)
+        : await waitForFeedCode(email, since);
       if (!found) return { error: { kind: "other", message: "No verification email arrived" } };
       return want === "link" ? { link: found } : { code: found };
     } catch (e) {

@@ -4,7 +4,7 @@ import { altKey, applyUrl, jobKey } from "../../src/background/yolo/jobKey";
 import { parseFeed, parseGlassdoor, parseIndeed, parseLinkedIn } from "../../src/background/yolo/sources";
 import { boardOf, findOnEmployerBoard, jobLinks, sameTitle, workdayPosted } from "../../src/background/yolo/careers";
 import { locationMatches, rejectReason, titleMatches } from "../../src/background/yolo/filter";
-import { extract } from "../../src/background/yolo/gmail";
+import { extract, feedTexts } from "../../src/background/yolo/gmail";
 import { textPdf, wrap } from "../../src/background/yolo/pdf";
 import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
 import { applied, discover } from "../../src/background/yolo/discover";
@@ -352,6 +352,17 @@ describe("verification emails", () => {
     const html = `<a href="https://x.com/unsubscribe?u=1">Unsubscribe</a>
       <a href="https://wd5.myworkday.com/acme/verify?token=abc&amp;t=1">Verify Account</a>`;
     expect(extract(html, "link")).toBe("https://wd5.myworkday.com/acme/verify?token=abc&t=1");
+  });
+
+  it("reads codes from Gmail's unread-mail feed for the right account", () => {
+    const xml = `<feed><title>Gmail - Inbox for andywu9509@gmail.com</title>
+      <entry><title>Security code for your application to HeyGen</title><summary>Copy and paste this code into the security code field on your application: x7Kq9mPa This code expires</summary><issued>2026-10-26T06:00:00Z</issued></entry>
+      <entry><title>Old</title><summary>Your code is 111111</summary><issued>2026-10-20T06:00:00Z</issued></entry></feed>`;
+    const since = Date.parse("2026-10-26T05:55:00Z");
+    const texts = feedTexts(xml, "andywu9509+jobs@gmail.com", since)!;
+    expect(texts).toHaveLength(1);
+    expect(extract(texts[0], "code")).toBe("x7Kq9mPa");
+    expect(feedTexts(xml, "someone@gmail.com", since)).toBeNull();
   });
 
   it("finds a one-time code", () => {
