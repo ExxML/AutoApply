@@ -510,7 +510,9 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
           ? { type: "intended", answer: d.value, query: d.query }
           : { type: "text", value: d.value };
         if (d.value) jobs.push(doFill(h, op, "filled", d.path, ctrl));
-        else setStatus(h, "needs", "Not set in your Profile");
+        // An optional box the profile leaves empty (Fivetran's "Address Line 2") needs nothing.
+        else if (h.desc.required) setStatus(h, "needs", "Not set in your Profile");
+        else setStatus(h, "skipped");
         continue;
       }
       const l = matchLearned(h.desc, det.learnedAnswers);
