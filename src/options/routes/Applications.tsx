@@ -136,13 +136,27 @@ export function Applications() {
               Clear queue
             </button>
           </h2>
-          <ul>
+          <ul class="queue">
             {queue.map((i) => (
               <li>
                 <a href={i.url} target="_blank" rel="noreferrer">
                   {i.company} – {i.title}
                 </a>{" "}
-                <span class="muted">{i.source}</span>
+                <span class="muted">{i.source}</span>{" "}
+                <button
+                  type="button"
+                  class="btn small danger"
+                  title="Drop this job for now; YOLO can queue it again when it next checks"
+                  aria-label={`Remove ${i.company} – ${i.title} from the queue`}
+                  onClick={async () => {
+                    const [q, seen] = await Promise.all([store.get("yoloQueue"), store.get("yoloSeen")]);
+                    delete seen[i.key];
+                    delete seen[i.alt];
+                    await store.set({ yoloQueue: q.filter((x) => x.key !== i.key), yoloSeen: seen });
+                  }}
+                >
+                  Remove
+                </button>
               </li>
             ))}
           </ul>

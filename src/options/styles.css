@@ -460,6 +460,9 @@ label.inline {
 .diff li {
   padding: 3px 0;
 }
+.queue li + li {
+  margin-top: 8px;
+}
 .search {
   max-width: 360px;
   margin-bottom: 12px;
