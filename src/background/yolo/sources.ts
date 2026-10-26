@@ -133,7 +133,8 @@ export function parseGlassdoor(html: string, now = Date.now()): Listing[] {
       const n = Number(/\d+/.exec(age)?.[0] ?? NaN);
       return [
         {
-          url: decode(link[1]),
+          // Glassdoor answers Canadian visitors in French at times; YOLO reads English pages.
+          url: decode(link[1]).replace(/:\/\/[a-z]{2}\.glassdoor\./, "://www.glassdoor."),
           title: text(link[2]),
           company: pick(/EmployerProfile_compactEmployerName[^"]*"[^>]*>([^<]*)/),
           location: pick(/data-test="emp-location"[^>]*>([^<]*)/),

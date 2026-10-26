@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { captchaShown, classify } from "../../src/content/yolo/classify";
+import { captchaShown, pageFacts } from "../../src/content/yolo/classify";
+import { kindOf } from "../../src/background/yolo/classify";
+
+const classify = (fields: number, hidden = false) => kindOf(pageFacts(fields), hidden);
 import { findApply, findNext, findSubmit, validationErrors } from "../../src/content/yolo/nav";
 import { siteKey } from "../../src/content/yolo/auth";
 
@@ -62,12 +65,34 @@ describe("YOLO page kinds", () => {
       toJSON() {},
     });
     expect(captchaShown()).toBe(true);
+    expect(classify(1)).toBe("captcha");
+  });
+
+  it("sends a Cloudflare check in the hidden frame to a tab, where it often passes by itself", () => {
+    setBody(`<iframe src="https://challenges.cloudflare.com/cdn-cgi/challenge-platform/x"></iframe>`);
+    const f = document.querySelector("iframe")!;
+    f.getBoundingClientRect = () => ({
+      width: 300,
+      height: 65,
+      top: 0,
+      left: 0,
+      right: 300,
+      bottom: 65,
+      x: 0,
+      y: 0,
+      toJSON() {},
+    });
+    expect(classify(0, true)).toBe("blocked");
+    expect(classify(0, false)).toBe("captcha");
   });
 
   it("tells a posting from a form", () => {
     setBody(`<h1>Software Engineer Intern</h1><p>About the role</p><a href="/apply">Apply now</a>`);
     expect(classify(0)).toBe("job");
     expect(classify(4)).toBe("form");
+    // Indeed's posting has a What / Where search box.
+    setBody(`<form><input aria-label="What"><input aria-label="Where"></form><button>Apply on company site</button>`);
+    expect(classify(2)).toBe("job");
     setBody(`<h2>Review</h2><button>Submit application</button>`);
     expect(classify(0)).toBe("form");
     setBody(`<h1>Careers</h1>`);

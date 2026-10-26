@@ -1,14 +1,14 @@
 // YOLO's driver: runs in the page a YOLO run loaded and takes it from posting to confirmation, one step at a time
 // (Apply → account → each form page → Submit). A step that loads a new document ends this script there; the new
 // page's driver asks the background where the run stands and carries on.
-import { send, type YoloResult } from "../../shared/messages";
+import { send, type StepKind, type YoloResult } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
 import type { Guess } from "../../shared/yolo";
 import { sleep, waitFor } from "../fill/events";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
-import { forgotPassword, handleAuth, handleVerify, RE_HAS_ACCOUNT } from "./auth";
-import { captchaShown, classify, embeddedForm, pageText, signature, type Kind } from "./classify";
+import { forgotPassword, handleAuth, handleVerify } from "./auth";
+import { captchaShown, embeddedForm, pageFacts, pageText } from "./classify";
 import { alertText, findApply, findNext, findSubmit, labelOf, press, validationErrors } from "./nav";
 
 export interface FillReport {
@@ -92,19 +92,18 @@ export async function drive(deps: DriverDeps) {
     let refills = 0;
     for (let i = 0; i < 30; i++) {
       await settle();
-      const fields = deps.count();
-      const kind: Kind = classify(fields);
       const step = await send({
         type: "YOLO_STEP",
-        kind,
-        sig: signature(kind, fields),
+        facts: pageFacts(deps.count()),
         url: location.href,
         guesses: deps.guesses(),
       });
+      const kind: StepKind = step.kind;
       if (step.stop)
         return result({
           status: /already/i.test(step.stop) ? "skipped" : "failed",
-          reason: step.stop,
+          // What the page says about it ("Verify your email first") is the likely why.
+          reason: [step.stop, alertText().slice(0, 200)].filter(Boolean).join(": "),
           guesses: deps.guesses(),
         });
       const before = snapshot();
@@ -133,13 +132,15 @@ export async function drive(deps: DriverDeps) {
         case "signup":
         case "reset": {
           // Refused before: the address has an account we hold no password for, so reset it by email.
-          const r = RE_HAS_ACCOUNT.test(alertText()) ? await forgotPassword() : await handleAuth(kind, fill);
+          const r = step.refused ? await forgotPassword() : await handleAuth(kind, fill);
           if ("fail" in r) return needs(r.fail);
           break;
         }
         case "job": {
           const b = findApply()!;
-          if (RE_EASY_APPLY.test(b.innerText))
+          // A job board's own "Apply now" is its Easy Apply; only "Apply on company site" leads to the employer.
+          const board = /(^|\.)(indeed|glassdoor|linkedin|ziprecruiter)\./.test(location.hostname);
+          if (RE_EASY_APPLY.test(b.innerText) || (board && !/company|employer/i.test(labelOf(b))))
             return result({ status: "skipped", reason: "Easy Apply only (not supported yet)" });
           press(b);
           break;

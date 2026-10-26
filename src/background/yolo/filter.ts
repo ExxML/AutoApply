@@ -7,16 +7,19 @@ import { jobCountry } from "../services/mapFields";
 const SYNONYMS = [
   ["intern", "internship", "coop", "co op", "work term", "placement"],
   ["engineer", "engineering", "developer", "development", "swe", "sde"],
-  ["software", "swe", "sde"],
+  ["software", "swe", "sde", "sw"],
   ["data", "analytics"],
   ["ml", "machine learning", "ai"],
 ];
 const forms = (w: string) => [w, `${w}s`, `${w}es`, `${w}ing`, `${w}ship`, `${w}ships`, w.replace(/s$/, "")];
 
+/** Words split at punctuation too: "Application/Software Developer Co-op/Intern". */
+const words = (s: string) => normalize(s.replace(/[^\p{L}\p{N}+#]+/gu, " "));
+
 /** Every word of the query appears in the title, as itself, a plural/-ing/-ship form, or a synonym. */
 export function titleMatches(title: string, query: string): boolean {
-  const t = ` ${normalize(title)} `;
-  return normalize(query)
+  const t = ` ${words(title)} `;
+  return words(query)
     .split(" ")
     .filter(Boolean)
     .every((w) => {
@@ -50,7 +53,7 @@ export function locationMatches(location: string, wanted: string[], remoteOk: bo
 export function rejectReason(l: Listing, y: Yolo, now = Date.now()): string | null {
   if (l.easyApply) return "Easy Apply (not supported yet)";
   if (!y.queries.some((q) => titleMatches(l.title, q))) return "Title doesn't match a search";
-  const t = ` ${normalize(l.title)} `;
+  const t = ` ${words(l.title)} `;
   const bad = y.excludeTitleWords.find((w) => normalize(w) && t.includes(` ${normalize(w)} `));
   if (bad) return `Title has "${bad}"`;
   const company = normalize(l.company);

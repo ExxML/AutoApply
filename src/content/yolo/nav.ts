@@ -22,10 +22,13 @@ const WORKDAY = {
 
 const CLICKABLE = "button,input[type=submit],input[type=button],a[href],[role=button],[role=link]";
 
-export const labelOf = (el: HTMLElement) =>
-  collapse(
-    (el instanceof HTMLInputElement ? el.value : el.innerText || el.textContent) || el.getAttribute("aria-label") || "",
-  );
+export const labelOf = (el: HTMLElement): string => {
+  const own =
+    (el instanceof HTMLInputElement ? el.value : el.innerText || el.textContent) || el.getAttribute("aria-label");
+  // A custom element's inner button shows its host's slotted text (SmartRecruiters' <spl-button>Next</spl-button>).
+  const host = (el.getRootNode() as ShadowRoot).host as HTMLElement | undefined;
+  return collapse(own ?? "") || collapse(host ? host.innerText || host.textContent || "" : "");
+};
 
 const usable = (el: HTMLElement) =>
   isVisible(el) &&

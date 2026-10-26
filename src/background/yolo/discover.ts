@@ -106,9 +106,11 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   const keys = new Set<string>();
   for (const l of found) {
     const key = jobKey(l.url);
-    const alt = altKey(l.company, l.title, l.location);
-    if (seen[key] || seen[alt] || keys.has(key) || queued.has(key)) continue;
+    const alt = altKey(l.company, l.title);
+    // Also once per cycle: the same job from two sources, or a requisition's copies, are one application.
+    if (seen[key] || seen[alt] || keys.has(key) || keys.has(alt) || queued.has(key)) continue;
     keys.add(key);
+    keys.add(alt);
     // Not marked seen: a posting the filters reject now may fit after the user changes them.
     if (rejectReason(l, y, now) || applied(s.applications, key, alt, y.reapplyManual)) continue;
     fresh.push(l);
@@ -120,7 +122,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   const items: QueueItem[] = [];
   for (const [i, l] of batch.entries()) {
     const key = jobKey(l.url);
-    const alt = altKey(l.company, l.title, l.location);
+    const alt = altKey(l.company, l.title);
     seen[key] = seen[alt] = now;
     if (keep && !keep.has(i)) continue;
     let url = l.url;

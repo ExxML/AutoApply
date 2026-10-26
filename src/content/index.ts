@@ -32,7 +32,7 @@ import { nextMidnightPacific } from "../shared/time";
 import type { Guess } from "../shared/yolo";
 import { isVisible } from "./scan/visibility";
 import { drive, type FillReport } from "./yolo/driver";
-import { DRIVER_FRAME, IN_HOST } from "./yolo/frame";
+import { DRIVER_FRAME, endTransitions, IN_HOST, throttled } from "./yolo/frame";
 import { labelOf } from "./yolo/nav";
 
 type Status =
@@ -761,7 +761,9 @@ function unfilledRequired(): FieldHandle[] {
   return [...handles.values()].filter((h) => {
     if (!h.desc.required || !h.el.isConnected || !isVisible(h.container ?? h.el)) return false;
     const s = states.get(h.id)?.status;
-    return s === "needs" || s === "failed" || (s !== "skipped" && !readValue(h));
+    // An uploader empties its file input once it has taken the file (SmartRecruiters): its status says it's done.
+    if (s === "needs" || s === "failed") return true;
+    return s !== "skipped" && !(h.desc.kind === "file" && s === "filled") && !readValue(h);
   });
 }
 
@@ -783,7 +785,12 @@ async function yoloFill(): Promise<FillReport> {
     if (yoloFatal) return { unfilled: [], fatal: yoloFatal };
     if (!unfilledRequired().length || pass >= 1) break;
   }
-  return { unfilled: unfilledRequired().map((h) => h.desc.label || "(unlabeled field)") };
+  return {
+    unfilled: unfilledRequired().map((h) => {
+      const note = states.get(h.id)?.note;
+      return `${h.desc.label || "(unlabeled field)"}${note ? ` (${note})` : ""}`;
+    }),
+  };
 }
 
 /** Fields the page rejected are answered again, with its message as a hint ("Enter a valid phone number"). */
@@ -804,6 +811,7 @@ function refill(errors: HTMLElement[]) {
 async function startYolo() {
   if (yolo) return;
   yolo = true;
+  if (throttled()) endTransitions();
   config = await send({ type: "GET_RUNTIME_CONFIG", yolo: true });
   listen();
   await drive({

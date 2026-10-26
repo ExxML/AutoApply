@@ -16,6 +16,43 @@ import type {
 } from "./types";
 import type { Guess, YoloStatus } from "./yolo";
 
+/** What a YOLO driver reads off its page; the background decides what kind of step that is (yolo/classify.ts). */
+export interface PageFacts {
+  /** Visible text, its start. */
+  text: string;
+  title: string;
+  path: string;
+  headings: string;
+  /** Visible error and alert messages. */
+  alerts: string;
+  /** Fields the fill scan sees. */
+  fields: number;
+  passwords: number;
+  codeInput: boolean;
+  /** A visible CAPTCHA challenge, and whether it is Cloudflare's (which often passes on its own in a real tab). */
+  captcha: boolean;
+  cloudflare: boolean;
+  /** An ATS form in an iframe the run could load on its own. */
+  embedded: boolean;
+  apply: boolean;
+  /** A Next / Continue / Submit control. */
+  onward: boolean;
+}
+
+export type StepKind =
+  | "captcha"
+  | "success"
+  | "blocked"
+  | "closed"
+  | "verify"
+  | "reset"
+  | "signup"
+  | "signin"
+  | "embedded"
+  | "form"
+  | "job"
+  | "unknown";
+
 /** How a YOLO run ended in its frame. "blocked": the page refused to work hidden, so the tab host may retry it. */
 export type YoloResult =
   | { status: "submitted"; doneUrl: string; guesses?: Guess[] }
@@ -37,7 +74,7 @@ export type Message =
   // YOLO driver C → B
   | { type: "YOLO_HELLO"; url: string }
   /** `guesses`: this page's made-up answers so far; the run keeps every page's. */
-  | { type: "YOLO_STEP"; kind: string; sig: string; url: string; guesses: Guess[] }
+  | { type: "YOLO_STEP"; facts: PageFacts; url: string; guesses: Guess[] }
   | { type: "YOLO_RESULT"; result: YoloResult }
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
@@ -115,7 +152,8 @@ export interface Responses {
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
   APPLY_ATTEMPT: Ok;
   YOLO_HELLO: { mode: "apply" | "scrape"; company: string; title: string; visible: boolean } | null;
-  YOLO_STEP: { stop?: string };
+  /** `refused`: the site turned down our sign-in or sign-up (an account we hold no password for). */
+  YOLO_STEP: { kind: StepKind; stop?: string; refused?: boolean };
   YOLO_RESULT: Ok;
   YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
   YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;

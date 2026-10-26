@@ -62,10 +62,14 @@ describe("job keys", () => {
     expect(applyUrl("https://job-boards.greenhouse.io/co/jobs/1")).toBe("https://job-boards.greenhouse.io/co/jobs/1");
   });
 
-  it("keys company, title and city loosely", () => {
-    expect(altKey("Lyft, Inc.", "Software Engineer Intern", "Toronto, ON")).toBe(
-      altKey("lyft", "Software Engineer Intern", "Toronto, Ontario, Canada"),
+  it("keys company and title as boards and the employer word them", () => {
+    expect(altKey("Lyft, Inc.", "Software Engineering Internship (Summer 2027)")).toBe(
+      altKey("lyft", "Software Engineer Intern"),
     );
+    expect(altKey("Ciena", "Software Developer Co-op - Winter 2027")).toBe(
+      altKey("Ciena", "Software Developer Intern"),
+    );
+    expect(altKey("Acme", "Software Engineer Intern")).not.toBe(altKey("Acme", "Hardware Engineer Intern"));
   });
 });
 
@@ -281,6 +285,8 @@ describe("filters", () => {
     expect(titleMatches("Software Engineering Internship - Summer 2027", "Software Engineer Intern")).toBe(true);
     expect(titleMatches("Software Developer Co-op (Fall 2027)", "Software Engineer Intern")).toBe(true);
     expect(titleMatches("SWE Intern", "Software Engineer Intern")).toBe(true);
+    expect(titleMatches("Application/Software Developer Co-op (Winter 2027)", "Software Developer Intern")).toBe(true);
+    expect(titleMatches("Embedded C/C++ SW Developer Co-op/Intern", "Software Developer Co-op")).toBe(true);
     expect(titleMatches("Hardware Engineer Intern", "Software Engineer Intern")).toBe(false);
     expect(titleMatches("International Sales Associate", "Intern")).toBe(false);
   });
@@ -440,6 +446,31 @@ describe("discovery", () => {
     expect(seenHeaders[1]).toEqual({ "if-none-match": '"v1"' });
   });
 
+  it("queues one application for a job's copies across requisitions and sources", async () => {
+    const rows = ["J000704364", "J000704365"].map((id) => ({
+      company_name: "Aptiv",
+      title: "Cloud Software Engineer Intern",
+      url: `https://aptiv.wd5.myworkdayjobs.com/aptiv_careers/job/CAN-Kanata/Engineering-Intern_${id}`,
+      locations: ["Kanata, Ottawa, ON, Canada"],
+      active: true,
+    }));
+    const glassdoor = `<li data-jobid="1"><span class="EmployerProfile_compactEmployerName__x">Aptiv</span>
+      <a data-test="job-title" href="https://fr.glassdoor.ca/job-listing/x.htm?jl=1">Cloud Software Engineering Intern</a>
+      <div data-test="emp-location">Ottawa</div></li>`;
+    const f = async (url: string) =>
+      new Response(url.includes("glassdoor") ? glassdoor : url.includes("greenhouse") ? "" : JSON.stringify(rows), {
+        status: url.includes("greenhouse") || url.includes("lever") || url.includes("ashby") ? 404 : 200,
+      });
+    const y = {
+      ...defaultYolo(),
+      queries: ["Software Engineer Intern"],
+      locations: ["Canada"],
+      feeds: ["https://x/feed.json"],
+      boards: ["glassdoor" as const],
+    };
+    expect(await discover({ yolo: y, fetch: f })).toBe(1);
+  });
+
   it("asks the AI about the batch and drops what it rejects", async () => {
     const rows = ["Software Engineer Intern", "Software Engineer Intern (PhD)"].map((title, i) => ({
       company_name: "Co",
@@ -507,5 +538,28 @@ describe("YOLO best guesses", () => {
     const yolo = await mapFields(ctx, { fields, profile: emptyProfile(), documents: [], job: null, yolo: true });
     expect(guessPayload?.fields.map((f) => f.id)).toEqual(["deadline"]);
     expect(yolo.decisions[0]).toMatchObject({ action: "fill", text: "No", sources: ["guess"], confidence: "medium" });
+  });
+
+  it("guesses only required fields, and never a choice whose options read blank", async () => {
+    const asked: string[][] = [];
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: { id: string }[]; items?: unknown[] } }) => {
+        if (s.payload.items) return { data: { verdicts: [] }, usedModel: "m", keyLabel: "k" };
+        const fields = s.payload.fields ?? [];
+        if (/best chance/.test(s.system)) asked.push(fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const fields = [
+      field("deadline", { label: "Do you have any offer deadlines?" }),
+      field("optin", { kind: "checkbox", label: "Send me job alerts", required: false }),
+      field("blank", { kind: "radio_group", label: "Are you a citizen of Iran?", options: [" ", ""] }),
+    ];
+    await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile: emptyProfile(), documents: [], job: null, yolo: true },
+    );
+    expect(asked).toEqual([["deadline"]]);
   });
 });

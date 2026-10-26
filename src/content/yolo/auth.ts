@@ -15,9 +15,6 @@ const RE_TO_SIGNIN = /^(sign ?in|log ?in|already have an account\?.*)$/i;
 const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
 const RE_VERIFY_BTN =
   /^(verify|confirm|continue|next|submit|sign ?in|send( (me )?(a |the )?(reset )?(link|email|code))?|reset( (my |your )?password)?)$/i;
-/** The site refused our sign-up or sign-in: the address has an account whose password we don't hold. */
-export const RE_HAS_ACCOUNT =
-  /already (exists|registered|in use|have an account)|account (with|for) this email|email (address )?is (already )?(taken|registered)|incorrect|invalid (email|password|credentials|username|login)|wrong password|not recognized/i;
 
 /** The account a site's applications share: a Workday tenant's, else the site's own. */
 export function siteKey(): string {

@@ -55,12 +55,23 @@ export function jobKey(raw: string): string {
   return `${host}/${path}${ids ? `?${ids}` : ""}`;
 }
 
-/** Company, title and city: the same posting reached through a board's own id or another requisition copy. */
-export function altKey(company: string, title: string, location: string): string {
-  const city = normalize(location.split(/[,;|(]/)[0] ?? "");
-  return `${normalize(company)
-    .replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, "")
-    .trim()}|${normalize(title)}|${city}`;
+const TITLE_FORMS: [RegExp, string][] = [
+  [/\b(20\d\d|summer|fall|autumn|winter|spring|\d+ ?months?|full ?time|part ?time)\b/g, ""],
+  [/\bengineering\b/g, "engineer"],
+  [/\bdevelopment\b/g, "developer"],
+  [/\b(internships?|interns|co ?op|coop)\b/g, "intern"],
+];
+
+/**
+ * Company and title, as boards and the employer's own posting both word them: the same job reached through
+ * another source ("Software Engineering Intern (Summer 2027)" on Glassdoor, "Software Engineer Intern" on the ATS)
+ * or another requisition copy. Places are left out: boards shorten them ("Ottawa" for "Kanata, Ottawa, ON").
+ */
+export function altKey(company: string, title: string): string {
+  let t = normalize(title);
+  for (const [re, to] of TITLE_FORMS) t = t.replace(re, to);
+  const c = normalize(company).replace(/\b(inc|llc|ltd|corp|corporation|co)\b/g, "");
+  return `${c.replace(/\s+/g, " ").trim()}|${t.replace(/\s+/g, " ").trim()}`;
 }
 
 /** Where an application starts: the ATS's own form page, skipping its description page where the URL allows. */

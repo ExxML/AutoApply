@@ -18,6 +18,7 @@ import { RELEVANCE_SCHEMA, RelevanceZ } from "../gemini/schemas";
 import { draftEssays } from "../services/draftEssays";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
+import { kindOf, refused, signature } from "./classify";
 import { applied, discover } from "./discover";
 import { GmailAuthError, gmailToken, waitForEmail } from "./gmail";
 import { closeFrame } from "./host";
@@ -377,9 +378,11 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { mode: run.mode, company: run.item.company, title: run.item.title, visible: run.host === "visible" };
   },
 
-  async YOLO_STEP({ kind, sig, url, guesses }, sender) {
+  async YOLO_STEP({ facts, url, guesses }, sender) {
     const run = await getRun();
-    if (!fromRun(run, sender)) return { stop: "Not running" };
+    if (!fromRun(run, sender)) return { kind: "unknown", stop: "Not running" };
+    const kind = kindOf(facts, run.host === "frame");
+    const sig = signature(kind, facts);
     run.guesses = mergeGuesses(run.guesses, guesses);
     run.steps.push(sig);
     run.stepAt = Date.now();
@@ -394,7 +397,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     if (run.steps.filter((s) => s === sig).length >= 3) stop = `Stuck at the same ${kind} step`;
     if (run.steps.length > 40) stop = "Too many steps";
     await saveRun(run);
-    return stop ? { stop } : {};
+    return { kind, refused: /^(signin|signup|reset)$/.test(kind) && refused(facts), ...(stop ? { stop } : {}) };
   },
 
   async YOLO_RESULT({ result }, sender) {
@@ -461,7 +464,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     const save = (done: string) =>
       record({
         key: jobKey(job.url),
-        alt: altKey(job.company, job.title, ""),
+        alt: altKey(job.company, job.title),
         url: job.url,
         company: job.company,
         title: job.title,

@@ -1,0 +1,45 @@
+// What kind of step a YOLO run's page is, from the facts its driver reads off it (content/yolo/classify.ts). The
+// wording tests live here, out of the content script every page loads.
+import { RE_APPLIED } from "../../shared/constants";
+import type { PageFacts, StepKind } from "../../shared/messages";
+
+const RE_BLOCKED =
+  /just a moment|verify(ing)? (that )?you are (a )?human|access denied|attention required|unusual traffic|are you a robot|request unsuccessful|you have been blocked/i;
+const RE_CLOSED =
+  /no longer (accepting|available|open|active)|(job|position|posting|role|requisition|opening) (has been |is )?(closed|filled|expired|removed|unavailable)|(page|job) (you('re| are) looking for )?(can'?t|cannot|could not) be found|\b(page|job) not found\b|this job has expired/i;
+const RE_VERIFY =
+  /verify your (email|account|identity)|(verification|confirmation|security) (code|email|link)|check your (email|inbox)|we('ve| have)? (just )?sent (you )?(an? )?(email|code|link)|enter the (\d+[- ]digit )?code|one[- ]time (pass)?code/i;
+const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
+const RE_RESET = /(reset|new|change|create) (your )?password/i;
+const RE_SIGNUP = /create (an |your )?account|sign ?up|register|new (user|candidate)/i;
+/** The site turned down our sign-up or sign-in: the address has an account whose password we don't hold. */
+const RE_REFUSED =
+  /already (exists|registered|in use|have an account)|account (with|for) this email|email (address )?is (already )?(taken|registered)|incorrect|invalid (email|password|credentials|username|login)|wrong (email|password|credentials)|account (might|may) be locked|not recognized/i;
+
+/** `hidden`: the run is in the hidden frame, where a Cloudflare check can't pass but a tab often does. */
+export function kindOf(f: PageFacts, hidden: boolean): StepKind {
+  if (f.captcha) return f.cloudflare && hidden ? "blocked" : "captcha";
+  if (
+    f.fields < 3 &&
+    (RE_APPLIED.test(f.text) || /\/(thanks|thank-you|confirmation|success|submitted)\b/i.test(f.path))
+  )
+    return "success";
+  if (f.text.length < 2000 && (RE_BLOCKED.test(f.text) || RE_BLOCKED.test(f.title))) return "blocked";
+  if (f.fields < 2 && RE_CLOSED.test(f.text)) return "closed";
+  if (RE_VERIFY.test(f.text) && (f.codeInput || !f.passwords)) return "verify";
+  if (!f.passwords && RE_FORGOT.test(f.headings)) return "verify";
+  if (f.passwords >= 2) return RE_RESET.test(f.headings) ? "reset" : "signup";
+  if (f.passwords === 1)
+    return RE_SIGNUP.test(f.headings) && !/sign ?in|log ?in/i.test(f.headings) ? "signup" : "signin";
+  if (f.fields < 3 && f.embedded) return "embedded";
+  // A posting with a search box or two (Indeed's What / Where) is still a posting.
+  if (f.fields < 3 && f.apply) return "job";
+  // A review step has nothing to fill, only the way on.
+  if (f.fields > 0 || f.onward) return "form";
+  return "unknown";
+}
+
+export const refused = (f: PageFacts) => RE_REFUSED.test(f.alerts);
+
+/** What tells one step from the next, for loop detection. */
+export const signature = (kind: StepKind, f: PageFacts) => `${kind}|${f.path}|${f.headings}|${f.fields}`;

@@ -6,3 +6,14 @@ export const IN_HOST = !!ao?.length && ao[ao.length - 1] === new URL(chrome.runt
 export const DRIVER_FRAME = IN_HOST && ao.length === 1;
 /** Timers are throttled and no animation frames come: a hidden tab, or the YOLO host. */
 export const throttled = () => document.hidden || IN_HOST;
+
+/**
+ * Where nothing renders, CSS transitions never finish: a menu fading in stays at opacity 0, invisible to the fill
+ * (Workday's dropdowns). The run's page gets its styles' end states at once instead.
+ */
+export function endTransitions() {
+  const s = document.createElement("style");
+  s.textContent =
+    "*,*::before,*::after{transition:none!important;animation-duration:0s!important;animation-delay:0s!important}";
+  (document.head ?? document.documentElement).append(s);
+}

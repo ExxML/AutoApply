@@ -1317,7 +1317,15 @@ async function guessFlagged(
   base: ReturnType<typeof mappingPayloadBase>,
   sent: (f: FieldDescriptor) => object,
 ): Promise<Decision[]> {
-  const flagged = fields.filter((f, i) => decisions[i].action === "flag" && f.kind !== "file");
+  // Only what blocks submitting: an optional field stays empty rather than guessed (an opt-in ticked "to be safe").
+  // A choice whose options read blank can't be guessed, only gambled: "1" for "a citizen of Iran or Cuba?".
+  const flagged = fields.filter(
+    (f, i) =>
+      decisions[i].action === "flag" &&
+      f.required &&
+      f.kind !== "file" &&
+      !(f.options?.length && f.options.every((o) => !o.trim())),
+  );
   if (!flagged.length) return decisions;
   const why = new Map(decisions.map((d) => [d.fieldId, d]));
   try {
