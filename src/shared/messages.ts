@@ -44,6 +44,8 @@ export type StepKind =
   | "success"
   | "blocked"
   | "closed"
+  /** The site's bot score turned the submission down and left no form: loading the page again retries it. */
+  | "flagged"
   | "verify"
   | "reset"
   | "signup"

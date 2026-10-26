@@ -12,6 +12,7 @@ const RE_VERIFY =
 const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
 const RE_RESET = /(reset|new|change|create) (your )?password/i;
 const RE_SIGNUP = /create (an |your )?account|sign ?up|register|new (user|candidate)/i;
+const RE_FLAGGED = /flagged as (possible )?spam|suspicious activity|recaptcha (verification )?failed/i;
 /** The site turned down our sign-up or sign-in: the address has an account whose password we don't hold. */
 const RE_REFUSED =
   /already (exists|registered|in use|have an account)|account (with|for) this email|email (address )?is (already )?(taken|registered)|incorrect|invalid (email|password|credentials|username|login)|wrong (email|password|credentials)|account (might|may) be locked|not recognized/i;
@@ -26,6 +27,7 @@ export function kindOf(f: PageFacts, hidden: boolean): StepKind {
     return "success";
   if (f.text.length < 2000 && (RE_BLOCKED.test(f.text) || RE_BLOCKED.test(f.title))) return "blocked";
   if (f.fields < 2 && RE_CLOSED.test(f.text)) return "closed";
+  if (!f.fields && !f.onward && RE_FLAGGED.test(f.text)) return "flagged";
   if (RE_VERIFY.test(f.text) && (f.codeInput || !f.passwords)) return "verify";
   if (!f.passwords && RE_FORGOT.test(f.headings)) return "verify";
   if (f.passwords >= 2) return RE_RESET.test(f.headings) ? "reset" : "signup";

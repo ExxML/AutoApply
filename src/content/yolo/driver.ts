@@ -102,7 +102,8 @@ export async function drive(deps: DriverDeps) {
       const kind: StepKind = step.kind;
       if (step.stop)
         return result({
-          status: /already/i.test(step.stop) ? "skipped" : "failed",
+          // Turned down as a bot each time: a visible tab (the user's browser) usually passes.
+          status: /already/i.test(step.stop) ? "skipped" : kind === "flagged" ? "needs" : "failed",
           // What the page says about it ("Verify your email first") is the likely why.
           reason: [step.stop, alertText().slice(0, 200)].filter(Boolean).join(": "),
           guesses: deps.guesses(),
@@ -123,6 +124,9 @@ export async function drive(deps: DriverDeps) {
           return result({ status: "blocked", reason: "The site's bot check stopped it" });
         case "closed":
           return result({ status: "skipped", reason: "Posting is closed" });
+        case "flagged":
+          location.reload(); // the step loop guard ends it after a few tries
+          return;
         case "embedded":
           location.href = embeddedForm()!;
           return;

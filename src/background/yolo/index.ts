@@ -396,6 +396,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     const kind = kindOf(facts, run.host === "frame");
     const sig = signature(kind, facts);
     run.guesses = mergeGuesses(run.guesses, guesses);
+    // The page reloads to retry a submission flagged as spam: its steps repeat from the start, only the flags count.
+    if (kind === "flagged") run.steps = run.steps.filter((s) => s.startsWith("flagged|"));
     run.steps.push(sig);
     run.stepAt = Date.now();
     // Reached the employer's own posting from a board link: it may be one applied to through another source.
@@ -406,7 +408,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       if (applied(await store.get("applications"), jobKey(url), run.item.alt, yolo.reapplyManual))
         stop = "Already applied through another link";
     }
-    if (run.steps.filter((s) => s === sig).length >= 3) stop = `Stuck at the same ${kind} step`;
+    if (run.steps.filter((s) => s === sig).length >= 3)
+      stop = kind === "flagged" ? "The site kept flagging it as automated" : `Stuck at the same ${kind} step`;
     if (run.steps.length > 40) stop = "Too many steps";
     await saveRun(run);
     return { kind, refused: /^(signin|signup|reset)$/.test(kind) && refused(facts), ...(stop ? { stop } : {}) };

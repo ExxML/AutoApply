@@ -32,6 +32,9 @@ describe("YOLO page kinds", () => {
     expect(classify(0)).toBe("closed");
     setBody(`<h1>Just a moment...</h1>`);
     expect(classify(0)).toBe("blocked");
+    // Ashby's bot score turned it down and left no form: load the page again.
+    setBody(`<h2>We couldn't submit your application</h2><p>Your application submission was flagged as possible spam.</p>`);
+    expect(classify(0)).toBe("flagged");
   });
 
   it("asks for an emailed code, or a link", () => {
