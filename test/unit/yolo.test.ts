@@ -1,0 +1,511 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { installChromeMock } from "./chromeMock";
+import { altKey, applyUrl, jobKey } from "../../src/background/yolo/jobKey";
+import { parseFeed, parseGlassdoor, parseIndeed, parseLinkedIn } from "../../src/background/yolo/sources";
+import { boardOf, findOnEmployerBoard, jobLinks, sameTitle, workdayPosted } from "../../src/background/yolo/careers";
+import { locationMatches, rejectReason, titleMatches } from "../../src/background/yolo/filter";
+import { extract } from "../../src/background/yolo/gmail";
+import { textPdf, wrap } from "../../src/background/yolo/pdf";
+import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
+import { applied, discover } from "../../src/background/yolo/discover";
+import { mapFields } from "../../src/background/services/mapFields";
+import type { Gemini } from "../../src/background/gemini/client";
+import { defaultSettings } from "../../src/shared/settings";
+import { emptyProfile } from "../../src/shared/profileSchema";
+import { defaultYolo, type Application, type Listing } from "../../src/shared/yolo";
+import type { FieldDescriptor } from "../../src/shared/types";
+
+describe("job keys", () => {
+  it("names a Workday requisition once across its location copies and apply steps", () => {
+    const a = jobKey(
+      "https://manulife.wd3.myworkdayjobs.com/en-US/MFCJH_AdminJobs/job/Waterloo%2C-Ontario/Summer-Intern-2027---Software-Engineering_JR26081686-1/apply/applyManually?utm_source=x",
+    );
+    const b = jobKey("https://manulife.wd3.myworkdayjobs.com/MFCJH_AdminJobs/job/Toronto/Summer-Intern_JR26081686-2");
+    expect(a).toBe("workday:manulife:jr26081686");
+    expect(b).toBe(a);
+  });
+
+  it("matches a company page's gh_jid to the Greenhouse board's job", () => {
+    expect(jobKey("https://www.pinterestcareers.com/jobs/8138039/software-intern/?gh_jid=8138039")).toBe(
+      "greenhouse:8138039",
+    );
+    expect(jobKey("https://job-boards.greenhouse.io/pinterest/jobs/8138039?gh_src=abc")).toBe("greenhouse:8138039");
+    expect(jobKey("https://boards.greenhouse.io/embed/job_app?for=pinterest&token=8138039")).toBe("greenhouse:8138039");
+  });
+
+  it("ignores ATS apply steps and tracking parameters", () => {
+    const u = "2bad3e47-6c00-4ec2-94b5-feb4009619c9";
+    expect(jobKey(`https://jobs.lever.co/upscale-ai/${u}/apply?lever-source=x`)).toBe(
+      jobKey(`https://jobs.lever.co/upscale-ai/${u}`),
+    );
+    expect(jobKey(`https://jobs.ashbyhq.com/1password/${u}/application?embed=true`)).toBe(`ashby:${u}`);
+    expect(jobKey("https://ca.linkedin.com/jobs/view/software-engineer-intern-at-lyft-4466425159?position=1")).toBe(
+      "linkedin:4466425159",
+    );
+    expect(jobKey("https://www.glassdoor.ca/job-listing/x-JV_IC2.htm?jl=1010271659983&cs=1")).toBe(
+      "glassdoor:1010271659983",
+    );
+    expect(jobKey("https://careers.example.com/Jobs/42?utm_source=a&ref=b")).toBe("careers.example.com/jobs/42");
+  });
+
+  it("starts applications on the form page where the URL allows", () => {
+    expect(applyUrl("https://jobs.lever.co/co/abc-123")).toBe("https://jobs.lever.co/co/abc-123/apply");
+    expect(applyUrl("https://jobs.ashbyhq.com/org/abc-123?utm_source=x")).toBe(
+      "https://jobs.ashbyhq.com/org/abc-123/application",
+    );
+    expect(applyUrl("https://co.wd1.myworkdayjobs.com/Site/job/Toronto/Intern_R1")).toBe(
+      "https://co.wd1.myworkdayjobs.com/Site/job/Toronto/Intern_R1/apply/applyManually",
+    );
+    expect(applyUrl("https://apply.workable.com/co/j/1AF4F8C65F")).toBe(
+      "https://apply.workable.com/co/j/1AF4F8C65F/apply",
+    );
+    expect(applyUrl("https://job-boards.greenhouse.io/co/jobs/1")).toBe("https://job-boards.greenhouse.io/co/jobs/1");
+  });
+
+  it("keys company, title and city loosely", () => {
+    expect(altKey("Lyft, Inc.", "Software Engineer Intern", "Toronto, ON")).toBe(
+      altKey("lyft", "Software Engineer Intern", "Toronto, Ontario, Canada"),
+    );
+  });
+});
+
+describe("sources", () => {
+  it("reads a SimplifyJobs listings.json, skipping closed and hidden postings", () => {
+    const body = JSON.stringify([
+      {
+        company_name: "Lyft",
+        title: "SWE Intern",
+        url: "https://a/1",
+        locations: ["Toronto, ON"],
+        date_posted: 1792968258,
+        active: true,
+        is_visible: true,
+      },
+      { company_name: "Old", title: "SWE Intern", url: "https://a/2", locations: [], active: false, is_visible: true },
+      {
+        company_name: "Hidden",
+        title: "SWE Intern",
+        url: "https://a/3",
+        locations: [],
+        active: true,
+        is_visible: false,
+      },
+    ]);
+    expect(parseFeed(body, "SimplifyJobs/x")).toEqual([
+      {
+        url: "https://a/1",
+        company: "Lyft",
+        title: "SWE Intern",
+        location: "Toronto, ON",
+        postedAt: 1792968258000,
+        source: "SimplifyJobs/x",
+      },
+    ]);
+  });
+
+  it("reads README job tables in Markdown and HTML", () => {
+    const md = `| Company | Role | Location | Application | Age |
+| --- | --- | --- | :---: | --- |
+| **[Acme](https://simplify.jobs/c/Acme)** | Software Engineer Intern | Toronto, ON | <a href="https://jobs.lever.co/acme/1?utm_source=Simplify"><img src="https://i.imgur.com/x.png"></a> | 0d |
+| ↳ | Data Intern | Remote | [Apply](https://jobs.lever.co/acme/2) | 1d |
+| Closed Co | SWE Intern | NYC | 🔒 | 3d |
+<table><tr><td><strong><a href="https://simplify.jobs/c/Beta">Beta</a></strong></td><td>SWE Intern</td><td>Seattle, WA</br>Remote</td><td><a href="https://job-boards.greenhouse.io/beta/jobs/9"><img></a></td><td>0d</td></tr></table>`;
+    expect(parseFeed(md, "r").map((l) => [l.company, l.title, l.location, l.url])).toEqual([
+      ["Beta", "SWE Intern", "Seattle, WA; Remote", "https://job-boards.greenhouse.io/beta/jobs/9"],
+      ["Acme", "Software Engineer Intern", "Toronto, ON", "https://jobs.lever.co/acme/1?utm_source=Simplify"],
+      ["Acme", "Data Intern", "Remote", "https://jobs.lever.co/acme/2"],
+    ]);
+  });
+
+  it("reads LinkedIn's logged-out search cards", () => {
+    const html = `<li><div class="base-card relative w-full" data-entity-urn="urn:li:jobPosting:4466425159" data-row="1">
+      <a class="base-card__full-link" href="https://ca.linkedin.com/jobs/view/x-4466425159?position=1"></a>
+      <h3 class="base-search-card__title">
+            Software Engineer Intern, Machine Learning &amp; AI
+          </h3>
+      <h4 class="base-search-card__subtitle"><a class="hidden-nested-link" href="https://www.linkedin.com/company/lyft">Lyft</a></h4>
+      <span class="job-search-card__location">Toronto, Ontario, Canada</span>
+      <time class="job-search-card__listdate" datetime="2026-10-25">1 day ago</time></div></li>`;
+    expect(parseLinkedIn(html)).toEqual([
+      {
+        url: "https://www.linkedin.com/jobs/view/4466425159",
+        title: "Software Engineer Intern, Machine Learning & AI",
+        company: "Lyft",
+        location: "Toronto, Ontario, Canada",
+        postedAt: Date.parse("2026-10-25"),
+        source: "linkedin",
+      },
+    ]);
+  });
+
+  it("reads Glassdoor cards, marking Easy Apply ones", () => {
+    const card = (id: string, easy: boolean) => `<li data-jobid="${id}"><div data-test="job-card-wrapper">
+      <span class="EmployerProfile_compactEmployerName__9MGcV">General Dynamics</span>
+      <a data-test="job-title" href="https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=${id}" id="job-title-${id}">Student, Software Test</a>
+      <div data-test="emp-location" id="job-location-${id}">London</div>
+      ${easy ? '<button aria-label="Easy Apply"></button>' : ""}<div data-test="job-age">3d</div></div></li>`;
+    const now = Date.UTC(2026, 9, 26);
+    const out = parseGlassdoor(card("1", false) + card("2", true), now);
+    expect(out[0]).toMatchObject({
+      url: "https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=1",
+      title: "Student, Software Test",
+      company: "General Dynamics",
+      location: "London",
+      postedAt: now - 3 * 86400e3,
+      source: "glassdoor",
+    });
+    expect(out[0].easyApply).toBeUndefined();
+    expect(out[1].easyApply).toBe(true);
+  });
+
+  it("reads Indeed result cards from a rendered page's links", () => {
+    const out = parseIndeed(
+      [
+        {
+          href: "https://ca.indeed.com/rc/clk?jk=abc123&from=serp",
+          text: "Software Developer Intern",
+          card: "Software Developer Intern\nShopify\nToronto, ON\n$30 an hour",
+        },
+        {
+          href: "https://ca.indeed.com/rc/clk?jk=def456",
+          text: "QA Intern",
+          card: "QA Intern\nAcme\nRemote\nEasily apply",
+        },
+        { href: "https://ca.indeed.com/about", text: "About" },
+      ],
+      "ca.indeed.com",
+    );
+    expect(out).toEqual([
+      {
+        url: "https://ca.indeed.com/viewjob?jk=abc123",
+        title: "Software Developer Intern",
+        company: "Shopify",
+        location: "Toronto, ON",
+        source: "indeed",
+        easyApply: undefined,
+      },
+      {
+        url: "https://ca.indeed.com/viewjob?jk=def456",
+        title: "QA Intern",
+        company: "Acme",
+        location: "Remote",
+        source: "indeed",
+        easyApply: true,
+      },
+    ]);
+  });
+});
+
+describe("employer boards", () => {
+  it("recognizes career-site URLs with an API", () => {
+    expect(boardOf("https://cadence.wd1.myworkdayjobs.com/en-US/External_Careers")).toEqual({
+      ats: "workday",
+      slug: "cadence",
+      site: "External_Careers",
+      host: "cadence.wd1.myworkdayjobs.com",
+    });
+    expect(boardOf("https://job-boards.greenhouse.io/amperesand")).toEqual({ ats: "greenhouse", slug: "amperesand" });
+    expect(boardOf("https://jobs.lever.co/upscale-ai")).toEqual({ ats: "lever", slug: "upscale-ai" });
+    expect(boardOf("https://jobs.sap.com/search/?q=intern")).toBeNull();
+  });
+
+  it("dates Workday postings and compares titles loosely", () => {
+    const now = 1_000_000_000_000;
+    expect(workdayPosted("Posted Today", now)).toBe(now);
+    expect(workdayPosted("Posted 3 Days Ago", now)).toBe(now - 3 * 86400e3);
+    expect(workdayPosted("Posted 30+ Days Ago", now)).toBe(now - 30 * 86400e3);
+    expect(sameTitle("Software Engineer Intern - Summer 2027", "software engineer intern")).toBe(true);
+    expect(sameTitle("Software Engineer Intern", "Hardware Engineer Intern")).toBe(false);
+  });
+
+  it("reads job links off a rendered career page", () => {
+    const out = jobLinks(
+      [
+        { href: "/job/Kirkland-Data-Intern-WA/1450518033/", text: "Data Intern", card: "Data Intern\nKirkland, WA" },
+        { href: "/job/Kirkland-Data-Intern-WA/1450518033/", text: "Apply now" },
+        { href: "/about-us", text: "About us" },
+      ],
+      "paccar",
+      "https://jobs.paccar.com/search?q=intern",
+    );
+    expect(out).toEqual([
+      {
+        url: "https://jobs.paccar.com/job/Kirkland-Data-Intern-WA/1450518033/",
+        title: "Data Intern",
+        company: "paccar",
+        location: "Kirkland, WA",
+        source: "careers",
+      },
+    ]);
+  });
+
+  it("finds a board listing on the employer's own ATS, remembering which board it is", async () => {
+    const calls: string[] = [];
+    const f = async (url: string) => {
+      calls.push(url);
+      if (url === "https://boards-api.greenhouse.io/v1/boards/lyft/jobs")
+        return new Response(
+          JSON.stringify({
+            jobs: [
+              {
+                absolute_url: "https://lyft.com/jobs/1?gh_jid=1",
+                title: "Software Engineer Intern",
+                location: { name: "Toronto" },
+              },
+            ],
+          }),
+        );
+      return new Response("", { status: 404 });
+    };
+    const known: Record<string, string> = {};
+    const l: Listing = {
+      url: "https://www.linkedin.com/jobs/view/1",
+      company: "Lyft",
+      title: "Software Engineer Intern - Summer 2027",
+      location: "Toronto",
+      source: "linkedin",
+    };
+    expect(await findOnEmployerBoard(f, l, known, new Map())).toBe("https://lyft.com/jobs/1?gh_jid=1");
+    expect(known).toEqual({ lyft: "greenhouse:lyft" });
+    calls.length = 0;
+    expect(await findOnEmployerBoard(f, { ...l, company: "Nobody Corp" }, known, new Map())).toBeNull();
+    expect(known["nobody corp"]).toBe("");
+    const n = calls.length;
+    await findOnEmployerBoard(f, { ...l, company: "Nobody Corp" }, known, new Map());
+    expect(calls.length).toBe(n); // the miss is remembered
+  });
+});
+
+describe("filters", () => {
+  it("matches titles by every query word, with plurals and synonyms", () => {
+    expect(titleMatches("Software Engineering Internship - Summer 2027", "Software Engineer Intern")).toBe(true);
+    expect(titleMatches("Software Developer Co-op (Fall 2027)", "Software Engineer Intern")).toBe(true);
+    expect(titleMatches("SWE Intern", "Software Engineer Intern")).toBe(true);
+    expect(titleMatches("Hardware Engineer Intern", "Software Engineer Intern")).toBe(false);
+    expect(titleMatches("International Sales Associate", "Intern")).toBe(false);
+  });
+
+  it("matches places by country, city or remote", () => {
+    expect(locationMatches("Toronto, ON, Canada", ["Canada"], false)).toBe(true);
+    expect(locationMatches("Waterloo, ON", ["Canada"], false)).toBe(true);
+    expect(locationMatches("San Francisco, CA; Toronto, ON", ["Canada"], false)).toBe(true);
+    expect(locationMatches("Seattle, WA", ["Canada"], true)).toBe(false);
+    expect(locationMatches("Remote in USA", ["Canada"], true)).toBe(false);
+    expect(locationMatches("Remote", ["Canada"], true)).toBe(true);
+    expect(locationMatches("Remote", ["Canada"], false)).toBe(false);
+    expect(locationMatches("Seattle, WA", ["Seattle"], false)).toBe(true);
+    expect(locationMatches("Anywhere", [], false)).toBe(true);
+  });
+
+  it("explains why a posting is skipped", () => {
+    const y = { ...defaultYolo(), queries: ["Software Engineer Intern"], locations: ["Canada"] };
+    const now = Date.UTC(2026, 9, 26);
+    const l: Listing = {
+      url: "u",
+      company: "Acme",
+      title: "Software Engineer Intern",
+      location: "Toronto, ON",
+      source: "x",
+      postedAt: now,
+    };
+    expect(rejectReason(l, y, now)).toBeNull();
+    expect(rejectReason({ ...l, easyApply: true }, y, now)).toMatch(/Easy Apply/);
+    expect(rejectReason({ ...l, title: "Senior Software Engineer Intern" }, y, now)).toBe('Title has "senior"');
+    expect(rejectReason({ ...l, location: "Austin, TX" }, y, now)).toBe("Location");
+    expect(rejectReason({ ...l, postedAt: now - 30 * 86400e3 }, y, now)).toBe("Too old");
+    expect(rejectReason({ ...l, company: "ACME" }, { ...y, skipCompanies: ["acme"] }, now)).toBe("Company skipped");
+    // A career site the user pasted rarely says where each job is.
+    expect(rejectReason({ ...l, location: "", source: "careers" }, y, now)).toBeNull();
+  });
+
+  it("never re-applies to YOLO's own attempts; to the user's only when allowed", () => {
+    const a = (mode: Application["mode"], status: Application["status"]): Application => ({
+      key: "k",
+      alt: "",
+      url: "",
+      company: "",
+      title: "",
+      location: "",
+      source: "",
+      doneUrl: "",
+      mode,
+      status,
+      reason: "",
+      guesses: [],
+      at: 0,
+    });
+    expect(applied([a("yolo", "failed")], "k", "", true)).toBe(true);
+    expect(applied([a("manual", "submitted")], "k", "", false)).toBe(true);
+    expect(applied([a("manual", "submitted")], "k", "", true)).toBe(false);
+    expect(applied([a("yolo", "submitted")], "other", "", false)).toBe(false);
+  });
+});
+
+describe("verification emails", () => {
+  it("finds the verification link, not the unsubscribe one", () => {
+    const html = `<a href="https://x.com/unsubscribe?u=1">Unsubscribe</a>
+      <a href="https://wd5.myworkday.com/acme/verify?token=abc&amp;t=1">Verify Account</a>`;
+    expect(extract(html, "link")).toBe("https://wd5.myworkday.com/acme/verify?token=abc&t=1");
+  });
+
+  it("finds a one-time code", () => {
+    expect(extract("<p>Your verification code is: <b>482913</b></p><p>Ref 2026</p>", "code")).toBe("482913");
+    expect(extract("Use passcode X7K2QP to sign in", "code")).toBe("X7K2QP");
+    expect(extract("Hello there", "code")).toBeNull();
+  });
+});
+
+describe("cover letter PDF", () => {
+  it("wraps text and writes a PDF whose cross-reference offsets point at its objects", () => {
+    expect(wrap("one two three", 7)).toEqual(["one two", "three"]);
+    const pdf = atob(textPdf(`Dear Hiring Team,\n\n${"I build things (well). ".repeat(400)}\n\nSincerely,\nAda`));
+    expect(pdf.startsWith("%PDF-1.4")).toBe(true);
+    const offsets = [...pdf.split("xref\n")[1].matchAll(/^(\d{10}) 00000 n $/gm)].map((m) => Number(m[1]));
+    offsets.forEach((o, i) => expect(pdf.slice(o).startsWith(`${i + 1} 0 obj<<`)).toBe(true));
+    expect(Number(/startxref\n(\d+)/.exec(pdf)![1])).toBe(pdf.indexOf("xref\n"));
+    expect(/\/Count (\d+)/.exec(pdf)![1]).not.toBe("1"); // long letters span pages
+  });
+});
+
+describe("vault", () => {
+  it("round-trips passwords and makes ones every ATS accepts", async () => {
+    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const e = await encrypt(key, "s3cret!");
+    expect(e.ct).not.toContain("s3cret");
+    expect(await decrypt(key, e)).toBe("s3cret!");
+    for (let i = 0; i < 20; i++) {
+      const p = newPassword();
+      expect(p).toHaveLength(18);
+      for (const re of [/[A-Z]/, /[a-z]/, /\d/, /[!@#$%^*_-]/]) expect(p).toMatch(re);
+    }
+  });
+});
+
+describe("discovery", () => {
+  beforeEach(() => installChromeMock());
+
+  it("queues new matching postings once, and re-downloads a feed only when it changed", async () => {
+    const feed = "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/listings.json";
+    const now = Date.UTC(2026, 9, 26);
+    const rows = [
+      {
+        company_name: "Lyft",
+        title: "Software Engineer Intern",
+        url: "https://jobs.lever.co/lyft/a1",
+        locations: ["Toronto, ON"],
+        date_posted: now / 1000,
+        active: true,
+      },
+      {
+        company_name: "Acme",
+        title: "Mechanical Intern",
+        url: "https://jobs.lever.co/acme/b2",
+        locations: ["Toronto, ON"],
+        date_posted: now / 1000,
+        active: true,
+      },
+      {
+        company_name: "Done",
+        title: "Software Engineer Intern",
+        url: "https://jobs.lever.co/done/c3",
+        locations: ["Toronto, ON"],
+        date_posted: now / 1000,
+        active: true,
+      },
+    ];
+    const seenHeaders: Record<string, string>[] = [];
+    const f = async (_url: string, init?: RequestInit) => {
+      const h = (init?.headers ?? {}) as Record<string, string>;
+      seenHeaders.push(h);
+      return h["if-none-match"] === '"v1"'
+        ? new Response(null, { status: 304 })
+        : new Response(JSON.stringify(rows), { headers: { etag: '"v1"' } });
+    };
+    await chrome.storage.local.set({
+      applications: [{ key: "lever:c3", alt: "", url: "", mode: "manual", status: "submitted", at: 1 }],
+    });
+    const y = {
+      ...defaultYolo(),
+      queries: ["Software Engineer Intern"],
+      locations: ["Canada"],
+      feeds: [feed],
+      boards: [],
+    };
+    expect(await discover({ yolo: y, fetch: f, now })).toBe(1);
+    const { yoloQueue } = (await chrome.storage.local.get("yoloQueue")) as {
+      yoloQueue: { key: string; url: string }[];
+    };
+    expect(yoloQueue.map((i) => [i.key, i.url])).toEqual([["lever:a1", "https://jobs.lever.co/lyft/a1"]]);
+    expect(await discover({ yolo: y, fetch: f, now })).toBe(0);
+    expect(seenHeaders[1]).toEqual({ "if-none-match": '"v1"' });
+  });
+
+  it("asks the AI about the batch and drops what it rejects", async () => {
+    const rows = ["Software Engineer Intern", "Software Engineer Intern (PhD)"].map((title, i) => ({
+      company_name: "Co",
+      title,
+      url: `https://jobs.lever.co/co/${i}`,
+      locations: ["Remote"],
+      active: true,
+    }));
+    const f = async () => new Response(JSON.stringify(rows));
+    const y = {
+      ...defaultYolo(),
+      queries: ["Software Engineer Intern"],
+      excludeTitleWords: [],
+      feeds: ["https://x/feed.json"],
+      boards: [],
+    };
+    const asked: string[][] = [];
+    const n = await discover({
+      yolo: y,
+      fetch: f,
+      relevance: async (items) => (asked.push(items.map((i) => i.title)), new Set([0])),
+    });
+    expect(asked).toEqual([["Software Engineer Intern", "Software Engineer Intern (PhD)"]]);
+    expect(n).toBe(1);
+  });
+});
+
+describe("YOLO best guesses", () => {
+  const field = (id: string, extra: Partial<FieldDescriptor> = {}): FieldDescriptor => ({
+    id,
+    kind: "text",
+    label: id,
+    required: true,
+    optionsKnown: true,
+    ...extra,
+  });
+
+  it("answers what the profile can't, in one more call that sees why each field was flagged", async () => {
+    const systems: string[] = [];
+    let guessPayload: { fields: { id: string; whyUnanswered?: string }[] } | undefined;
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: { id: string }[]; items?: unknown[] } }) => {
+        systems.push(s.system.slice(0, 40));
+        if (s.payload.items) return { data: { verdicts: [] }, usedModel: "m", keyLabel: "k" };
+        if (/best chance/.test(s.system)) {
+          guessPayload = s.payload as typeof guessPayload;
+          return {
+            data: { decisions: [{ fieldId: "deadline", action: "fill", text: "No", confidence: "low", sources: [] }] },
+            usedModel: "m",
+            keyLabel: "k",
+          };
+        }
+        return {
+          data: { decisions: [{ fieldId: "deadline", action: "flag", confidence: "low" }] },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const ctx = { gemini, settings: defaultSettings(), model: "m", fallback: null };
+    const fields = [field("deadline", { label: "Do you have any offer deadlines?" })];
+    const plain = await mapFields(ctx, { fields, profile: emptyProfile(), documents: [], job: null });
+    expect(plain.decisions[0].action).toBe("flag");
+    expect(systems.some((s) => /candidate is applying automatically/.test(s))).toBe(false);
+    const yolo = await mapFields(ctx, { fields, profile: emptyProfile(), documents: [], job: null, yolo: true });
+    expect(guessPayload?.fields.map((f) => f.id)).toEqual(["deadline"]);
+    expect(yolo.decisions[0]).toMatchObject({ action: "fill", text: "No", sources: ["guess"], confidence: "medium" });
+  });
+});

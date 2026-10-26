@@ -203,6 +203,8 @@ export interface RuntimeConfig {
   selectedModel: string | null;
   hasKeys: boolean;
   overlayBottom: number | null;
+  /** YOLO already submitted an application for this posting (shown as a warning, if the user wants it). */
+  appliedBefore?: { at: number; url: string };
 }
 
 export type ApiErrorKind = "allKeysExhausted" | "noKey" | "noModel" | "modelGone" | "blocked" | "badOutput" | "other";

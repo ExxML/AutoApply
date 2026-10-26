@@ -1,6 +1,7 @@
 // Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
-// Fills only when the user triggers it. Never sees API keys; never clicks submit/next.
-import { RE_CONSENT, RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
+// Fills only when the user triggers it. Never sees API keys; never clicks submit/next. The exception is a YOLO run
+// (./yolo), which the user turned on: it fills and submits in a page the background loaded for it.
+import { RE_APPLIED, RE_CONSENT, RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
 import type {
@@ -27,6 +28,12 @@ import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/b
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
 import { claimFrame, relayClicksToTop } from "./ui/root";
+import { nextMidnightPacific } from "../shared/time";
+import type { Guess } from "../shared/yolo";
+import { isVisible } from "./scan/visibility";
+import { drive, type FillReport } from "./yolo/driver";
+import { DRIVER_FRAME, IN_HOST } from "./yolo/frame";
+import { labelOf } from "./yolo/nav";
 
 type Status =
   | "pending"
@@ -65,7 +72,8 @@ const BADGE: Partial<Record<Status, [BadgeColor, string]>> = {
   failed: ["red", "Failed"],
 };
 
-const TOP = window === window.top;
+// The YOLO host's frame is its page's top frame; the host itself (an extension page) runs nothing of ours.
+const TOP = window === window.top || DRIVER_FRAME;
 const HOST = location.hostname;
 
 let config: RuntimeConfig;
@@ -93,6 +101,12 @@ let active = false;
 let listening = false;
 /** Aborted when a newer instance (extension reload/update) takes over this frame. */
 const life = new AbortController();
+/** This page belongs to a YOLO run: every field gets an answer, and nothing is left for the user. */
+let yolo = false;
+/** Why the run can't go on, from the last fill (a required ID number, no résumé). */
+let yoloFatal: string | undefined;
+/** Answers the AI made up on this page, for the run's log. */
+const guesses = new Map<string, Guess>();
 
 // ---------- status ----------
 function counts(): StatusCounts {
@@ -134,7 +148,7 @@ function report() {
     reportTimer = undefined;
     const st = frameStatus();
     send({ type: "FRAME_STATUS", status: st }).catch(() => undefined);
-    if (TOP) renderOverlay();
+    if (TOP && !IN_HOST) renderOverlay();
   }, 250);
 }
 
@@ -175,6 +189,9 @@ function renderOverlay() {
     error,
     model: usedModel ?? config?.selectedModel ?? null,
     debug: config?.settings.debugLogging ? timings.map(([k, v]) => `${k.padEnd(10)} ${v} ms`).join("\n") : "",
+    notice: config?.appliedBefore
+      ? `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`
+      : undefined,
   });
 }
 
@@ -238,6 +255,17 @@ function opFromDecision(h: FieldHandle, d: Decision): FillOp | null {
   const answer = d.intendedAnswer ?? d.text;
   return answer ? { type: "intended", answer, query: d.searchQuery } : null;
 }
+
+const opText = (op: FillOp) =>
+  op.type === "text"
+    ? op.value
+    : op.type === "options"
+      ? op.texts.join(", ")
+      : op.type === "intended"
+        ? op.answer
+        : op.type === "checked"
+          ? String(op.value)
+          : "";
 
 // ---------- choose-options batching (§14.6 step 3) ----------
 const chooseQueue: {
@@ -330,6 +358,11 @@ const applied = new Map<string, [FillOp, Status, string]>();
 
 async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: string, ctrl: AbortController) {
   if (states.get(h.id)?.userOwned) return;
+  if (tooltip === "guess") {
+    okStatus = "check";
+    tooltip = "Best guess (YOLO)";
+    guesses.set(h.id, { q: h.desc.label, a: opText(op) });
+  }
   applied.set(h.id, [op, okStatus, tooltip]);
   setStatus(h, "working");
   const r = await fill(h, op, {
@@ -419,12 +452,12 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   const mark = (k: string) => timings.push([k, Math.round(performance.now() - t0)]);
   const jobs: Promise<void>[] = [];
   try {
-    config = await send({ type: "GET_RUNTIME_CONFIG" });
+    config = await send({ type: "GET_RUNTIME_CONFIG", yolo });
     if (!config.excluded && !config.settings.excludedHosts.includes(HOST)) listen();
     document.dispatchEvent(new Event("autoapply-fill-start")); // see pageTimers.ts
     setBadgesVisible(config.settings.showBadges);
     report(); // running: the top frame waits for us while we reveal
-    if (!TOP && rescan().length) await revealFrame();
+    if (!TOP && !IN_HOST && rescan().length) await revealFrame();
     unsaved.push(...(await addEntries(config.entryCounts, ctrl.signal)));
     const all = rescan();
     mark("scan");
@@ -432,7 +465,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       const s = states.get(h.id);
       if (s?.userOwned) return false;
       if (!s || s.status === "pending") return true;
-      return !!opts.rerun && ["needs", "failed", "check"].includes(s.status);
+      // A YOLO pass re-tries only what it couldn't fill: its guesses ("check") stand.
+      return !!opts.rerun && (yolo ? ["needs", "failed"] : ["needs", "failed", "check"]).includes(s.status);
     });
     for (const h of targets) setStatus(h, "pending");
     report();
@@ -452,7 +486,9 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         continue;
       }
       if (h.sensitive) {
-        setStatus(h, "needs", "Sensitive – fill manually");
+        // Never made up: a required ID or card number ends a YOLO application.
+        if (yolo && h.desc.required) yoloFatal = `Asks for ${h.desc.label}`;
+        setStatus(h, yolo && !h.desc.required ? "skipped" : "needs", "Sensitive – fill manually");
         continue;
       }
       if (h.consent) {
@@ -462,7 +498,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       if (h.desc.kind === "file") {
         const doc = primaryDocFor(h);
         if (doc) jobs.push(doFill(h, { type: "file", documentId: doc }, "filled", "Primary résumé", ctrl));
-        else if (doc === null)
+        else if (doc === null && yolo && RE_COVER_LETTER.test(h.desc.label)) {
+          if (h.desc.required) jobs.push(coverLetter(h, ctrl));
+          else setStatus(h, "skipped");
+        } else if (doc === null)
           setStatus(h, "needs", RE_COVER_LETTER.test(h.desc.label) ? "No cover letter uploaded" : "No résumé uploaded");
         else pending.push(h);
         continue;
@@ -537,7 +576,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       };
       const mapAndApply = async (hs: FieldHandle[], fields: FieldDescriptor[]) => {
         if (!hs.length || ctrl.signal.aborted) return;
-        const res = await send({ type: "MAP_FIELDS", fields, host: HOST, groupId });
+        const res = await send({ type: "MAP_FIELDS", fields, host: HOST, groupId, yolo });
         if (isErr(res)) {
           lastError = res.error;
           for (const h of hs) setStatus(h, "needs", res.error.message);
@@ -590,7 +629,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     current = null;
     report();
     // Child frames report their fields ~250 ms after the trigger; give them time before calling the page empty.
-    if (TOP && !states.size)
+    if (TOP && !IN_HOST && !states.size)
       setTimeout(() => {
         noForm = true;
         renderOverlay();
@@ -601,6 +640,16 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       void runPipeline(q);
     }
   }
+}
+
+/** YOLO: a required cover-letter upload with none in Documents gets one written for this job. */
+async function coverLetter(h: FieldHandle, ctrl: AbortController) {
+  setStatus(h, "working", "Drafting a cover letter…");
+  const r = await send({ type: "YOLO_COVER_LETTER", question: h.desc.label });
+  if (isErr(r)) return setStatus(h, "needs", r.error.message);
+  config.documentsIndex = [...config.documentsIndex, r.meta];
+  guesses.set(h.id, { q: h.desc.label, a: "A cover letter written for this job" });
+  await doFill(h, { type: "file", documentId: r.meta.id }, "draft", "Generated cover letter", ctrl);
 }
 
 async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortController, mark: (k: string) => void) {
@@ -706,6 +755,93 @@ function onUserCommit(e: Event) {
   }, 50);
 }
 
+// ---------- YOLO (./yolo/driver.ts) ----------
+/** Required fields still without an answer on the page. */
+function unfilledRequired(): FieldHandle[] {
+  return [...handles.values()].filter((h) => {
+    if (!h.desc.required || !h.el.isConnected || !isVisible(h.container ?? h.el)) return false;
+    const s = states.get(h.id)?.status;
+    return s === "needs" || s === "failed" || (s !== "skipped" && !readValue(h));
+  });
+}
+
+async function yoloFill(): Promise<FillReport> {
+  yoloFatal = undefined;
+  for (let pass = 0; pass < 4; pass++) {
+    await runPipeline({ rerun: true });
+    while (running || queued) await sleep(100);
+    if (lastError?.kind === "allKeysExhausted") {
+      // A short wait for a rate limit is spent here; a longer one sends the job back to the queue.
+      const wait = (lastError.earliestRetryAt ?? 0) - Date.now();
+      clearTimeout(retryTimer);
+      if (wait > 0 && wait <= 90_000) {
+        await sleep(wait + 250);
+        continue;
+      }
+      return { unfilled: [], retryAt: lastError.earliestRetryAt ?? nextMidnightPacific() };
+    }
+    if (yoloFatal) return { unfilled: [], fatal: yoloFatal };
+    if (!unfilledRequired().length || pass >= 1) break;
+  }
+  return { unfilled: unfilledRequired().map((h) => h.desc.label || "(unlabeled field)") };
+}
+
+/** Fields the page rejected are answered again, with its message as a hint ("Enter a valid phone number"). */
+function refill(errors: HTMLElement[]) {
+  for (const h of handles.values()) {
+    const box = h.container ?? h.el;
+    const e = errors.find((x) => box.contains(x) || x === h.el || h.members?.includes(x));
+    const s = states.get(h.id);
+    if (!e || !s || s.userOwned) continue;
+    s.status = "failed";
+    applied.delete(h.id);
+    const said = labelOf(e);
+    if (said && !h.desc.hint?.includes(said))
+      h.desc.hint = [h.desc.hint, `The form said: "${said}"`].filter(Boolean).join(" ");
+  }
+}
+
+async function startYolo() {
+  if (yolo) return;
+  yolo = true;
+  config = await send({ type: "GET_RUNTIME_CONFIG", yolo: true });
+  listen();
+  await drive({
+    count: () => rescan().length,
+    fill: yoloFill,
+    refill,
+    guesses: () => [...guesses.values()],
+    email: () => config.profileSnapshotForDeterministic.personal.email,
+    values: () =>
+      import.meta.env.VITE_YOLO_DRY === "1"
+        ? [...handles.values()]
+            .filter((h) => h.el.isConnected)
+            .map((h) => `${h.desc.label} = ${readValue(h)} [${states.get(h.id)?.status}]`)
+            .join("\n")
+        : "",
+  });
+}
+
+// ---------- the user's own submissions (for "already applied") ----------
+let attempted = false;
+/** After a fill, the user pressing the form's submit: logged as applied once the page confirms it. */
+function onSubmitAttempt(e: Event) {
+  if (!e.isTrusted || yolo || attempted || !states.size) return;
+  if (e.type === "click") {
+    const b = (e.target as Element | null)?.closest?.("button,input[type=submit],[role=button]");
+    const t = b instanceof HTMLElement ? labelOf(b) : "";
+    if (!/submit|apply|send|finish|complete/i.test(t) || /next|continue|save|back|cancel|review/i.test(t)) return;
+  }
+  attempted = true;
+  const ctx = extractJobContext();
+  const job = { url: location.href, company: ctx.company, title: ctx.jobTitle || ctx.title };
+  void send({ type: "APPLY_ATTEMPT", job }).catch(() => undefined);
+  if (RE_APPLIED.test(document.body?.innerText ?? "")) return; // said so already: no proof either way
+  void waitFor(() => RE_APPLIED.test(document.body?.innerText ?? "") && location.href, 20_000).then((doneUrl) => {
+    if (doneUrl) send({ type: "APPLY_ATTEMPT", job, doneUrl }).catch(() => undefined);
+  });
+}
+
 // ---------- messages ----------
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
   if (!active) return false;
@@ -718,6 +854,9 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
       break;
     case "TOGGLE_OVERLAY":
       overlay?.toggle();
+      break;
+    case "YOLO_ATTACH":
+      if (window === window.top) void startYolo();
       break;
     case "FRAME_STATUS":
       if (TOP) {
@@ -774,6 +913,7 @@ async function main() {
   // No message to the background until a fill: waking its service worker on every page load costs battery.
   active = true;
   watchPay();
+  if (DRIVER_FRAME) void startYolo();
 }
 
 /** Edit tracking and page timers, from the first fill on a site that isn't excluded (they only act on its fields). */
@@ -783,6 +923,7 @@ function listen() {
   const opts = { capture: true, signal: life.signal };
   document.addEventListener("input", onUserInput, opts);
   for (const ev of ["change", "focusout", "click"]) document.addEventListener(ev, onUserCommit, opts);
+  for (const ev of ["submit", "click"]) document.addEventListener(ev, onSubmitAttempt, opts);
   // A page timer set during a fill in a hidden tab (pageTimers.ts): fire it on time.
   document.addEventListener(
     "autoapply-timer",

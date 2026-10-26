@@ -3,6 +3,7 @@
 import { RE_FORBIDDEN_CLICK } from "../../shared/constants";
 import { send } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
+import { throttled } from "../yolo/frame";
 
 let fillingNow = false;
 export const isFilling = () => fillingNow;
@@ -21,7 +22,7 @@ const timeout = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // A hidden tab's timers wake at most once a second, so after a tab switch a fill would crawl. The service worker's
 // timers are not throttled, and its reply reaches the hidden tab at once.
 export const sleep = (ms: number): Promise<void> =>
-  document.hidden
+  throttled()
     ? send({ type: "SLEEP", ms }).then(
         () => undefined,
         () => timeout(ms),
@@ -64,9 +65,9 @@ export function waitFor<T>(fn: () => T | null | undefined | false, timeoutMs: nu
     const tick = () => {
       if (done) return;
       check();
-      if (!document.hidden) requestAnimationFrame(tick);
+      if (!throttled()) requestAnimationFrame(tick);
     };
-    if (!document.hidden) requestAnimationFrame(tick);
+    if (!throttled()) requestAnimationFrame(tick);
     void sleep(timeoutMs).then(() => finish(fn() || null));
   });
 }
@@ -97,6 +98,11 @@ export function isForbiddenClick(el: Element): boolean {
 
 export function realClick(el: HTMLElement, at?: { x: number; y: number }) {
   if (el !== document.body && isForbiddenClick(el)) throw new Error("Refusing to click a submit/navigation control");
+  pointerClick(el, at);
+}
+
+/** A mouse click's full event sequence. Unguarded: only YOLO's navigation (content/yolo/nav.ts) calls it directly. */
+export function pointerClick(el: HTMLElement, at?: { x: number; y: number }) {
   const r = el.getBoundingClientRect();
   const clientX = at?.x ?? r.left + r.width / 2;
   const clientY = at?.y ?? r.top + r.height / 2;

@@ -4,7 +4,7 @@ import { canonicalCountry, canonicalRegion } from "../src/shared/constants";
 import { normalize } from "../src/shared/normalize";
 
 type Json = Record<string, unknown>;
-export type CallKind = "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume";
+export type CallKind = "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume" | "guess" | "relevance";
 export interface Call {
   kind: CallKind;
   key: string;
@@ -187,7 +187,11 @@ export class MockGemini {
             ? "essay"
             : system.startsWith("You audit")
               ? "audit"
-              : "resume";
+              : system.startsWith("You complete the fields")
+                ? "guess"
+                : system.startsWith("You screen job postings")
+                  ? "relevance"
+                  : "resume";
     const payload = kind === "resume" ? { text } : (JSON.parse(text) as Json);
     const call = { kind, key, model, payload };
     const gc = body.generationConfig as Json;
@@ -218,6 +222,23 @@ export class MockGemini {
       });
       return send(200, reply({ choices }), call);
     }
+    // YOLO's best guess: "No" where offered, else the first real option, else a short answer.
+    if (kind === "guess") {
+      const decisions = (payload.fields as Field[]).map((f) => ({
+        fieldId: f.id,
+        action: "fill",
+        confidence: "medium",
+        sources: ["guess"],
+        ...(f.kind === "checkbox"
+          ? { checked: true }
+          : f.options?.length
+            ? { optionIndexes: pick(f, /^no\b/i) ?? pick(f, /^(?!select|choose|--)/i) ?? [0] }
+            : { text: "N/A" }),
+      }));
+      return send(200, reply({ decisions }), call);
+    }
+    if (kind === "relevance")
+      return send(200, reply({ keep: (payload.jobs as { i: number }[]).map((j) => j.i) }), call);
     if (kind === "essay")
       return send(
         200,

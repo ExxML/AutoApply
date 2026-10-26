@@ -22,7 +22,7 @@ import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
 import type { Gemini } from "../gemini/client";
 import { BadOutputError, BlockedError } from "../gemini/errors";
-import { AUDIT_PROMPT, MAP_FIELDS_PROMPT } from "../gemini/prompts";
+import { AUDIT_PROMPT, BEST_GUESS_PROMPT, MAP_FIELDS_PROMPT } from "../gemini/prompts";
 import { AUDIT_SCHEMA, AuditZ, MAPPING_SCHEMA, MappingZ, type RawDecision } from "../gemini/schemas";
 
 export interface ServiceCtx {
@@ -78,6 +78,8 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
 
 const NOT_IN_PROFILE = "Not in your profile";
 const NOT_APPLICABLE = "N/A";
+/** The source YOLO's best-guess answers cite: made up for the application, logged for the user to review. */
+export const GUESS = "guess";
 
 // A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
@@ -104,7 +106,13 @@ function isToday(text = ""): boolean {
  * posting. Those are guesses: leave them to the user. Consents, uploads and signature dates need no profile source.
  */
 function guessed(d: Decision, f: FieldDescriptor): boolean {
-  if (d.action !== "fill" || d.sources?.some(citesCandidate) || isToday(d.text) || d.text === NOT_APPLICABLE)
+  if (
+    d.action !== "fill" ||
+    d.sources?.some(citesCandidate) ||
+    d.sources?.includes(GUESS) ||
+    isToday(d.text) ||
+    d.text === NOT_APPLICABLE
+  )
     return false;
   // An optional box left unticked claims nothing (Spotify's "Custom" pronouns).
   if (f.kind === "checkbox" && d.checked === false && !f.required) return false;
@@ -190,7 +198,7 @@ const US = "united states";
  * shortcut: a lone code that is also a state ("Bengaluru, IN") reads as the US state, and hubs are a short list;
  * a full city list would fix both.
  */
-function jobCountry(location: string): string | undefined {
+export function jobCountry(location: string): string | undefined {
   const countries = new Set(
     location.split(";").map((place) => {
       let pick: string[] = [];
@@ -1297,6 +1305,52 @@ export function validateDecisions(fields: FieldDescriptor[], raw: RawDecision[])
   return fields.map((f) => out.get(f.id) ?? flag(f.id, "No AI decision"));
 }
 
+/**
+ * YOLO: every field still flagged gets the answer most likely to win an interview, in one call that sees why each
+ * was flagged and any earlier guess. Profile-derived guards still run on the result (mapFields). Uploads stay as
+ * they are: the content script resolves those. Fails open: the flags stand.
+ */
+async function guessFlagged(
+  ctx: ServiceCtx,
+  fields: FieldDescriptor[],
+  decisions: Decision[],
+  base: ReturnType<typeof mappingPayloadBase>,
+  sent: (f: FieldDescriptor) => object,
+): Promise<Decision[]> {
+  const flagged = fields.filter((f, i) => decisions[i].action === "flag" && f.kind !== "file");
+  if (!flagged.length) return decisions;
+  const why = new Map(decisions.map((d) => [d.fieldId, d]));
+  try {
+    const r = await ctx.gemini.call(
+      {
+        system: BEST_GUESS_PROMPT,
+        payload: {
+          fields: flagged.map((f) => ({
+            ...sent(f),
+            whyUnanswered: why.get(f.id)?.note,
+            earlierGuess: why.get(f.id)?.suggestion,
+          })),
+          ...base,
+        },
+        schema: MAPPING_SCHEMA,
+        validate: (d) => MappingZ.parse(d),
+        timeoutMs: ctx.settings.requestTimeoutMs,
+        signal: ctx.signal,
+      },
+      { model: ctx.model, fallback: ctx.fallback },
+    );
+    const raw = r.data.decisions.map((d) => ({ ...d, confidence: "medium" as const, sources: [GUESS] }));
+    const guesses = new Map(validateDecisions(flagged, raw).map((d) => [d.fieldId, d]));
+    return decisions.map((d) => {
+      const g = guesses.get(d.fieldId);
+      return g && g.action !== "flag" ? g : d;
+    });
+  } catch (e) {
+    if (ctx.signal?.aborted) throw e;
+    return decisions;
+  }
+}
+
 export interface MapInput {
   fields: FieldDescriptor[];
   profile: Profile;
@@ -1304,6 +1358,8 @@ export interface MapInput {
   job: JobContext | null;
   /** Pay ranges of the posting the application is for, which may be on an earlier page. */
   pays?: Pay[];
+  /** YOLO mode: nothing is left for the user, so unanswered fields get a best guess (guessFlagged). */
+  yolo?: boolean;
 }
 
 // The model miscounts positions in long lists (picked "Cape Verde +238", the option after "Canada +1"),
@@ -1437,9 +1493,11 @@ export async function mapFields(
   const withCountry = asked.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
   const answered = new Map((await auditFills(ctx, withCountry, base, decisions)).map((d) => [d.fieldId, d]));
   const entries = input.profile.workAuthorization.entries;
+  let all = input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!);
+  if (input.yolo) all = await guessFlagged(ctx, input.fields, all, base, sent);
   return {
-    decisions: input.fields.map((f) => {
-      const d = local.get(f.id) ?? answered.get(f.id)!;
+    decisions: input.fields.map((f, i) => {
+      const d = all[i];
       const answer = d.action === "fill" ? (suggestionOf(d, f) ?? "") : "";
       if (deniesNeededSponsorship(f, answer, countries.get(f.id), entries))
         return flag(f.id, "Sponsorship needed in this country", answer);

@@ -10,6 +10,8 @@ export interface OverlayView {
   error: ApiError | null;
   model: string | null;
   debug: string;
+  /** A warning about the page itself ("YOLO already applied here"). */
+  notice?: string;
 }
 
 export interface OverlayHandlers {
@@ -42,6 +44,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
   fab.setAttribute("aria-label", "Open AutoApply panel");
   const status = el("div", { className: "status" });
   const model = el("div", { className: "muted" });
+  const notice = el("div", { className: "notice" });
   const error = el("div", { className: "error" });
   const needs = el("ul", { className: "needs" });
   const timings = el("pre", { className: "timings" });
@@ -57,7 +60,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
     "div",
     { className: "panel" },
     head,
-    el("div", { className: "body" }, status, model, error, needs, timings),
+    el("div", { className: "body" }, status, notice, model, error, needs, timings),
     el("div", { className: "actions" }, btn("Re-run", h.onRerun, "btn primary"), btn("Stop", h.onStop)),
   );
   panel.setAttribute("role", "region");
@@ -113,6 +116,8 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
       const c = v.counts;
       status.textContent = statusLine(c, v.running);
       model.textContent = v.model ? `Model: ${v.model}` : "";
+      notice.textContent = v.notice ?? "";
+      notice.style.display = v.notice ? "" : "none";
       count.textContent = v.error ? "!" : String(v.needsYou.length || c.filled);
       count.style.background = v.error ? "var(--red)" : v.needsYou.length ? "" : "var(--green)";
       count.style.color = v.error ? "#fff" : "";

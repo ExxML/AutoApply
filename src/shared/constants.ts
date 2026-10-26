@@ -108,6 +108,9 @@ export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowle
 export const RE_CONSENT_NO = /^(no[\s,:–—-]+)?(i )?(do not|don['’]t|decline|disagree|refuse|withhold)\b/i;
 export const RE_HELPER_CLASS = /help|hint|description|desc|subtext|instructions/i;
 /** Buttons/links the extension must never click (§18.1). */
+/** A page confirming an application went through (YOLO's success check, and the user's own submissions). */
+export const RE_APPLIED =
+  /thanks?( you)?( so much)? for (applying|your application|submitting)|application (has been |was )?(successfully )?(submitted|received|sent|completed?)\b|we('ve| have) (successfully )?received your application|successfully (applied|submitted)|your application (is|has been) (complete|submitted|received|on its way)|you('ve| have) (successfully )?applied|application submitted/i;
 export const RE_FORBIDDEN_CLICK = /submit|next|continue|apply|save|sign ?in|log ?in|sign ?up|register|finish|review/i;
 /** Button texts that are never answer choices (used to reject button-style choice groups). */
 export const RE_NAV_BUTTON =

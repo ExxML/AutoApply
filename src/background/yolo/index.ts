@@ -1,0 +1,524 @@
+// YOLO coordinator: the check timer, the queue, the application log, and every message of a run. With YOLO off no
+// alarm exists, so none of this runs.
+import type { Message, Responses, YoloResult } from "../../shared/messages";
+import { RE_APPLIED } from "../../shared/constants";
+import { createStorage, session } from "../../shared/storage";
+import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
+import {
+  defaultYolo,
+  type Application,
+  type Guess,
+  type Listing,
+  type QueueItem,
+  type Yolo,
+  type YoloState,
+} from "../../shared/yolo";
+import { RELEVANCE_PROMPT } from "../gemini/prompts";
+import { RELEVANCE_SCHEMA, RelevanceZ } from "../gemini/schemas";
+import { draftEssays } from "../services/draftEssays";
+import { compactProfile, type ServiceCtx } from "../services/mapFields";
+import { getJobContext } from "../jobContext";
+import { applied, discover } from "./discover";
+import { GmailAuthError, gmailToken, waitForEmail } from "./gmail";
+import { closeFrame } from "./host";
+import { altKey, applyUrl, jobKey } from "./jobKey";
+import { textPdf } from "./pdf";
+import {
+  end,
+  fromRun,
+  getRun,
+  overdue,
+  resolveScrape,
+  saveRun,
+  scrape,
+  start,
+  watchTab,
+  WATCHDOG,
+  type Run,
+} from "./runner";
+import { createAccount, deleteAccount, getAccount } from "./vault";
+
+const store = createStorage("background");
+const CHECK = "yolo";
+const RESUME = "yolo-resume";
+
+type Handler<T extends Message["type"]> = (
+  msg: Extract<Message, { type: T }>,
+  sender: chrome.runtime.MessageSender,
+) => Promise<Responses[T]>;
+
+export interface YoloDeps {
+  serviceCtx: () => Promise<ServiceCtx | { error: ApiError }>;
+}
+
+let yolo: Yolo = defaultYolo();
+let deps: YoloDeps;
+
+const startOfToday = () => new Date().setHours(0, 0, 0, 0);
+const submittedToday = (apps: Application[]) =>
+  apps.filter((a) => a.mode === "yolo" && a.status === "submitted" && a.at >= startOfToday()).length;
+
+async function setState(patch: Partial<YoloState>) {
+  await store.set({ yoloState: { ...(await store.get("yoloState")), ...patch } });
+}
+
+function notify(id: string, title: string, message: string) {
+  chrome.notifications.create(id, {
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("icons/128.png"),
+    title,
+    message,
+    priority: 1,
+  });
+}
+
+/** Later answers to the same question replace earlier ones (a page re-filled after a validation error). */
+const mergeGuesses = (a: Guess[], b: Guess[] = []) => [...a.filter((g) => !b.some((x) => x.q === g.q)), ...b];
+
+/** One record per posting: a later outcome (the user resuming a "needs you") replaces the earlier one. */
+async function record(a: Application) {
+  const apps = (await store.get("applications")).filter((x) => x.key !== a.key);
+  await store.set({ applications: [...apps, a] });
+}
+
+// ---------- timer ----------
+/** Matches the alarm to the settings: one check every interval while on and searching for something. */
+async function schedule() {
+  const on = yolo.enabled && yolo.queries.length > 0;
+  const a = await chrome.alarms.get(CHECK);
+  if (!on) {
+    if (a) await chrome.alarms.clearAll();
+    const run = await getRun();
+    if (run) await end(run.id);
+    await closeFrame().catch(() => undefined);
+    return;
+  }
+  if (a?.periodInMinutes !== yolo.intervalMin)
+    await chrome.alarms.create(CHECK, {
+      periodInMinutes: yolo.intervalMin,
+      delayInMinutes: a ? yolo.intervalMin : 0.5,
+    });
+}
+
+let cycling: Promise<void> | null = null;
+/** Discovery, then applying. A run in the host keeps it busy, so rendered sources wait for the next cycle. */
+function cycle(): Promise<void> {
+  return (cycling ??= (async () => {
+    try {
+      if (!yolo.enabled || !yolo.queries.length) return;
+      const busy = !!(await getRun());
+      await discover({
+        yolo,
+        fetch: (url, init) => fetch(url, init),
+        scrape: busy ? undefined : scrape,
+        relevance: yolo.aiRelevanceCheck ? relevance : undefined,
+      });
+      await setState({ lastCheckAt: Date.now() });
+    } catch (e) {
+      console.warn("[AutoApply] YOLO check failed:", (e as Error)?.message);
+    } finally {
+      cycling = null;
+    }
+    await pump();
+  })());
+}
+
+async function relevance(items: Listing[]): Promise<Set<number>> {
+  const all = new Set(items.keys());
+  const ctx = await deps.serviceCtx();
+  if ("error" in ctx) return all;
+  const p = await store.get("profile");
+  const r = await ctx.gemini
+    .call(
+      {
+        system: RELEVANCE_PROMPT,
+        payload: {
+          queries: yolo.queries,
+          candidate: compactProfile({
+            education: p.education.map(({ degree, major, expectedGraduation, yearLevel }) => ({
+              degree,
+              major,
+              expectedGraduation,
+              yearLevel,
+            })),
+            workAuthorization: p.workAuthorization.entries,
+            home: p.personal.address.country,
+            willingToRelocate: p.preferences.willingToRelocate,
+          }),
+          jobs: items.map((l, i) => ({ i, title: l.title, company: l.company, location: l.location })),
+        },
+        schema: RELEVANCE_SCHEMA,
+        validate: (d) => RelevanceZ.parse(d),
+        timeoutMs: ctx.settings.requestTimeoutMs,
+      },
+      { model: ctx.model, fallback: ctx.fallback },
+    )
+    .catch(() => null);
+  return r ? new Set(r.data.keep) : all;
+}
+
+// ---------- queue ----------
+let pumping = false;
+/** Starts the next queued job when nothing runs, the day's cap allows it, and the AI is usable. */
+async function pump() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    if (!yolo.enabled || (await getRun())) return;
+    const queue = await store.get("yoloQueue");
+    if (!queue.length) return void (await closeFrame().catch(() => undefined));
+    if ((await store.get("yoloState")).pausedUntil > Date.now()) return;
+    if (submittedToday(await store.get("applications")) >= yolo.dailyCap) {
+      await pause(new Date(startOfToday()).setDate(new Date().getDate() + 1), "Daily cap reached");
+      return void (await closeFrame().catch(() => undefined));
+    }
+    const ctx = await deps.serviceCtx();
+    if ("error" in ctx) return void (await setState({ pauseReason: ctx.error.message }));
+    // Newest first: early applicants get the most attention.
+    queue.sort((a, b) => b.postedAt - a.postedAt);
+    const [item, ...rest] = queue;
+    await store.set({ yoloQueue: rest });
+    await setState({ pauseReason: "" });
+    await start(item, "apply", "frame");
+  } finally {
+    pumping = false;
+  }
+}
+
+async function pause(until: number, reason: string) {
+  await setState({ pausedUntil: until, pauseReason: reason });
+  await chrome.alarms.create(RESUME, { when: until });
+}
+
+async function requeue(item: QueueItem) {
+  await store.set({ yoloQueue: [{ ...item, postedAt: Number.MAX_SAFE_INTEGER }, ...(await store.get("yoloQueue"))] });
+}
+
+/** A run's outcome: retried in a tab when the hidden frame was refused, re-queued on a quota stop, else logged. */
+async function finish(run: Run, r: YoloResult) {
+  if (!(await end(run.id))) return;
+  if (run.mode === "scrape") return resolveScrape(run, r);
+  if (r.status === "blocked" && run.host === "frame" && yolo.tabFallback) {
+    await start(run.item, "apply", "tab");
+    return;
+  }
+  if (r.status !== "submitted" && r.status !== "scraped" && r.retryAt) {
+    await requeue(run.item);
+    await pause(r.retryAt, "Gemini quota used up");
+    return;
+  }
+  const { item } = run;
+  const a: Application = {
+    key: run.atsUrl ? jobKey(run.atsUrl) : item.key,
+    alt: item.alt,
+    url: run.atsUrl ?? applyUrl(item.url),
+    company: item.company,
+    title: item.title,
+    location: item.location,
+    source: item.source,
+    doneUrl: r.status === "submitted" ? r.doneUrl : "",
+    mode: "yolo",
+    status: r.status === "blocked" || r.status === "scraped" ? "failed" : r.status,
+    reason: "reason" in r ? r.reason : "",
+    guesses: mergeGuesses(run.guesses, "guesses" in r ? r.guesses : []),
+    at: Date.now(),
+  };
+  await record(a);
+  if (a.status === "needs" && run.host !== "visible")
+    notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: ${a.reason}`);
+  void pump();
+}
+
+async function watchdog() {
+  const run = await getRun();
+  if (!run) return void (await chrome.alarms.clear(WATCHDOG));
+  const late = overdue(run);
+  if (late) await finish(run, late);
+  // After a worker restart the tab listener is gone: listen again.
+  else if (run.host !== "frame") watchTab(run);
+}
+
+/** Opens an application that needs the user in a visible tab, where the run continues once they're done. */
+async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
+  const a = (await store.get("applications")).find((x) => x.key === key);
+  if (!a) return { error: { kind: "other", message: "Unknown application" } };
+  const run = await getRun();
+  if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item);
+  await start({ ...a, postedAt: 0, addedAt: Date.now() }, "apply", "visible");
+  return { ok: true };
+}
+
+// ---------- page probes ----------
+/** Self-contained (runs in the page): whether it confirms an application, by RE_APPLIED's source. */
+const confirmed = (src: string) => (new RegExp(src, "i").test(document.body?.innerText ?? "") ? location.href : null);
+
+const accountEmail = async () => yolo.email || (await store.get("profile")).personal.email;
+
+/** The run's tab as the rest of the background sees it; the hidden frame has none, so it stands in as tab -1. */
+export async function runTab(sender: chrome.runtime.MessageSender): Promise<chrome.tabs.Tab | undefined> {
+  if (sender.tab) return sender.tab;
+  const run = await getRun();
+  return fromRun(run, sender)
+    ? ({ id: chrome.tabs.TAB_ID_NONE, url: run.atsUrl ?? run.item.url } as chrome.tabs.Tab)
+    : undefined;
+}
+
+/** What a YOLO run's page fills with: nothing left for the user, the YOLO email, essays always drafted. */
+export async function yoloOverrides(sender: chrome.runtime.MessageSender): Promise<{
+  settings: Partial<Settings>;
+  email: string;
+  visible: boolean;
+} | null> {
+  const run = await getRun();
+  if (!fromRun(run, sender)) return null;
+  return {
+    settings: {
+      draftEssays: true,
+      autoAcceptAcknowledgements: true,
+      ...(run.host === "visible" ? {} : { showBadges: false }),
+    },
+    email: await accountEmail(),
+    visible: run.host === "visible",
+  };
+}
+
+/** For the warning on a manual fill: YOLO's submission for this posting, if any. */
+export async function yoloApplied(url: string): Promise<{ at: number; url: string } | undefined> {
+  if (!yolo.warnOnYoloApplied || !url) return;
+  const key = jobKey(url);
+  const a = (await store.get("applications")).find(
+    (x) => x.mode === "yolo" && x.status === "submitted" && x.key === key,
+  );
+  return a && { at: a.at, url: a.doneUrl || a.url };
+}
+
+export const isYoloDoc = (id: string) => id.startsWith("yolo-");
+export const yoloDoc = (id: string) => session.get<{ meta: DocumentMeta; base64: string }>(`yolodoc:${id}`);
+
+// ---------- messages ----------
+export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
+  async YOLO_STATUS() {
+    const [apps, queue, state, run, alarm] = await Promise.all([
+      store.get("applications"),
+      store.get("yoloQueue"),
+      store.get("yoloState"),
+      getRun(),
+      chrome.alarms.get(CHECK),
+    ]);
+    return {
+      enabled: yolo.enabled,
+      searches: yolo.queries.length,
+      appliedToday: submittedToday(apps),
+      cap: yolo.dailyCap,
+      queued: queue.length,
+      needsYou: apps.filter((a) => a.status === "needs").length,
+      nextCheckAt: alarm?.scheduledTime ?? null,
+      running: run?.mode === "apply" ? `${run.item.company} – ${run.item.title}` : null,
+      paused: state.gmailNeedsAuth ? "Reconnect Gmail in Settings" : state.pauseReason,
+    };
+  },
+
+  async YOLO_SET({ enabled }) {
+    yolo = { ...yolo, enabled };
+    await store.set({ yolo });
+    await schedule();
+    if (enabled) void cycle();
+    return { ok: true };
+  },
+
+  async YOLO_CHECK_NOW() {
+    void cycle();
+    return { ok: true };
+  },
+
+  YOLO_RESUME: ({ key }) => resume(key),
+
+  async YOLO_FORGET({ key }) {
+    const [apps, seen] = await Promise.all([store.get("applications"), store.get("yoloSeen")]);
+    delete seen[key];
+    await store.set({ applications: apps.filter((a) => a.key !== key), yoloSeen: seen });
+    return { ok: true };
+  },
+
+  async YOLO_GMAIL_CONNECT() {
+    try {
+      await session.remove("gmailToken");
+      await gmailToken(yolo.gmailClientId, await accountEmail(), true);
+      await setState({ gmailNeedsAuth: false });
+      return { ok: true };
+    } catch (e) {
+      return { error: { kind: "other", message: (e as Error).message } };
+    }
+  },
+
+  async YOLO_ACCOUNTS() {
+    return Object.entries(await store.get("vault")).map(([site, e]) => ({
+      site,
+      email: e.email,
+      createdAt: e.createdAt,
+    }));
+  },
+
+  async YOLO_REVEAL({ site }) {
+    const a = await getAccount(site).catch(() => null);
+    return a ? { password: a.password } : { error: { kind: "other", message: "Can't decrypt this password" } };
+  },
+
+  async YOLO_DELETE_ACCOUNT({ site }) {
+    await deleteAccount(site);
+    return { ok: true };
+  },
+
+  async YOLO_HELLO(_m, sender) {
+    const run = await getRun();
+    if (!fromRun(run, sender)) return null;
+    run.helloAt = run.stepAt = Date.now();
+    await saveRun(run);
+    return { mode: run.mode, company: run.item.company, title: run.item.title, visible: run.host === "visible" };
+  },
+
+  async YOLO_STEP({ kind, sig, url, guesses }, sender) {
+    const run = await getRun();
+    if (!fromRun(run, sender)) return { stop: "Not running" };
+    run.guesses = mergeGuesses(run.guesses, guesses);
+    run.steps.push(sig);
+    run.stepAt = Date.now();
+    // Reached the employer's own posting from a board link: it may be one applied to through another source.
+    let stop: string | undefined;
+    const host = (u: string) => new URL(u).hostname.replace(/^www\./, "");
+    if (!run.atsUrl && /^(form|signin|signup)$/.test(kind) && host(url) !== host(run.item.url)) {
+      run.atsUrl = url;
+      if (applied(await store.get("applications"), jobKey(url), run.item.alt, yolo.reapplyManual))
+        stop = "Already applied through another link";
+    }
+    if (run.steps.filter((s) => s === sig).length >= 3) stop = `Stuck at the same ${kind} step`;
+    if (run.steps.length > 40) stop = "Too many steps";
+    await saveRun(run);
+    return stop ? { stop } : {};
+  },
+
+  async YOLO_RESULT({ result }, sender) {
+    const run = await getRun();
+    if (fromRun(run, sender)) await finish(run, result);
+    return { ok: true };
+  },
+
+  async YOLO_CREDENTIAL({ site, create }, sender) {
+    if (!fromRun(await getRun(), sender)) return null;
+    if (!create) {
+      const a = await getAccount(site).catch(() => null);
+      return a && { ...a, created: false };
+    }
+    return { ...(await createAccount(site, await accountEmail())), created: true };
+  },
+
+  async YOLO_WAIT_EMAIL({ since, want }, sender) {
+    if (!fromRun(await getRun(), sender)) return { error: { kind: "other", message: "Not running" } };
+    const email = await accountEmail();
+    try {
+      const found = await waitForEmail(() => gmailToken(yolo.gmailClientId, email, false), email, since, want);
+      if (!found) return { error: { kind: "other", message: "No verification email arrived" } };
+      return want === "link" ? { link: found } : { code: found };
+    } catch (e) {
+      if (e instanceof GmailAuthError) {
+        await setState({ gmailNeedsAuth: true });
+        notify(
+          "yolo-gmail",
+          "AutoApply: reconnect Gmail",
+          "YOLO needs Gmail to verify new accounts. Open Settings → YOLO.",
+        );
+      }
+      return { error: { kind: "other", message: (e as Error).message } };
+    }
+  },
+
+  async YOLO_COVER_LETTER({ question }, sender) {
+    const tab = await runTab(sender);
+    const ctx = await deps.serviceCtx();
+    if ("error" in ctx) return ctx;
+    const profile = await store.get("profile");
+    const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
+    const [e] = await draftEssays(ctx, [{ fieldId: "cl", question, kind: "cover_letter" }], profile, job);
+    if (!e?.text) return { error: { kind: "other", message: e?.note ?? "No cover letter drafted" } };
+    const id = `yolo-${crypto.randomUUID()}`;
+    const base64 = textPdf(e.text);
+    const name = `${profile.personal.firstName} ${profile.personal.lastName}`.trim().replace(/\s+/g, "_") || "Cover";
+    const meta: DocumentMeta = {
+      id,
+      label: "Cover letter (generated)",
+      kind: "cover_letter",
+      fileName: `${name}_Cover_Letter.pdf`,
+      mimeType: "application/pdf",
+      size: Math.floor((base64.length * 3) / 4),
+      isPrimaryResume: false,
+      uploadedAt: Date.now(),
+    };
+    await session.set(`yolodoc:${id}`, { meta, base64 });
+    return { meta };
+  },
+
+  async APPLY_ATTEMPT({ job, doneUrl }, sender) {
+    const save = (done: string) =>
+      record({
+        key: jobKey(job.url),
+        alt: altKey(job.company, job.title, ""),
+        url: job.url,
+        company: job.company,
+        title: job.title,
+        location: "",
+        source: "manual",
+        doneUrl: done,
+        mode: "manual",
+        status: "submitted",
+        reason: "",
+        guesses: [],
+        at: Date.now(),
+      });
+    if (doneUrl) {
+      await save(doneUrl);
+      return { ok: true };
+    }
+    // The form navigated away before its page could confirm: look at the tab's next page once it has loaded.
+    const tabId = sender.tab?.id;
+    if (tabId !== undefined)
+      setTimeout(async () => {
+        const res = await chrome.scripting
+          .executeScript({ target: { tabId, allFrames: true }, func: confirmed, args: [RE_APPLIED.source] })
+          .catch(() => []);
+        const done = res.map((x) => x.result).find(Boolean);
+        if (done) await save(String(done));
+      }, 6000);
+    return { ok: true };
+  },
+};
+
+export function initYolo(d: YoloDeps) {
+  deps = d;
+  const ready = store.get("yolo").then((y) => (yolo = y));
+  store.onChange(["yolo"], (c) => {
+    const prev = yolo;
+    yolo = c.yolo ?? yolo;
+    // New searches: re-read the feeds in full at the next check, not only what changed since the last one.
+    const search = (y: Yolo) => JSON.stringify([y.queries, y.locations, y.remoteOk, y.excludeTitleWords, y.feeds]);
+    if (search(prev) !== search(yolo)) void store.set({ feedCache: {} });
+    void schedule().then(() => pump());
+  });
+  chrome.alarms.onAlarm.addListener(
+    (a) =>
+      void ready.then(async () => {
+        if (a.name === CHECK) await cycle();
+        else if (a.name === WATCHDOG) await watchdog();
+        else if (a.name === RESUME) {
+          await setState({ pausedUntil: 0, pauseReason: "" });
+          await pump();
+        }
+      }),
+  );
+  chrome.notifications.onClicked.addListener((id) => {
+    chrome.notifications.clear(id);
+    if (id.startsWith("yolo:")) void ready.then(() => resume(id.slice(5)));
+    else if (id === "yolo-gmail")
+      void chrome.tabs.create({ url: chrome.runtime.getURL("src/options/index.html#/yolo") });
+  });
+  return ready;
+}

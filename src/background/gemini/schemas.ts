@@ -133,3 +133,10 @@ export const ChooseZ = z.object({
 export const EssaysZ = z.object({ essays: z.array(z.object({ fieldId: z.string(), text: z.string() })) });
 
 export const ValidationZ = z.object({ ok: z.boolean() });
+
+export const RELEVANCE_SCHEMA = {
+  type: "OBJECT",
+  properties: { keep: { type: "ARRAY", items: { type: "INTEGER" } } },
+  required: ["keep"],
+};
+export const RelevanceZ = z.object({ keep: z.array(z.number()) });

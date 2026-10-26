@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ProfileSchema } from "./profileSchema";
 import { SettingsSchema } from "./settings";
 import type { DocumentMeta, JobContext, Pay, TabStatus } from "./types";
+import { ApplicationSchema, QueueItemSchema, VaultEntrySchema, YoloSchema, YoloStateSchema } from "./yolo";
 
 export const SCHEMA_VERSION = 1;
 
@@ -96,6 +97,19 @@ export const LOCAL_SCHEMAS = {
   fallbackModel: z.string().nullable().catch(null),
   modelCapabilities: rec(ModelCapsSchema),
   overlayPos: rec(z.number()),
+  yolo: YoloSchema,
+  yoloState: YoloStateSchema.catch(() => YoloStateSchema.parse({})),
+  /** Every application YOLO made and every one the user submitted after a fill: what is never applied to twice. */
+  applications: list(ApplicationSchema),
+  yoloQueue: list(QueueItemSchema),
+  /** Job keys already looked at → when first seen. */
+  yoloSeen: rec(z.number()),
+  /** Company → its ATS board ("greenhouse:lyft"), "" when none was found (yolo/careers.ts). */
+  employerBoards: rec(z.string()),
+  /** Validators of each source URL's last response, for conditional requests. */
+  feedCache: rec(z.object({ etag: z.string().catch(""), modified: z.string().catch("") })),
+  /** Site accounts YOLO created, passwords encrypted with a device key (yolo/vault.ts). Never exported. */
+  vault: rec(VaultEntrySchema),
 };
 
 export type LocalKey = keyof typeof LOCAL_SCHEMAS;
@@ -204,6 +218,12 @@ export const session = {
     return ((await chrome.storage.session.get(`tabStatus:${tabId}`))[`tabStatus:${tabId}`] as TabStatus) ?? null;
   },
   setTabStatus: (tabId: number, s: TabStatus) => chrome.storage.session.set({ [`tabStatus:${tabId}`]: s }),
+  /** YOLO's run state, temporary documents and Gmail token (yolo/*), cleared with the browser session. */
+  async get<T>(key: string): Promise<T | null> {
+    return ((await chrome.storage.session.get(key))[key] as T) ?? null;
+  },
+  set: (key: string, value: unknown) => chrome.storage.session.set({ [key]: value }),
+  remove: (key: string) => chrome.storage.session.remove(key),
   /** Removes the per-tab keys of tabs not in `open`. */
   async pruneTabs(open: Set<number | undefined>) {
     const closed = Object.keys(await chrome.storage.session.get(null)).filter((k) => {

@@ -161,6 +161,10 @@
   color: var(--muted);
   font-size: 12px;
 }
+.notice {
+  color: var(--orange);
+  font-weight: 600;
+}
 .error {
   margin-top: 8px;
   padding: 8px;

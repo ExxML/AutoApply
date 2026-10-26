@@ -1,11 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
 import { AI } from "./routes/AI";
+import { Applications } from "./routes/Applications";
 import { Behavior } from "./routes/Behavior";
 import { Data } from "./routes/Data";
 import { Documents } from "./routes/Documents";
 import { Profile } from "./routes/Profile";
 import { SavedAnswers } from "./routes/SavedAnswers";
 import { Setup } from "./routes/Setup";
+import { Yolo } from "./routes/Yolo";
 import { onSaved, useHash } from "./store";
 
 const NAV: [string, string][] = [
@@ -15,6 +17,8 @@ const NAV: [string, string][] = [
   ["/saved", "Saved answers"],
   ["/ai", "AI (Gemini)"],
   ["/behavior", "Behavior"],
+  ["/yolo", "YOLO mode"],
+  ["/applications", "Applications"],
   ["/data", "Data"],
 ];
 
@@ -56,6 +60,12 @@ export function App() {
       break;
     case "data":
       page = <Data />;
+      break;
+    case "yolo":
+      page = <Yolo />;
+      break;
+    case "applications":
+      page = <Applications />;
       break;
     default:
       page = <Setup step={Number(sub) || 1} />;

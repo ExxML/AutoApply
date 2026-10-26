@@ -21,6 +21,7 @@ import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
 import { draftEssays } from "./services/draftEssays";
 import { parseResume } from "./services/parseResume";
+import { initYolo, isYoloDoc, runTab, yoloApplied, yoloDoc, yoloHandlers, yoloOverrides } from "./yolo";
 
 const store = createStorage("background");
 
@@ -67,6 +68,7 @@ const ready = (async () => {
   if (!changed.has("settings")) settings = s.settings;
   pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
   caps = { ...s.modelCapabilities, ...caps };
+  await initYolo({ serviceCtx: () => serviceCtx() });
 })();
 
 // ---------- helpers ----------
@@ -195,14 +197,15 @@ type Handler<T extends Message["type"]> = (
 type Handlers = { [T in Message["type"]]?: Handler<T> };
 
 const handlers: Handlers = {
-  async GET_RUNTIME_CONFIG(_m, sender) {
+  async GET_RUNTIME_CONFIG({ yolo }, sender) {
     const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos"]);
     const host = hostOf(sender.tab?.url ?? sender.url);
-    const excluded = isExcluded(host);
+    const y = yolo ? await yoloOverrides(sender) : null;
+    const excluded = !y && isExcluded(host);
     return {
-      settings,
+      settings: y ? { ...settings, ...y.settings } : settings,
       profileSnapshotForDeterministic: {
-        personal: s.profile.personal,
+        personal: y ? { ...s.profile.personal, email: y.email } : s.profile.personal,
         learnedAnswers: s.profile.learnedAnswers.map(({ id, question, normalizedQuestion, kind, options, answer }) => ({
           id,
           question,
@@ -218,18 +221,22 @@ const handlers: Handlers = {
       selectedModel: s.selectedModel,
       hasKeys: pool.keys.length > 0,
       overlayBottom: s.overlayPos[host] ?? null,
+      appliedBefore: y ? undefined : await yoloApplied(sender.tab?.url ?? ""),
     };
   },
 
   async GET_DOCUMENT({ id }) {
+    if (isYoloDoc(id)) return yoloDoc(id);
     const meta = (await store.get("documentsIndex")).find((d) => d.id === id);
     const base64 = meta ? await store.getDoc(id) : null;
     return meta && base64 ? { meta, base64 } : null;
   },
 
   async SET_JOB_CONTEXT({ ctx }, sender) {
-    if (sender.tab?.id !== undefined)
-      await setJobContext(sender.tab.id, ctx, sender.frameId ? (sender.tab.url ?? "") : undefined);
+    const tab = await runTab(sender);
+    // A YOLO frame's driver is the page's top frame; it has no tab.
+    if (tab?.id !== undefined)
+      await setJobContext(tab.id, ctx, sender.frameId && sender.tab ? (tab.url ?? "") : undefined);
     void pruneClosedTabs().catch(() => undefined);
     return { ok: true };
   },
@@ -238,17 +245,21 @@ const handlers: Handlers = {
     // Content scripts no longer ask on load whether a site is excluded; a read there on its own is dropped here.
     const excluded =
       isExcluded(hostOf(sender.tab?.url ?? sender.url)) || settings.excludedHosts.includes(hostOf(sender.url));
-    if (sender.tab && !(passive && excluded)) await setJobPay(sender.tab, pays);
+    const tab = await runTab(sender);
+    if (tab && !(passive && excluded)) await setJobPay(tab, pays);
     return { ok: true };
   },
 
-  async MAP_FIELDS({ fields, groupId }, sender) {
+  async MAP_FIELDS({ fields, groupId, yolo }, sender) {
     const ctx = await serviceCtx(groupSignal(sender, groupId));
     if ("error" in ctx) return ctx;
     const s = await store.getMany(["profile", "documentsIndex"]);
-    const job = sender.tab?.id !== undefined ? await getJobContext(sender.tab.id) : null;
-    const pays = sender.tab ? await getJobPay(sender.tab) : [];
-    return mapFields(ctx, { fields, profile: s.profile, documents: s.documentsIndex, job, pays });
+    const tab = await runTab(sender);
+    const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
+    const pays = tab ? await getJobPay(tab) : [];
+    const y = yolo ? await yoloOverrides(sender) : null;
+    const profile = y ? { ...s.profile, personal: { ...s.profile.personal, email: y.email } } : s.profile;
+    return mapFields(ctx, { fields, profile, documents: s.documentsIndex, job, pays, yolo: !!y });
   },
 
   async CHOOSE_OPTIONS({ items, groupId }, sender) {
@@ -261,7 +272,8 @@ const handlers: Handlers = {
     const ctx = await serviceCtx(groupSignal(sender, groupId));
     if ("error" in ctx) return ctx;
     const profile = await store.get("profile");
-    const job = sender.tab?.id !== undefined ? await getJobContext(sender.tab.id) : null;
+    const tab = await runTab(sender);
+    const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
     return { essays: await draftEssays(ctx, items, profile, job) };
   },
 
@@ -397,6 +409,8 @@ const handlers: Handlers = {
     if ("error" in ctx) return ctx;
     return { proposed: await parseResume(ctx, text) };
   },
+
+  ...yoloHandlers,
 };
 
 chrome.runtime.onMessage.addListener((msg: Message, sender, sendResponse) => {

@@ -10,5 +10,11 @@ export default defineConfig({
     // a page's Connection-Allowlist header (YouTube's, report-only today) flags — and blocks once enforced.
     crx({ manifest, contentScripts: { standaloneFiles: ["src/content/index.ts"] } }),
   ],
-  build: { target: "chrome120", outDir: "dist", emptyOutDir: true },
+  build: {
+    target: "chrome120",
+    outDir: "dist",
+    emptyOutDir: true,
+    // YOLO's hidden host page: loaded by chrome.offscreen, so not referenced by the manifest.
+    rollupOptions: { input: { offscreen: "src/offscreen/index.html" } },
+  },
 });

@@ -8,6 +8,7 @@ import { isTextInput } from "../scan/widgets";
 import { dispatching, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, isOn, sameValue } from "./verify";
+import { throttled } from "../yolo/frame";
 
 // Not an icon's <title>: Epic Games' country options read "CanadaCanada+1" with their flag's.
 export const optText = (o: Element) => {
@@ -135,11 +136,11 @@ export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
 // frames, so there the event is ours, fired at once, and nothing waits on frames.
 function scrollTo(s: HTMLElement, top: number) {
   s.scrollTop = top;
-  if (document.hidden) s.dispatchEvent(new Event("scroll"));
+  if (throttled()) s.dispatchEvent(new Event("scroll"));
 }
 const settleScroll = () =>
   sleep(50).then(() =>
-    document.hidden
+    throttled()
       ? undefined
       : Promise.race([
           new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))),

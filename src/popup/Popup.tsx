@@ -1,6 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
+import { Toggle } from "../options/components/controls";
 import { send, type TabStatusResponse } from "../shared/messages";
+import { formatTime } from "../shared/time";
 import type { StatusCounts } from "../shared/types";
+import type { YoloStatus } from "../shared/yolo";
 
 export function statusText(r: TabStatusResponse | null): string {
   const frames = Object.values(r?.status?.frames ?? {});
@@ -20,10 +23,27 @@ export function statusText(r: TabStatusResponse | null): string {
   return `Filled ${c.filled}/${c.total}${need ? ` · ${need} need you` : ""}`;
 }
 
+export function yoloText(y: YoloStatus): string {
+  if (!y.enabled) return "Finds new jobs matching your searches and applies to them in the background.";
+  return [
+    y.running ? `Applying: ${y.running}` : y.nextCheckAt ? `Next check ${formatTime(y.nextCheckAt)}` : "",
+    `${y.appliedToday}/${y.cap} applied today`,
+    y.queued ? `${y.queued} queued` : "",
+    y.needsYou ? `${y.needsYou} need you` : "",
+    y.paused,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+const openOptions = (hash: string) =>
+  void chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html#${hash}`) });
+
 export function Popup() {
   const [tab, setTab] = useState<chrome.tabs.Tab | null>(null);
   const [info, setInfo] = useState<TabStatusResponse | null>(null);
   const [msg, setMsg] = useState("");
+  const [yolo, setYolo] = useState<YoloStatus | null>(null);
 
   const host = (() => {
     try {
@@ -35,7 +55,13 @@ export function Popup() {
 
   useEffect(() => {
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => setTab(t ?? null));
+    void send({ type: "YOLO_STATUS" }).then(setYolo);
   }, []);
+
+  const setYoloOn = async (enabled: boolean) => {
+    await send({ type: "YOLO_SET", enabled });
+    setYolo(await send({ type: "YOLO_STATUS" }));
+  };
 
   useEffect(() => {
     if (tab?.id === undefined) return;
@@ -76,15 +102,43 @@ export function Popup() {
         {ready ? "Ready" : "Setup needed"} · Model: {info?.model ?? "none"} · {info?.keysTotal ?? 0} keys ·{" "}
         {info?.keysHealthy ?? 0} healthy
       </div>
+      {yolo && (
+        <div class="yolo">
+          {yolo.searches ? (
+            <Toggle
+              label="YOLO mode"
+              help={yoloText(yolo)}
+              checked={yolo.enabled}
+              onChange={(v) => void setYoloOn(v)}
+            />
+          ) : (
+            <p class="help">
+              YOLO mode applies to new jobs for you.{" "}
+              <a href="#" onClick={(e) => (e.preventDefault(), openOptions("/yolo"))}>
+                Add a job search to turn it on
+              </a>
+            </p>
+          )}
+        </div>
+      )}
       <div class="links">
         <a
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            void chrome.tabs.create({ url: chrome.runtime.getURL("src/options/index.html#/profile/personal") });
+            openOptions("/profile/personal");
           }}
         >
           Edit profile
+        </a>
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            openOptions("/applications");
+          }}
+        >
+          Applications
         </a>
         <a
           href="#"

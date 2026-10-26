@@ -1,0 +1,8 @@
+// Where this frame is. YOLO's hidden host is an offscreen document: Chrome renders no frames there and wakes its
+// timers once a second, like a background tab's, though the page reports itself visible.
+const ao = location.ancestorOrigins;
+export const IN_HOST = !!ao?.length && ao[ao.length - 1] === new URL(chrome.runtime.getURL("")).origin;
+/** The host's own frame: it drives the application. Frames inside it fill only as part of its page. */
+export const DRIVER_FRAME = IN_HOST && ao.length === 1;
+/** Timers are throttled and no animation frames come: a hidden tab, or the YOLO host. */
+export const throttled = () => document.hidden || IN_HOST;

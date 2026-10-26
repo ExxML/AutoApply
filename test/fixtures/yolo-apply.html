@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Software Engineer Intern</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      // A Workday-like flow: an account first, then form steps in one page, a review, and a confirmation page.
+      const app = document.getElementById("app");
+      const steps = {
+        account: `
+          <h2>Create Account</h2>
+          <p><label for="em">Email Address</label> <input id="em" type="email" required></p>
+          <p><label for="pw">Password</label> <input id="pw" type="password" required></p>
+          <p><label for="pw2">Verify New Password</label> <input id="pw2" type="password" required></p>
+          <p><label><input id="tos" type="checkbox" required> I agree to the Terms of Service</label></p>
+          <button type="button" id="go">Create Account</button>`,
+        info: `
+          <h2>My Information</h2>
+          <p><label for="fn">First Name *</label> <input id="fn" required></p>
+          <p><label for="ln">Last Name *</label> <input id="ln" required></p>
+          <p><label for="mail">Email *</label> <input id="mail" type="email" required></p>
+          <p><label for="cv">Resume *</label> <input id="cv" type="file" required></p>
+          <fieldset><legend>Do you have any offer deadlines? *</legend>
+            <label><input type="radio" name="dl" value="yes" required> Yes</label>
+            <label><input type="radio" name="dl" value="no"> No</label></fieldset>
+          <button type="button" id="go">Next</button>`,
+        questions: `
+          <h2>Application Questions</h2>
+          <p><label for="ph">Phone Number *</label> <input id="ph" type="tel" required></p>
+          <p><label for="auth">Are you legally authorized to work in Canada? *</label>
+            <select id="auth" required><option value="">Select…</option><option>Yes</option><option>No</option></select></p>
+          <p><label for="why">Why do you want to work here? *</label> <textarea id="why" required></textarea></p>
+          <button type="button">Back</button> <button type="button" id="go">Review</button>`,
+        review: `<h2>Review</h2><p>Check your answers, then submit.</p><button type="button" id="go">Submit application</button>`,
+      };
+      const order = ["account", "info", "questions", "review"];
+      const answers = {};
+      function show(i) {
+        app.innerHTML = `<form onsubmit="return false">${steps[order[i]]}</form>`;
+        document.getElementById("go").addEventListener("click", () => {
+          const bad = [...app.querySelectorAll("[required]")].filter((el) =>
+            el.type === "radio"
+              ? !app.querySelector(`input[name="${el.name}"]:checked`)
+              : el.type === "checkbox"
+                ? !el.checked
+                : !el.value,
+          );
+          if (order[i] === "account" && document.getElementById("pw").value !== document.getElementById("pw2").value)
+            bad.push(document.getElementById("pw2"));
+          app.querySelector("[role=alert]")?.remove();
+          if (bad.length) {
+            app
+              .querySelector("form")
+              .insertAdjacentHTML("beforeend", '<div role="alert">Please complete all required fields</div>');
+            return;
+          }
+          for (const el of app.querySelectorAll("input,select,textarea"))
+            answers[el.id || el.name] =
+              el.type === "file"
+                ? el.files[0]?.name
+                : el.type === "radio"
+                  ? el.checked
+                    ? el.value
+                    : answers[el.name]
+                  : el.value;
+          if (i + 1 < order.length) {
+            setTimeout(() => show(i + 1), 150); // a server round trip
+            return;
+          }
+          sessionStorage.setItem("answers", JSON.stringify(answers));
+          location.href = "yolo-thanks.html";
+        });
+      }
+      show(0);
+    </script>
+  </body>
+</html>

@@ -28,7 +28,20 @@ export default defineManifest({
       world: "MAIN" as const,
     },
   ],
-  permissions: ["storage", "unlimitedStorage", "scripting", "tabs"],
+  // YOLO mode: alarms (its timer), offscreen + declarativeNetRequest (the hidden page it applies in), tabGroups (its
+  // background-tab fallback), notifications ("needs you"), identity (Gmail, for verification emails).
+  permissions: [
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "tabs",
+    "alarms",
+    "offscreen",
+    "declarativeNetRequestWithHostAccess",
+    "tabGroups",
+    "notifications",
+    "identity",
+  ],
   host_permissions: ["<all_urls>"],
   commands: {
     _execute_action: { suggested_key: { default: "Alt+Shift+A" } },

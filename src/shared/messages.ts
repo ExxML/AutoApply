@@ -14,16 +14,47 @@ import type {
   RuntimeConfig,
   TabStatus,
 } from "./types";
+import type { Guess, YoloStatus } from "./yolo";
+
+/** How a YOLO run ended in its frame. "blocked": the page refused to work hidden, so the tab host may retry it. */
+export type YoloResult =
+  | { status: "submitted"; doneUrl: string; guesses?: Guess[] }
+  /** `retryAt`: the Gemini quota ran out; the job goes back in the queue until then. */
+  | { status: "needs" | "failed" | "skipped" | "blocked"; reason: string; guesses?: Guess[]; retryAt?: number }
+  | { status: "scraped"; links: { href: string; text: string }[] };
 
 /** Typed message protocol (§17). `C` = content script, `B` = background, `O` = options page. */
 export type Message =
   // C → B
-  | { type: "GET_RUNTIME_CONFIG" }
+  | { type: "GET_RUNTIME_CONFIG"; yolo?: boolean }
   | { type: "GET_DOCUMENT"; id: string }
   | { type: "SET_JOB_CONTEXT"; ctx: JobContext }
   /** `passive`: read on page load, outside a fill. */
   | { type: "SET_JOB_PAY"; pays: Pay[]; passive?: boolean }
-  | { type: "MAP_FIELDS"; fields: FieldDescriptor[]; host: string; groupId: string }
+  | { type: "MAP_FIELDS"; fields: FieldDescriptor[]; host: string; groupId: string; yolo?: boolean }
+  /** The user submitted a form we filled; `doneUrl` once its confirmation shows. */
+  | { type: "APPLY_ATTEMPT"; job: { url: string; company: string; title: string }; doneUrl?: string }
+  // YOLO driver C → B
+  | { type: "YOLO_HELLO"; url: string }
+  /** `guesses`: this page's made-up answers so far; the run keeps every page's. */
+  | { type: "YOLO_STEP"; kind: string; sig: string; url: string; guesses: Guess[] }
+  | { type: "YOLO_RESULT"; result: YoloResult }
+  | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
+  | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
+  | { type: "YOLO_COVER_LETTER"; question: string }
+  // B → C (a YOLO run in a tab), B → offscreen host
+  | { type: "YOLO_ATTACH" }
+  | { type: "YOLO_HOST_NAVIGATE"; url: string }
+  // popup / O → B
+  | { type: "YOLO_STATUS" }
+  | { type: "YOLO_SET"; enabled: boolean }
+  | { type: "YOLO_CHECK_NOW" }
+  | { type: "YOLO_RESUME"; key: string }
+  | { type: "YOLO_FORGET"; key: string }
+  | { type: "YOLO_GMAIL_CONNECT" }
+  | { type: "YOLO_ACCOUNTS" }
+  | { type: "YOLO_REVEAL"; site: string }
+  | { type: "YOLO_DELETE_ACCOUNT"; site: string }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }
   | { type: "DRAFT_ESSAYS"; items: EssayItem[]; groupId: string }
   | { type: "SAVE_LEARNED_ANSWER"; answer: LearnedAnswerInput }
@@ -82,6 +113,24 @@ export interface Responses {
   REFRESH_MODELS: Ok | Err;
   VALIDATE_MODEL: Ok | Err;
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
+  APPLY_ATTEMPT: Ok;
+  YOLO_HELLO: { mode: "apply" | "scrape"; company: string; title: string; visible: boolean } | null;
+  YOLO_STEP: { stop?: string };
+  YOLO_RESULT: Ok;
+  YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
+  YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;
+  YOLO_COVER_LETTER: { meta: DocumentMeta } | Err;
+  YOLO_ATTACH: Ok;
+  YOLO_HOST_NAVIGATE: Ok;
+  YOLO_STATUS: YoloStatus;
+  YOLO_SET: Ok;
+  YOLO_CHECK_NOW: Ok;
+  YOLO_RESUME: Ok | Err;
+  YOLO_FORGET: Ok;
+  YOLO_GMAIL_CONNECT: Ok | Err;
+  YOLO_ACCOUNTS: { site: string; email: string; createdAt: number }[];
+  YOLO_REVEAL: { password: string } | Err;
+  YOLO_DELETE_ACCOUNT: Ok;
 }
 
 /** Sends to the background and resolves with the typed response. */

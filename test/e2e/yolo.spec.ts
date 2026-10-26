@@ -1,0 +1,141 @@
+// YOLO mode end to end in the built extension: a queued job applied to in the hidden host, with the Gemini mock.
+import type { Worker } from "@playwright/test";
+import type { Application } from "../../src/shared/yolo";
+import { BASE, expect, fillPage, seed, storage, test, waitDone } from "./extension";
+
+const queue = (sw: Worker, url: string, yolo: Record<string, unknown> = {}) =>
+  sw.evaluate(
+    async ({ url, yolo }) => {
+      await chrome.storage.local.set({
+        yoloQueue: [
+          {
+            key: url,
+            alt: "",
+            url,
+            company: "Acme",
+            title: "Software Engineer Intern",
+            location: "Vancouver",
+            source: "test",
+            postedAt: 1,
+            addedAt: 1,
+          },
+        ],
+        // Turning it on starts the queue; no feeds or boards, so nothing is fetched.
+        yolo: {
+          enabled: true,
+          queries: ["Software Engineer Intern"],
+          feeds: [],
+          boards: [],
+          aiRelevanceCheck: false,
+          ...yolo,
+        },
+      });
+    },
+    { url, yolo },
+  );
+
+const outcome = (sw: Worker) =>
+  expect.poll(async () => (await storage<Application[] | undefined>(sw, "applications"))?.[0]?.status, {
+    timeout: 90_000,
+    intervals: [500],
+  });
+
+test("applies to a queued job end to end without opening anything on screen", async ({ context, sw, page, mock }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  const pages = context.pages().length;
+  await queue(sw, `${BASE}yolo-job.html`);
+  await outcome(sw).toBe("submitted");
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a).toMatchObject({ mode: "yolo", company: "Acme", reason: "" });
+  expect(a.doneUrl).toContain("yolo-thanks.html");
+  // Made-up answers are logged for review; profile answers are not.
+  expect(a.guesses).toEqual([{ q: "Do you have any offer deadlines?", a: "No" }]);
+  expect(mock.calls_("guess")).toHaveLength(1);
+  // An account was made for the site, its password kept encrypted.
+  const vault = await storage<Record<string, { email: string; ct: string }>>(sw, "vault");
+  expect(Object.keys(vault)).toEqual(["localhost"]);
+  expect(vault.localhost.email).toBe("ada@example.com");
+  expect(context.pages().length).toBe(pages);
+  void page;
+  // Done: the hidden page's renderer is let go.
+  await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
+});
+
+test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-captcha.html`);
+  await outcome(sw).toBe("needs");
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a.reason).toBe("CAPTCHA");
+});
+
+test("stops at the daily cap", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-job.html`, { dailyCap: 0 });
+  await expect
+    .poll(async () => (await storage<{ pauseReason: string }>(sw, "yoloState"))?.pauseReason)
+    .toBe("Daily cap reached");
+  expect(await storage(sw, "yoloQueue")).toHaveLength(1);
+});
+
+test("with YOLO off, a fill leaves no alarm or hidden page behind", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  await page.goto(`${BASE}plain.html`);
+  await fillPage(page, sw);
+  await waitDone(page);
+  expect(await sw.evaluate(() => chrome.alarms.getAll())).toEqual([]);
+  expect(await sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
+});
+
+test("logs the user's own submission after a fill, and warns on jobs YOLO applied to", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  // The thanks page confirms the application YOLO-style forms send there.
+  await page.goto(`${BASE}yolo-apply.html`);
+  await fillPage(page, sw);
+  await waitDone(page);
+  await page.locator("#pw").fill("pw");
+  await page.locator("#pw2").fill("pw");
+  await page.locator("#tos").check();
+  await page.getByRole("button", { name: "Create Account" }).click();
+  for (const [heading, button] of [
+    ["My Information", "Next"],
+    ["Application Questions", "Review"],
+    ["Review", "Submit application"],
+  ]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await fillPage(page, sw);
+    // The panel still says "Done" from the step before: wait for this step's fields instead.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            [...document.querySelectorAll<HTMLInputElement>("[required]")].filter((el) =>
+              el.type === "file" ? !el.files?.length : el.type !== "radio" && el.type !== "checkbox" && !el.value,
+            ).length,
+        ),
+      )
+      .toBe(0);
+    // Outside YOLO, what the profile can't answer is left to the user.
+    if (heading === "My Information") await page.locator("input[name=dl][value=no]").check();
+    await page.getByRole("button", { name: button, exact: true }).click();
+  }
+  await page.waitForURL(/yolo-thanks/);
+  await expect
+    .poll(async () => (await storage<Application[] | undefined>(sw, "applications"))?.[0]?.mode, { timeout: 15_000 })
+    .toBe("manual");
+
+  await sw.evaluate(async (url) => {
+    await chrome.storage.local.set({
+      applications: [
+        { key: `localhost/jobs/plain.html`, alt: "", url, mode: "yolo", status: "submitted", at: Date.UTC(2026, 9, 1) },
+      ],
+    });
+  }, `${BASE}plain.html`);
+  await page.goto(`${BASE}plain.html`);
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("autoapply-root .panel .notice")).toHaveText(/YOLO already applied to this job on/);
+});

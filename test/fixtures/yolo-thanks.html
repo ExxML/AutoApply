@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Application received</title>
+  </head>
+  <body>
+    <h1>Thank you for applying!</h1>
+    <p>We will review your application and be in touch.</p>
+    <pre id="answers"></pre>
+    <script>
+      document.getElementById("answers").textContent = sessionStorage.getItem("answers") ?? "";
+    </script>
+  </body>
+</html>

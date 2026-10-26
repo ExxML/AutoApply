@@ -2,7 +2,8 @@ import { useState } from "preact/hooks";
 import { z } from "zod";
 import { ProfileSchema } from "../../shared/profileSchema";
 import { SettingsSchema } from "../../shared/settings";
-import { ApiKeyEntrySchema, DocumentMetaSchema } from "../../shared/storage";
+import { ApiKeyEntrySchema, DocumentMetaSchema, LOCAL_SCHEMAS } from "../../shared/storage";
+import { YoloSchema } from "../../shared/yolo";
 import { markSaved, save, store } from "../store";
 
 const ExportSchema = z.object({
@@ -14,6 +15,10 @@ const ExportSchema = z.object({
   apiKeys: z.array(ApiKeyEntrySchema).optional(),
   selectedModel: z.string().nullable(),
   fallbackModel: z.string().nullable(),
+  // YOLO's settings and its log of applications (what is never applied to again). Site passwords stay behind:
+  // their key can't leave this browser.
+  yolo: z.unknown().optional(),
+  applications: z.unknown().optional(),
 });
 type Export = z.infer<typeof ExportSchema>;
 
@@ -25,14 +30,17 @@ export function Data() {
   const [resetStep, setResetStep] = useState(0);
 
   const doExport = async () => {
-    const { profile, settings, documentsIndex, apiKeys, selectedModel, fallbackModel } = await store.getMany([
-      "profile",
-      "settings",
-      "documentsIndex",
-      "apiKeys",
-      "selectedModel",
-      "fallbackModel",
-    ]);
+    const { profile, settings, documentsIndex, apiKeys, selectedModel, fallbackModel, yolo, applications } =
+      await store.getMany([
+        "profile",
+        "settings",
+        "documentsIndex",
+        "apiKeys",
+        "selectedModel",
+        "fallbackModel",
+        "yolo",
+        "applications",
+      ]);
     const documents = [];
     if (withDocs)
       for (const meta of documentsIndex) documents.push({ meta, base64: (await store.getDoc(meta.id)) ?? "" });
@@ -43,6 +51,8 @@ export function Data() {
       settings,
       selectedModel,
       fallbackModel,
+      yolo,
+      applications,
       ...(withDocs ? { documents } : {}),
       ...(withKeys ? { apiKeys } : {}),
     };
@@ -68,6 +78,9 @@ export function Data() {
         "Settings: replaced",
         "Models: replaced",
         r.data.apiKeys ? `API keys: ${cur.apiKeys.length} → ${r.data.apiKeys.length}` : "API keys: unchanged",
+        ...(r.data.applications
+          ? ["YOLO settings and applications: replaced (YOLO stays off until you turn it on)"]
+          : []),
       ];
       setPending({ data: r.data, summary });
     } catch {
@@ -90,6 +103,8 @@ export function Data() {
       ...(data.apiKeys ? { apiKeys: data.apiKeys } : {}),
       selectedModel: data.selectedModel,
       fallbackModel: data.fallbackModel,
+      ...(data.yolo ? { yolo: { ...YoloSchema.parse(data.yolo), enabled: false } } : {}),
+      ...(data.applications ? { applications: LOCAL_SCHEMAS.applications.parse(data.applications) } : {}),
     });
     setPending(null);
     setMsg("Imported.");
@@ -98,6 +113,7 @@ export function Data() {
   const reset = async () => {
     if (resetStep < 2) return setResetStep(resetStep + 1);
     await chrome.storage.local.clear();
+    indexedDB.deleteDatabase("autoapply-vault"); // the site passwords' key (background/yolo/vault.ts)
     markSaved();
     setResetStep(0);
     setMsg("Everything was reset.");

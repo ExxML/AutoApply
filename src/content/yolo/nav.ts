@@ -1,0 +1,89 @@
+// YOLO's navigation: finding and pressing Apply / Next / Submit, the clicks a normal fill never makes.
+import { collapse } from "../../shared/normalize";
+import { pointerClick } from "../fill/events";
+import { HOST_TAG, deepQueryAll } from "../scan/traverse";
+import { isVisible } from "../scan/visibility";
+
+export const RE_APPLY =
+  /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)?|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
+export const RE_NEXT =
+  /^(next( step| page)?|continue( to (the )?(next step|review|application))?|save (and|&) (continue|next)|proceed|review( (and|&) submit| (my |your )?application)?|go to review)$/i;
+export const RE_SUBMIT =
+  /^(submit( (my |your |the )?application)?|send( (my )?application)?|apply|complete( (my )?application)?|finish|submit and finish|confirm (and|&) submit)$/i;
+/** Other ways in (third-party profiles, résumé parsers), and buttons that go back or out. */
+const RE_AVOID =
+  /linkedin|indeed|seek\b|google|facebook|apple|microsoft|github|autofill|use my last|parse|easy apply|quick apply|cancel|\bback\b|previous|save (for later|as draft|draft)|withdraw|sign out|log ?out/i;
+
+/** Workday's controls by their stable ids: one handler covers every Workday tenant. */
+const WORKDAY = {
+  apply: ['[data-automation-id="applyManually"]', '[data-automation-id="adventureButton"]'],
+  next: ['[data-automation-id="pageFooterNextButton"]', '[data-automation-id="bottom-navigation-next-button"]'],
+};
+
+const CLICKABLE = "button,input[type=submit],input[type=button],a[href],[role=button],[role=link]";
+
+export const labelOf = (el: HTMLElement) =>
+  collapse(
+    (el instanceof HTMLInputElement ? el.value : el.innerText || el.textContent) || el.getAttribute("aria-label") || "",
+  );
+
+const usable = (el: HTMLElement) =>
+  isVisible(el) &&
+  !el.closest(HOST_TAG) &&
+  !(el as HTMLButtonElement).disabled &&
+  el.getAttribute("aria-disabled") !== "true";
+
+/** The visible, enabled control matching `re` that sits lowest on the page (a form's own buttons come last). */
+export function findButton(re: RegExp, workday: string[] = []): HTMLElement | null {
+  for (const sel of workday) {
+    const w = deepQueryAll(sel).find(usable);
+    if (w) return w;
+  }
+  const matches = deepQueryAll(CLICKABLE).filter((el) => {
+    const t = labelOf(el);
+    return t.length < 60 && re.test(t) && !RE_AVOID.test(t) && usable(el);
+  });
+  return matches.sort((a, b) => a.getBoundingClientRect().bottom - b.getBoundingClientRect().bottom).pop() ?? null;
+}
+
+export const findApply = () => findButton(RE_APPLY, WORKDAY.apply);
+export const findNext = () => findButton(RE_NEXT, WORKDAY.next);
+export const findSubmit = () => findButton(RE_SUBMIT);
+
+/**
+ * Presses a control the way a pointer would: at its center, on what is topmost there (Workday lays a click-catching
+ * overlay over its buttons). A link opening a new window loads in this frame instead.
+ */
+export function press(el: HTMLElement) {
+  const a = el.closest("a[href]") as HTMLAnchorElement | null;
+  if (a && a.target === "_blank" && /^https?:/.test(a.href)) {
+    location.href = a.href;
+    return;
+  }
+  el.scrollIntoView({ block: "center" });
+  const r = el.getBoundingClientRect();
+  const at = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const top = document.elementFromPoint(at.x, at.y) as HTMLElement | null;
+  pointerClick(top && (el.contains(top) || el.parentElement?.contains(top)) ? top : el, at);
+}
+
+const ALERTS =
+  '[role=alert],[aria-live=assertive],[data-automation-id*="error" i],[class*="error" i]:not(input):not(textarea):not(select)';
+
+/** Visible messages the page shows about the last step (errors, banners), as one text. */
+export const alertText = () =>
+  deepQueryAll(ALERTS)
+    .filter(isVisible)
+    .map(labelOf)
+    .filter((t) => t.length > 2 && t.length < 300)
+    .join(" | ");
+
+/** Visible validation messages: the page refused a step. */
+export function validationErrors(): HTMLElement[] {
+  return deepQueryAll(`[aria-invalid="true"],${ALERTS}`).filter((el) => {
+    if (!usable(el)) return false;
+    if (el.getAttribute("aria-invalid") === "true") return true;
+    const t = labelOf(el);
+    return t.length > 2 && t.length < 300 && /required|invalid|error|must|please|enter|select|missing|problem/i.test(t);
+  });
+}

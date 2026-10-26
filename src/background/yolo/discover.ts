@@ -1,0 +1,158 @@
+// One discovery cycle: read every source, keep the new postings that fit the user, queue them for applying.
+import { createStorage } from "../../shared/storage";
+import type { Application, Listing, QueueItem, Yolo } from "../../shared/yolo";
+import { boardOf, careerSite, findOnEmployerBoard, type Fetcher } from "./careers";
+import { rejectReason } from "./filter";
+import { altKey, jobKey } from "./jobKey";
+import {
+  glassdoorSearch,
+  indeedHost,
+  indeedSearch,
+  linkedinSearch,
+  parseFeed,
+  parseGlassdoor,
+  parseIndeed,
+  parseLinkedIn,
+  type Link,
+} from "./sources";
+
+const store = createStorage("background");
+const SEEN_DAYS = 90;
+/** Postings checked by the AI per cycle; the rest wait for the next one. */
+const BATCH = 60;
+
+export interface DiscoverDeps {
+  yolo: Yolo;
+  fetch: Fetcher;
+  /** Renders a page in the hidden host and reads its links; absent while an application is running there. */
+  scrape?: (url: string) => Promise<Link[]>;
+  /** Indexes of the listings the AI judges a match; absent = keep all. */
+  relevance?: (items: Listing[]) => Promise<Set<number>>;
+  now?: number;
+}
+
+/** Already applied: always for YOLO's own attempts, and for the user's submissions unless re-applying is allowed. */
+export function applied(apps: Application[], key: string, alt: string, reapplyManual: boolean): boolean {
+  return apps.some(
+    (a) =>
+      (a.key === key || (!!alt && a.alt === alt)) &&
+      (a.mode === "yolo" || (a.status === "submitted" && !reapplyManual)),
+  );
+}
+
+const sourceName = (url: string) => {
+  const m = /github(?:usercontent)?\.com\/([^/]+)\/([^/]+)/.exec(url);
+  return m ? `${m[1]}/${m[2]}` : new URL(url).hostname;
+};
+
+export async function discover(d: DiscoverDeps): Promise<number> {
+  const { yolo: y } = d;
+  const now = d.now ?? Date.now();
+  const s = await store.getMany(["yoloSeen", "applications", "yoloQueue", "feedCache", "employerBoards"]);
+  const found: Listing[] = [];
+  const safely = async (fn: () => Promise<Listing[]>) => {
+    try {
+      found.push(...(await fn()));
+    } catch (e) {
+      console.warn("[AutoApply] YOLO source failed:", (e as Error)?.message);
+    }
+  };
+
+  for (const url of y.feeds)
+    await safely(async () => {
+      // Conditional: GitHub answers 304 while the file is unchanged (most polls), so only changes are downloaded.
+      const c = s.feedCache[url];
+      const r = await d.fetch(url, {
+        headers: {
+          ...(c?.etag ? { "if-none-match": c.etag } : {}),
+          ...(c?.modified ? { "if-modified-since": c.modified } : {}),
+        },
+      });
+      if (r.status === 304 || !r.ok) return [];
+      s.feedCache[url] = { etag: r.headers.get("etag") ?? "", modified: r.headers.get("last-modified") ?? "" };
+      return parseFeed(await r.text(), sourceName(url));
+    });
+
+  const days = y.postedWithinDays;
+  for (const q of y.queries)
+    for (const loc of y.locations.length ? y.locations : [""]) {
+      if (y.boards.includes("linkedin"))
+        await safely(async () => {
+          const r = await d.fetch(linkedinSearch(q, loc, days), { credentials: "omit" });
+          return r.ok ? parseLinkedIn(await r.text()) : [];
+        });
+      if (y.boards.includes("glassdoor"))
+        await safely(async () => {
+          const r = await d.fetch(glassdoorSearch(q, loc, days), { credentials: "omit" });
+          return r.ok ? parseGlassdoor(await r.text(), now) : [];
+        });
+      if (y.boards.includes("indeed") && d.scrape)
+        await safely(async () => parseIndeed(await d.scrape!(indeedSearch(q, loc, days)), indeedHost(loc)));
+    }
+
+  for (const url of y.careerSites) {
+    // Workday and SmartRecruiters search server-side; the other boards' APIs list every posting at once.
+    const ats = boardOf(url)?.ats;
+    const perQuery = /\{q\}/.test(url) || ats === "workday" || ats === "smartrecruiters";
+    if (!ats && !d.scrape) continue;
+    for (const q of perQuery ? y.queries : [""])
+      await safely(() => careerSite(d.fetch, d.scrape ?? (async () => []), url, q));
+  }
+
+  // New postings that fit, each looked at once.
+  const seen = s.yoloSeen;
+  const queued = new Set(s.yoloQueue.map((i) => i.key));
+  const fresh: Listing[] = [];
+  const keys = new Set<string>();
+  for (const l of found) {
+    const key = jobKey(l.url);
+    const alt = altKey(l.company, l.title, l.location);
+    if (seen[key] || seen[alt] || keys.has(key) || queued.has(key)) continue;
+    keys.add(key);
+    // Not marked seen: a posting the filters reject now may fit after the user changes them.
+    if (rejectReason(l, y, now) || applied(s.applications, key, alt, y.reapplyManual)) continue;
+    fresh.push(l);
+  }
+  const batch = fresh.slice(0, BATCH);
+  const keep = d.relevance && batch.length ? await d.relevance(batch) : null;
+
+  const boards = new Map<string, Listing[] | null>();
+  const items: QueueItem[] = [];
+  for (const [i, l] of batch.entries()) {
+    const key = jobKey(l.url);
+    const alt = altKey(l.company, l.title, l.location);
+    seen[key] = seen[alt] = now;
+    if (keep && !keep.has(i)) continue;
+    let url = l.url;
+    // Boards: apply on the employer's own posting. LinkedIn shows logged-out visitors no way there; Glassdoor and
+    // Indeed pages have an "Apply on company site" button the run can click instead.
+    if (["linkedin", "glassdoor", "indeed"].includes(l.source)) {
+      const own = await findOnEmployerBoard(d.fetch, l, s.employerBoards, boards).catch(() => null);
+      if (own) url = own;
+      else if (l.source === "linkedin") continue;
+    }
+    const k = jobKey(url);
+    if (k !== key && (seen[k] || applied(s.applications, k, alt, y.reapplyManual))) continue;
+    seen[k] = now;
+    items.push({
+      key: k,
+      alt,
+      url,
+      company: l.company,
+      title: l.title,
+      location: l.location,
+      source: l.source,
+      postedAt: l.postedAt ?? now,
+      addedAt: now,
+    });
+  }
+
+  for (const [k, at] of Object.entries(seen)) if (now - at > SEEN_DAYS * 86400e3) delete seen[k];
+  await store.set({
+    yoloSeen: seen,
+    yoloQueue: [...s.yoloQueue, ...items],
+    feedCache: s.feedCache,
+    employerBoards: s.employerBoards,
+  });
+  return items.length;
+}

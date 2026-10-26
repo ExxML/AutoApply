@@ -1,0 +1,145 @@
+// One YOLO run at a time: a queued job (or a page read for discovery) loaded in a host and driven by the content
+// script inside it (src/content/yolo), which reports each step and the outcome. The run lives in session storage, so
+// a service-worker restart mid-application loses nothing but in-memory waiters.
+import type { YoloResult } from "../../shared/messages";
+import { session } from "../../shared/storage";
+import type { Guess, QueueItem } from "../../shared/yolo";
+import { closeTab, openFrame, openTab } from "./host";
+import { applyUrl } from "./jobKey";
+import type { Link } from "./sources";
+
+export interface Run {
+  id: string;
+  item: QueueItem;
+  mode: "apply" | "scrape";
+  host: "frame" | "tab" | "visible";
+  tabId?: number;
+  startedAt: number;
+  /** Last sign of progress: the driver's hello or a step. */
+  stepAt: number;
+  helloAt: number;
+  steps: string[];
+  guesses: Guess[];
+  /** The employer's posting the run reached, when the queued link was a job board's. */
+  atsUrl?: string;
+}
+
+const KEY = "yoloRun";
+export const WATCHDOG = "yolo-watchdog";
+/** No driver within this long: the page didn't load, or refused to run hidden. */
+const HELLO_MS = 45_000;
+const STEP_MS = 180_000;
+const RUN_MS = 12 * 60_000;
+
+export const getRun = () => session.get<Run>(KEY);
+export const saveRun = (r: Run) => session.set(KEY, r);
+
+/** Messages from the run's page: any frame of the hidden host (no tab), or of the run's tab. */
+export function fromRun(run: Run | null, s: chrome.runtime.MessageSender): run is Run {
+  if (!run) return false;
+  return run.host === "frame" ? !s.tab && /^https?:/.test(s.url ?? "") : s.tab?.id === run.tabId;
+}
+
+const scrapes = new Map<string, (links: Link[]) => void>();
+
+export async function start(item: QueueItem, mode: Run["mode"], host: Run["host"]): Promise<Run> {
+  const now = Date.now();
+  const run: Run = {
+    id: crypto.randomUUID(),
+    item,
+    mode,
+    host,
+    startedAt: now,
+    stepAt: now,
+    helloAt: 0,
+    steps: [],
+    guesses: [],
+  };
+  const url = mode === "apply" ? applyUrl(item.url) : item.url;
+  // Saved before the page loads: its driver says hello as soon as it starts.
+  await saveRun(run);
+  if (host === "frame") await openFrame(url);
+  else {
+    run.tabId = await openTab(url, host === "visible");
+    await saveRun(run);
+    watchTab(run);
+  }
+  await chrome.alarms.create(WATCHDOG, { periodInMinutes: 0.5 });
+  return run;
+}
+
+/** Reads a page's links in the hidden host (Indeed results, career sites without an API). */
+export async function scrape(url: string, timeoutMs = 40_000): Promise<Link[]> {
+  const run = await start(
+    { key: url, alt: "", url, company: "", title: "", location: "", source: "", postedAt: 0, addedAt: 0 },
+    "scrape",
+    "frame",
+  );
+  return new Promise((resolve) => {
+    const t = setTimeout(() => void end(run.id).then(() => resolve([])), timeoutMs);
+    scrapes.set(run.id, (links) => (clearTimeout(t), resolve(links)));
+  });
+}
+
+/** Clears the run if it is still `id`; returns it, so its result is handled once. */
+export async function end(id: string): Promise<Run | null> {
+  const run = await getRun();
+  if (run?.id !== id) return null;
+  await session.remove(KEY);
+  unwatchTab();
+  await chrome.alarms.clear(WATCHDOG);
+  if (run.host === "tab" && run.tabId !== undefined) await closeTab(run.tabId);
+  return run;
+}
+
+/** A scrape's links reach the discovery that waits for them; an application's result is the caller's to record. */
+export function resolveScrape(run: Run, r: YoloResult) {
+  scrapes.get(run.id)?.(r.status === "scraped" ? r.links : []);
+  scrapes.delete(run.id);
+}
+
+/** The run's failure when it is overdue; null while it is on time. */
+export function overdue(run: Run, now = Date.now()): YoloResult | null {
+  const blocked = run.host === "frame" ? "blocked" : "failed";
+  if (!run.helloAt && now - run.startedAt > HELLO_MS) return { status: blocked, reason: "The page didn't load" };
+  if (now - run.stepAt > STEP_MS) return { status: "failed", reason: "No progress for 3 minutes" };
+  if (now - run.startedAt > RUN_MS) return { status: "failed", reason: "Took over 12 minutes" };
+  return null;
+}
+
+// ---------- tab hosts ----------
+// A tab's content script waits to be told it runs YOLO (a hidden frame knows from its ancestors). Listening only
+// while a tab run exists keeps tab events from waking the worker otherwise.
+let tabListener: ((id: number, info: chrome.tabs.OnUpdatedInfo) => void) | null = null;
+let openedListener: ((tab: chrome.tabs.Tab) => void) | null = null;
+
+export function watchTab(run: Run) {
+  unwatchTab();
+  tabListener = (id, info) => {
+    if (id === run.tabId && info.status === "complete") void attach(id);
+  };
+  // A page opening its next step in a new tab: carry on in the run's tab instead.
+  openedListener = (tab) => {
+    if (tab.openerTabId !== run.tabId || tab.id === undefined) return;
+    const url = tab.pendingUrl ?? tab.url;
+    void closeTab(tab.id);
+    if (url && run.tabId !== undefined) void chrome.tabs.update(run.tabId, { url });
+  };
+  chrome.tabs.onUpdated.addListener(tabListener);
+  chrome.tabs.onCreated.addListener(openedListener);
+  if (run.tabId !== undefined) void attach(run.tabId);
+}
+
+function unwatchTab() {
+  if (tabListener) chrome.tabs.onUpdated.removeListener(tabListener);
+  if (openedListener) chrome.tabs.onCreated.removeListener(openedListener);
+  tabListener = openedListener = null;
+}
+
+/** Retries until the page's content script listens (it loads at document_idle, after "complete" at times). */
+async function attach(tabId: number) {
+  for (let i = 0; i < 40; i++) {
+    if (await chrome.tabs.sendMessage(tabId, { type: "YOLO_ATTACH" }, { frameId: 0 }).catch(() => null)) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
