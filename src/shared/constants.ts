@@ -493,3 +493,32 @@ export const HUBS: Record<string, string> = {
   "sao paulo": "brazil",
   "mexico city": "mexico",
 };
+
+/** The province or state of HUBS' Canadian and US cities. */
+export const HUB_REGIONS: Record<string, string> = {
+  toronto: "ON",
+  waterloo: "ON",
+  ottawa: "ON",
+  vancouver: "BC",
+  montreal: "QC",
+  "san francisco": "CA",
+  "sf bay area": "CA",
+  "bay area": "CA",
+  "los angeles": "CA",
+  "palo alto": "CA",
+  "mountain view": "CA",
+  "menlo park": "CA",
+  sunnyvale: "CA",
+  "san jose": "CA",
+  "foster city": "CA",
+  "redwood city": "CA",
+  "new york": "NY",
+  "new york city": "NY",
+  nyc: "NY",
+  seattle: "WA",
+  austin: "TX",
+  boston: "MA",
+  chicago: "IL",
+  denver: "CO",
+  atlanta: "GA",
+};

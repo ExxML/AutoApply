@@ -796,6 +796,35 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag"]);
   });
 
+  it("answers relocating to a hub in another province of the candidate's country", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.personal.address = { ...profile.personal.address, country: "Canada", region: "British Columbia" };
+    profile.preferences.willingToRelocate = "yes";
+    const label =
+      "This position is required to work out of a Lyft Office in Toronto, if you do not reside within the country and within commutable proximity to the office, are you open to relocating?";
+    const options = [
+      "I am willing to relocate before starting employment.",
+      "I am not willing to relocate before starting employment.",
+      "I already reside within commutable distance to Toronto and am able to work at an On-site Office.",
+    ];
+    const ask = async () =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { fields: [field(label, { label, kind: "select", options })], profile, documents: [], job: null },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(await ask()).toBe(options[0]);
+    profile.personal.address.region = "Ontario";
+    expect(await ask()).toBe("flag");
+  });
+
   it("answers the time zone from a Canadian or US address", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

@@ -11,6 +11,7 @@ import type {
 } from "../../shared/types";
 import {
   canonicalCountry,
+  HUB_REGIONS,
   HUBS,
   RE_CONSENT,
   RE_INTERVIEW_RECORDING,
@@ -539,17 +540,27 @@ function officeDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Deci
 /**
  * "Are you located in or willing to relocate to the United Kingdom?" for a candidate living in another country, from
  * the relocation preference: Tailscale's got "No, and I am not willing to relocate." for one willing to go anywhere.
- * The same country stays with the model: where in it they live decides.
+ * The same country stays with the model unless the named hub is in another province or state: Lyft's "office in
+ * Toronto … are you open to relocating?" got "I already reside within commutable distance to Toronto" for BC.
  */
-function relocationDecision(f: FieldDescriptor, prefs: Profile["preferences"], home: string): Decision | null {
+function relocationDecision(
+  f: FieldDescriptor,
+  prefs: Profile["preferences"],
+  address: Profile["personal"]["address"],
+): Decision | null {
   const willing = prefs.willingToRelocate;
-  if (!f.options || isMulti(f) || !/\brelocat/i.test(f.label) || /\bnot\b|n['’]t\b|^if\b/i.test(f.label)) return null;
+  // Negation in the question itself, not in a lead-in clause ("if you do not reside …, are you open to relocating?").
+  const ask = f.label.replace(/\bif you (do not|don['’]t)\b[^,?]*,/i, "");
+  if (!f.options || isMulti(f) || !/\brelocat/i.test(ask) || /\bnot\b|n['’]t\b/i.test(ask) || /^if\b/i.test(f.label))
+    return null;
   if ((willing !== "yes" && willing !== "no") || !/^(any(where)?)?$/i.test(prefs.relocationNotes.trim())) return null;
   const words = ` ${normalize(f.label)} `;
   const hub = Object.keys(HUBS).find((c) => words.includes(` ${c} `));
   const there = countryIn(f.label) ?? (hub ? (canonicalCountry(HUBS[hub]) ?? HUBS[hub]) : undefined);
-  const mine = canonicalCountry(home);
-  if (!there || !mine || there === mine) return null;
+  const mine = canonicalCountry(address.country);
+  const region = regionCode(address.regionCode || address.region);
+  const elsewhere = there !== mine || (hub && HUB_REGIONS[hub] && region && HUB_REGIONS[hub] !== region);
+  if (!there || !mine || !elsewhere) return null;
   const neg = /\bnot\b|n['’]t\b|\bunwilling\b|\bunable\b/i;
   const only = (ok: (o: string) => boolean) => {
     const hits = f.options!.flatMap((o, i) => (ok(o) ? [i] : []));
@@ -1426,7 +1437,7 @@ export async function mapFields(
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault, input.job?.company) ??
       officeDecision(f, input.profile.preferences) ??
-      relocationDecision(f, input.profile.preferences, home) ??
+      relocationDecision(f, input.profile.preferences, input.profile.personal.address) ??
       timezoneDecision(f, input.profile.personal.address) ??
       obtainedEducationDecision(f, input.profile) ??
       basicsDecision(f, input.profile) ??
