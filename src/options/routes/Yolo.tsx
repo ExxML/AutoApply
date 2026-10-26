@@ -1,11 +1,83 @@
 import { useEffect, useState } from "preact/hooks";
-import { NumberInput, TagInput, TextInput, Toggle } from "../components/controls";
+import { NumberInput, SelectInput, TagInput, TextInput, Toggle } from "../components/controls";
 import { save, useStored } from "../store";
 import { isErr, send, type Responses } from "../../shared/messages";
 import { formatDateTime } from "../../shared/time";
-import { BOARDS, MAX_DAILY_APPLICATIONS, type Board, type Yolo as YoloConfig } from "../../shared/yolo";
+import {
+  BOARDS,
+  MAX_DAILY_APPLICATIONS,
+  type Board,
+  type QueueSort,
+  type SourceGroup,
+  type Yolo as YoloConfig,
+} from "../../shared/yolo";
 
 const BOARD_NAMES: Record<Board, string> = { linkedin: "LinkedIn", indeed: "Indeed", glassdoor: "Glassdoor" };
+const SOURCE_NAMES: Record<SourceGroup, string> = {
+  careers: "Company career sites",
+  feeds: "GitHub job lists",
+  ...BOARD_NAMES,
+};
+const SORT_NAMES: [QueueSort, string][] = [
+  ["newest", "Newest posted first"],
+  ["oldest", "Oldest posted first"],
+  ["foundFirst", "First found first"],
+  ["foundLast", "Last found first"],
+  ["random", "Random"],
+];
+
+function QueueOrder(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) {
+  const { y, set } = props;
+  const move = (i: number, to: number) => {
+    const o = y.sourceOrder.slice();
+    [o[i], o[to]] = [o[to], o[i]];
+    set({ sourceOrder: o });
+  };
+  return (
+    <div>
+      <SelectInput
+        label="Apply order"
+        help="Which queued job YOLO applies to next. Newest first gets you in among the early applicants. Jobs whose source gives no posting date count as posted when found."
+        value={y.queueSort}
+        options={SORT_NAMES}
+        onChange={(v) => set({ queueSort: v as QueueSort })}
+      />
+      <Toggle
+        label="Rank by source first"
+        help="Applies to every job from the top source, in the order above, before any from the next."
+        checked={y.queueBySource}
+        onChange={(queueBySource) => set({ queueBySource })}
+      />
+      {y.queueBySource && (
+        <ol class="order">
+          {y.sourceOrder.map((g, i) => (
+            <li>
+              <span>{SOURCE_NAMES[g]}</span>
+              <button
+                type="button"
+                class="btn small"
+                disabled={i === 0}
+                aria-label={`Move ${SOURCE_NAMES[g]} up`}
+                onClick={() => move(i, i - 1)}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                class="btn small"
+                disabled={i === y.sourceOrder.length - 1}
+                aria-label={`Move ${SOURCE_NAMES[g]} down`}
+                onClick={() => move(i, i + 1)}
+              >
+                ↓
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 function Accounts() {
   const [rows, setRows] = useState<Responses["YOLO_ACCOUNTS"]>([]);
@@ -208,6 +280,7 @@ export function Yolo() {
           value={y.careerSites}
           onChange={(v) => set({ careerSites: urls(v) })}
         />
+        <QueueOrder y={y} set={set} />
       </div>
       <h2>Applying</h2>
       <div class="form">

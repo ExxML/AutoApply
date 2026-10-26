@@ -12,6 +12,13 @@ export const SIMPLIFY_FEED =
 export const BOARDS = ["linkedin", "indeed", "glassdoor"] as const;
 export type Board = (typeof BOARDS)[number];
 
+/** Where a queued job was found, as the queue order ranks it. */
+export const SOURCE_GROUPS = ["careers", "feeds", ...BOARDS] as const;
+export type SourceGroup = (typeof SOURCE_GROUPS)[number];
+/** How queued jobs are ordered (within a source, when sources are ranked). */
+export const QUEUE_SORTS = ["newest", "oldest", "foundFirst", "foundLast", "random"] as const;
+export type QueueSort = (typeof QUEUE_SORTS)[number];
+
 /** The most YOLO applies to in a day, and so the most applications' debug logs worth keeping. */
 export const MAX_DAILY_APPLICATIONS = 500;
 
@@ -30,6 +37,10 @@ const base = z.object({
   boards: z.array(z.enum(BOARDS)).catch(["linkedin", "indeed", "glassdoor"]),
   feeds: strs([SIMPLIFY_FEED]),
   careerSites: strs(),
+  queueSort: z.enum(QUEUE_SORTS).catch("newest"),
+  /** Ranks jobs by `sourceOrder` before `queueSort`. */
+  queueBySource: b(false),
+  sourceOrder: z.array(z.enum(SOURCE_GROUPS)).catch([...SOURCE_GROUPS]),
   email: z.string().catch(""),
   gmailClientId: z.string().catch(""),
   reapplyManual: b(false),

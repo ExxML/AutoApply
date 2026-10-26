@@ -1,6 +1,16 @@
 // One discovery cycle: read every source, keep the new postings that fit the user, queue them for applying.
 import { createStorage } from "../../shared/storage";
-import type { Application, Listing, QueueItem, Yolo } from "../../shared/yolo";
+import {
+  BOARDS,
+  SOURCE_GROUPS,
+  type Application,
+  type Board,
+  type Listing,
+  type QueueItem,
+  type QueueSort,
+  type SourceGroup,
+  type Yolo,
+} from "../../shared/yolo";
 import { boardOf, careerSite, findOnEmployerBoard, type Fetcher } from "./careers";
 import { rejectReason } from "./filter";
 import { altKey, jobKey } from "./jobKey";
@@ -38,6 +48,45 @@ export function applied(apps: Application[], key: string, alt: string, reapplyMa
     (a) =>
       (a.key === key || (!!alt && a.alt === alt)) &&
       (a.mode === "yolo" || (a.status === "submitted" && !reapplyManual)),
+  );
+}
+
+/** A requeued job's `postedAt`: it runs next, whatever the order. */
+export const RETRY = Number.MAX_SAFE_INTEGER;
+// careerSite's sources: its ATS APIs' names, or "careers" for a rendered page.
+const CAREERS = new Set(["careers", "greenhouse", "lever", "ashby", "smartrecruiters", "workday"]);
+const groupOf = (source: string): SourceGroup =>
+  (BOARDS as readonly string[]).includes(source) ? (source as Board) : CAREERS.has(source) ? "careers" : "feeds";
+
+type Ranked = Pick<Listing, "source" | "postedAt"> & { addedAt?: number };
+
+/** Jobs in the order the user wants them applied to. Undated jobs count as posted when found. */
+export function inQueueOrder<T extends Ranked>(items: T[], y: Yolo, now = Date.now()): T[] {
+  const posted = (i: Ranked) => i.postedAt ?? now;
+  const found = (i: Ranked) => i.addedAt ?? now;
+  const rank = (i: Ranked) => {
+    const r = y.sourceOrder.indexOf(groupOf(i.source));
+    return r < 0 ? SOURCE_GROUPS.length : r;
+  };
+  const within: Record<QueueSort, (a: Ranked, b: Ranked) => number> = {
+    newest: (a, b) => posted(b) - posted(a),
+    oldest: (a, b) => posted(a) - posted(b),
+    foundFirst: (a, b) => found(a) - found(b),
+    foundLast: (a, b) => found(b) - found(a),
+    random: () => 0,
+  };
+  const out = items.slice();
+  // Shuffled first, then a stable sort keeps the shuffle within each source.
+  if (y.queueSort === "random")
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+  return out.sort(
+    (a, b) =>
+      +(b.postedAt === RETRY) - +(a.postedAt === RETRY) ||
+      (y.queueBySource ? rank(a) - rank(b) : 0) ||
+      within[y.queueSort](a, b),
   );
 }
 
@@ -117,7 +166,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     if (rejectReason(l, y, now) || applied(s.applications, key, alt, y.reapplyManual)) continue;
     fresh.push(l);
   }
-  const batch = fresh.slice(0, BATCH);
+  // In queue order, so the jobs the user ranks first aren't the ones left for the next cycle.
+  const batch = inQueueOrder(fresh, y, now).slice(0, BATCH);
   const keep = d.relevance && batch.length ? await d.relevance(batch) : null;
 
   const boards = new Map<string, Listing[] | null>();

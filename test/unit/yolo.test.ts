@@ -9,7 +9,7 @@ import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { extract, feedTexts } from "../../src/background/yolo/gmail";
 import { textPdf, wrap } from "../../src/background/yolo/pdf";
 import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
-import { applied, discover } from "../../src/background/yolo/discover";
+import { applied, discover, inQueueOrder, RETRY } from "../../src/background/yolo/discover";
 import { overdue, type Run } from "../../src/background/yolo/runner";
 import { mapFields } from "../../src/background/services/mapFields";
 import type { Gemini } from "../../src/background/gemini/client";
@@ -531,6 +531,31 @@ describe("discovery", () => {
     });
     expect(asked).toEqual([["Software Engineer Intern", "Software Engineer Intern (PhD)"]]);
     expect(n).toBe(1);
+  });
+});
+
+describe("queue order", () => {
+  const jobs = [
+    { source: "linkedin", postedAt: 3, addedAt: 1 },
+    { source: "SimplifyJobs/Summer2027-Internships", postedAt: 1, addedAt: 2 },
+    { source: "greenhouse", postedAt: 2, addedAt: 3 },
+    { source: "careers", postedAt: 4, addedAt: 4 },
+  ];
+  const order = (o: Partial<ReturnType<typeof defaultYolo>>, items = jobs) =>
+    inQueueOrder(items, { ...defaultYolo(), ...o }).map((j) => j.postedAt);
+
+  it("sorts by date or by when found", () => {
+    expect(order({})).toEqual([4, 3, 2, 1]);
+    expect(order({ queueSort: "oldest" })).toEqual([1, 2, 3, 4]);
+    expect(order({ queueSort: "foundFirst" })).toEqual([3, 1, 2, 4]);
+    expect(order({ queueSort: "foundLast" })).toEqual([4, 2, 1, 3]);
+    expect(order({ queueSort: "random" }).sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it("ranks sources first when asked, and runs a retry next regardless", () => {
+    // Unlisted sources (Indeed, Glassdoor) go last.
+    expect(order({ queueBySource: true, sourceOrder: ["feeds", "linkedin", "careers"] })).toEqual([1, 3, 4, 2]);
+    expect(order({ queueSort: "oldest" }, [...jobs, { source: "indeed", postedAt: RETRY, addedAt: 5 }])[0]).toBe(RETRY);
   });
 });
 

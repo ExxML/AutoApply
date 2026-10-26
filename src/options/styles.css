@@ -499,6 +499,20 @@ label.inline {
 .yolo .field .row {
   margin: 8px 0 0;
 }
+.yolo .order {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.yolo .order li {
+  margin: 2px 0;
+}
+.yolo .order span {
+  display: inline-block;
+  min-width: 170px;
+}
+.yolo .order .btn + .btn {
+  margin-left: 4px;
+}
 .yolo .tag {
   max-width: 100%;
   overflow-wrap: anywhere;

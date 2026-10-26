@@ -19,7 +19,7 @@ import { draftEssays } from "../services/draftEssays";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
 import { confirmation, kindOf, refused, signature } from "./classify";
-import { applied, discover } from "./discover";
+import { applied, discover, inQueueOrder, RETRY } from "./discover";
 import { checkGmail, GmailAuthError, gmailToken, waitForEmail, waitForFeedCode } from "./gmail";
 import { closeFrame } from "./host";
 import { altKey, applyUrl, jobKey } from "./jobKey";
@@ -177,9 +177,7 @@ async function pump() {
     }
     const ctx = await deps.serviceCtx();
     if ("error" in ctx) return void (await setState({ pauseReason: ctx.error.message }));
-    // Newest first: early applicants get the most attention.
-    queue.sort((a, b) => b.postedAt - a.postedAt);
-    const [item, ...rest] = queue;
+    const [item, ...rest] = inQueueOrder(queue, yolo);
     await store.set({ yoloQueue: rest });
     await setState({ pauseReason: "" });
     await start(item, "apply", "frame");
@@ -194,7 +192,7 @@ async function pause(until: number, reason: string) {
 }
 
 async function requeue(item: QueueItem) {
-  await store.set({ yoloQueue: [{ ...item, postedAt: Number.MAX_SAFE_INTEGER }, ...(await store.get("yoloQueue"))] });
+  await store.set({ yoloQueue: [{ ...item, postedAt: RETRY }, ...(await store.get("yoloQueue"))] });
 }
 
 /** A run's outcome: retried in a tab when the hidden frame was refused, re-queued on a quota stop, else logged. */
