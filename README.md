@@ -25,6 +25,7 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
   - [Fill in your profile](#fill-in-your-profile)
   - [How filling works](#how-filling-works)
 - [Badge meanings](#badge-meanings)
+- [YOLO mode](#yolo-mode)
 - [Privacy](#privacy)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
@@ -118,9 +119,20 @@ The newest Gemini models are often under heavy load, and rejected requests may s
 
 Required consent and attestation boxes (privacy notice, terms, attestations) are **ticked automatically** by default; turn off _Auto-accept required consents_ in **Behavior** to have them flagged instead. _Optional consents_ (contact about other jobs, talent community, marketing) are set separately: auto-decline (default), auto-accept, or flag for you.
 
+## YOLO mode
+
+Turn on **YOLO mode** in the popup (set it up under **Settings → YOLO mode**) and AutoApply finds new postings and applies to them by itself while the browser is open. It works in a hidden page, so nothing opens on screen.
+
+- **Where it looks**, every 30 minutes by default: GitHub job lists (the SimplifyJobs internship list by default), LinkedIn, Indeed and Glassdoor searches for your queries and locations, and any company career sites you add (Workday, Greenhouse, Lever, Ashby and SmartRecruiters boards through their APIs, any other career page by its links). Postings are kept when the title matches a query, the location fits, and it was posted recently. An optional Gemini check drops ones whose level or requirements rule you out. Board postings are applied to on the employer's own site; Easy Apply isn't supported yet.
+- **How it applies**: it clicks Apply, signs in or creates an account (Workday needs one per company), fills every page, clicks Next until the review, and submits. Fields your profile can't answer get Gemini's best answer for an interview instead of being left blank. They're badged **Check** and listed with the application.
+- **What it never does**: solve CAPTCHAs, or make up ID or payment numbers. Those jobs wait under **Applications** as **Needs you** with a desktop notification; **Resume** opens the job in a tab and carries on once you've done your part.
+- **Accounts and email**: site passwords are generated, encrypted with a key that never leaves this browser, and listed in settings. Verification codes are read from the Gmail inbox signed in to this browser. Verification links need a (free, read-only) Gmail API client ID; the settings page walks through it.
+- **Limits and duplicates**: a daily cap (25 by default; 0 finds jobs without applying), and a log of every application, yours included. No job is applied to twice, even when found on several sites; you choose whether YOLO may re-apply to jobs you submitted yourself, and whether filling one YOLO already applied to warns you.
+- **Cost**: nothing runs between checks. A check is a few requests (an unchanged GitHub list answers "not modified"), and applying uses one hidden page at a time, closed when the queue is empty. Gemini use is the normal fill's plus one call per page for guesses.
+
 ## Privacy
 
-Your profile, documents and settings live only in this browser (`chrome.storage.local`). To answer questions, the extension sends your profile, résumé text, saved answers and the page's field labels/job description **to Google Gemini under your own API keys**; there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
+Your profile, documents and settings live only in this browser (`chrome.storage.local`). YOLO mode also keeps its application log and encrypted site passwords there; it reads job boards logged out, and reads verification emails only while a run waits for one. To answer questions, the extension sends your profile, résumé text, saved answers and the page's field labels/job description **to Google Gemini under your own API keys**; there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
 
 ## Limitations
 
@@ -128,7 +140,7 @@ Your profile, documents and settings live only in this browser (`chrome.storage.
 - CAPTCHAs, passwords, payment fields and government ID numbers are never filled.
 - Some sites reject synthetic events (mostly heavily customized widgets); those fields are marked _Failed_ or _Check_.
 - Upload dropzones inside cross-origin iframes or that only accept real OS drag-and-drop may need a manual upload ("Upload the file manually").
-- It never submits or navigates: you always click Next/Submit yourself.
+- Outside YOLO mode it never submits or navigates: you always click Next/Submit yourself.
 
 ## Troubleshooting
 
