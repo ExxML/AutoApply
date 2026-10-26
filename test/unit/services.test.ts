@@ -1749,8 +1749,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.preferences.earliestStartDate = "2027-01-01";
     profile.preferences.availableUntil = "2028-05-01";
     profile.education = [{ ...emptyProfile().education[0], expectedGraduation: "2028-05" }];
-    const ask = async (label: string, kind: FieldKind = "select") => {
-      const options = kind === "select" ? ["Yes", "No"] : undefined;
+    const ask = async (
+      label: string,
+      kind: FieldKind = "select",
+      options = kind === "select" ? ["Yes", "No"] : undefined,
+    ) => {
       const r = await mapFields(
         { gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [field("s", { label, kind, options })], profile, documents: [], job: null },
@@ -1763,6 +1766,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Are you available to start between May 3, 2027 and May 10, 2027?")).toBe("flag");
     const offer = "If given a return offer (not guaranteed), what year would you be able to start?";
     expect(await ask(offer, "text")).toBe("2028");
+    const months = ["April", "May", "June", "July", "Other"];
+    const fullTime = "If you were offered full-time employment with Datadog, when would you be able to start?";
+    expect(await ask(fullTime, "select", months)).toBe("June");
   });
 
   it("answers start and availability text boxes from the profile's dates", async () => {

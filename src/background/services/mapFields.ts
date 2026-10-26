@@ -1038,16 +1038,27 @@ const RE_RETURN_OFFER = /\breturn offer\b|\bfull[- ]time\b/i;
 
 /**
  * "If given a return offer, what year would you be able to start?": the graduation year. Semgrep's got "From
- * January 1, 2027", the internship's earliest start.
+ * January 1, 2027", the internship's earliest start. Among months, the one after graduating: Datadog's "If you were
+ * offered full-time employment, when would you be able to start?" got "June", which the audit rejected.
  */
 function returnOfferDecision(f: FieldDescriptor, profile: Profile): Decision | null {
-  if (!RE_RETURN_OFFER.test(f.label) || !/\bwhat year\b[^?]*\bstart\b/i.test(f.label) || isMulti(f)) return null;
+  const offer = /\breturn offer\b|\boffered full[- ]time\b|\bfull[- ]time (employment|role|position|offer)\b/i;
+  if (!offer.test(f.label) || !/\b(what year|when)\b[^?]*\b(start|begin)\b/i.test(f.label) || isMulti(f)) return null;
   const when = profile.education.find((e) => e.expectedGraduation || e.endDate);
-  const year = (when?.expectedGraduation || when?.endDate)?.slice(0, 4);
-  if (!year) return null;
+  const grad = when?.expectedGraduation || when?.endDate;
+  if (!grad) return null;
+  const year = grad.slice(0, 4);
   const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["education"] };
-  if (!f.options) return f.kind === "text" || f.kind === "textarea" ? { ...base, text: year } : null;
-  const i = f.options.findIndex((o) => o.trim() === year);
+  if (!f.options)
+    return (f.kind === "text" || f.kind === "textarea") && /\bwhat year\b/i.test(f.label)
+      ? { ...base, text: year }
+      : null;
+  let i = f.options.findIndex((o) => o.trim() === year);
+  const month = Number(grad.slice(5, 7));
+  if (i < 0 && month) {
+    const next = MONTHS[month % 12];
+    i = f.options.findIndex((o) => new RegExp(`^${next}[a-z]*\\.?$`, "i").test(o.trim()));
+  }
   return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
 }
 
