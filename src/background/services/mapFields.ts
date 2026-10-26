@@ -948,6 +948,7 @@ function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]):
 /**
  * An undergraduate GPA among 4.0-scale options ("3.9 out of 4.0", "3.5 - 3.99"), converted from the profile's scale
  * (a 4.33 scale tops out at 4.0). SpaceX's got "Not applicable" for 4.33 out of 4.33: the model would not convert.
+ * A bare value ("3.9", "4.0") is the floor of its step: Akuna's list got ">4.0", which the audit rejected.
  */
 function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
   const e = education.find((x) => x.gpa);
@@ -958,7 +959,7 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
   let best = -1;
   let bestLow = -Infinity;
   f.options.forEach((o, i) => {
-    const m = o.match(/^\s*(\d(?:\.\d+)?)\s*(?:[-–]\s*(\d(?:\.\d+)?)|(?:out of|\/)\s*4(?:\.0+)?\b)/i);
+    const m = o.match(/^\s*(\d(?:\.\d+)?)\s*(?:[-–]\s*(\d(?:\.\d+)?)|(?:out of|\/)\s*4(?:\.0+)?\b|$)/i);
     if (!m) return;
     const low = Number(m[1]);
     const top = m[2] ? Number(m[2]) + 0.01 : Infinity;
