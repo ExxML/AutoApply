@@ -278,6 +278,34 @@ const entryFor = (country: string, entries: Profile["workAuthorization"]["entrie
   entries.find((x) => (canonicalCountry(x.country) ?? normalize(x.country)) === country);
 
 /**
+ * The explanation a follow-up asks for after a work authorization status answered "Other" here, from the profile:
+ * Etched's "If you answered other:" was skipped, leaving "Other (please explain below)" unexplained.
+ */
+function otherStatusDecision(
+  f: FieldDescriptor,
+  fields: FieldDescriptor[],
+  local: Map<string, Decision>,
+  countries: Map<string, string | undefined>,
+  entries: Profile["workAuthorization"]["entries"],
+): Decision | null {
+  const prev = fields[fields.indexOf(f) - 1];
+  const d = prev && local.get(prev.id);
+  if ((f.kind !== "text" && f.kind !== "textarea") || !f.hint?.startsWith("Follow-up to the previous question"))
+    return null;
+  if (d?.action !== "fill" || !/^other\b/i.test(suggestionOf(d, prev) ?? "")) return null;
+  if (!/\b(authori[sz]ation|visa|immigration|citizenship)\b/i.test(prev.label)) return null;
+  const title = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+  const held = entries.filter((e) => e.country && e.authorized === "yes");
+  const parts = held.map((e) => (e.status ? `${e.status} of ${e.country}.` : `Authorized to work in ${e.country}.`));
+  const there = countries.get(prev.id);
+  const e = there && entryFor(there, entries);
+  if (there && (!e || e.authorized !== "yes" || e.requiresSponsorshipNow === "yes"))
+    parts.push(`I would need employer sponsorship to work in ${/^united /.test(there) ? "the " : ""}${title(there)}.`);
+  if (!parts.length) return null;
+  return { fieldId: f.id, action: "fill", text: parts.join(" "), confidence: "high", sources: ["workAuthorization"] };
+}
+
+/**
  * An AI answer of "None"/"No" to a sponsorship question for a country where the profile needs sponsorship (no entry,
  * or one requiring it). Notion's "will you require any of the below sponsorship? J1 / F1 / None / Other" got "None".
  */
@@ -1598,7 +1626,8 @@ export async function mapFields(
       currentCompanyDecision(f, input.profile.experience) ??
       notWorkingDecision(f, input.profile.experience) ??
       contactEmployerDecision(f, input.profile.experience) ??
-      usStatusDecision(f, input.profile.workAuthorization.entries);
+      usStatusDecision(f, input.profile.workAuthorization.entries) ??
+      otherStatusDecision(f, input.fields, local, countries, input.profile.workAuthorization.entries);
     if (d) local.set(f.id, d);
   }
   // A follow-up to a question answered here: the model can't see that answer (Etched's "If you answered other:" was

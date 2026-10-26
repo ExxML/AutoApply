@@ -295,6 +295,40 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(hints).toEqual([`${hint}. The candidate answered it: "Yes".`]);
   });
 
+  it("explains a work authorization status answered 'Other' in its follow-up", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "skip", confidence: "high" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.workAuthorization.entries = [
+      { ...emptyProfile().workAuthorization.entries[0], country: "Canada", authorized: "yes", status: "Citizen" },
+    ];
+    const asked = "What is your work authorization status in the United States?";
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("s", {
+            label: asked,
+            kind: "radio_group",
+            options: ["US Citizen or Permanent Resident", "H1B", "TN", "Other (please explain below)"],
+          }),
+          field("o", { label: "If you answered other:", hint: `Follow-up to the previous question: "${asked}"` }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text)).toEqual([
+      "Other (please explain below)",
+      "Citizen of Canada. I would need employer sponsorship to work in the United States.",
+    ]);
+  });
+
   it("answers which country the role is in from the job's location", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
