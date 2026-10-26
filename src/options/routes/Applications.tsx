@@ -126,10 +126,7 @@ export function Applications() {
               onClick={async () => {
                 const [q, seen] = await Promise.all([store.get("yoloQueue"), store.get("yoloSeen")]);
                 // Unmark them so a later check can queue them again: clearing isn't rejecting.
-                for (const i of q) {
-                  delete seen[i.key];
-                  delete seen[i.alt];
-                }
+                for (const i of q) for (const k of [i.key, i.alt, i.listing]) delete seen[k];
                 await store.set({ yoloQueue: [], yoloSeen: seen });
               }}
             >
@@ -150,8 +147,7 @@ export function Applications() {
                   aria-label={`Remove ${i.company} – ${i.title} from the queue`}
                   onClick={async () => {
                     const [q, seen] = await Promise.all([store.get("yoloQueue"), store.get("yoloSeen")]);
-                    delete seen[i.key];
-                    delete seen[i.alt];
+                    for (const k of [i.key, i.alt, i.listing]) delete seen[k];
                     await store.set({ yoloQueue: q.filter((x) => x.key !== i.key), yoloSeen: seen });
                   }}
                 >

@@ -52,6 +52,8 @@ export interface Listing {
 export const QueueItemSchema = z.object({
   key: z.string(),
   alt: z.string().catch(""),
+  /** The posting's key as found: a board listing's, when `url` is the employer's own posting. */
+  listing: z.string().catch(""),
   url: z.string(),
   company: z.string().catch(""),
   title: z.string().catch(""),
@@ -62,7 +64,7 @@ export const QueueItemSchema = z.object({
 });
 export type QueueItem = z.infer<typeof QueueItemSchema>;
 
-export const ApplicationSchema = QueueItemSchema.omit({ postedAt: true, addedAt: true }).extend({
+export const ApplicationSchema = QueueItemSchema.omit({ listing: true, postedAt: true, addedAt: true }).extend({
   /** The confirmation page a submission ended on. */
   doneUrl: z.string().catch(""),
   mode: z.enum(["yolo", "manual"]).catch("yolo"),

@@ -71,7 +71,7 @@ export async function start(item: QueueItem, mode: Run["mode"], host: Run["host"
 /** Reads a page's links in the hidden host (Indeed results, career sites without an API). */
 export async function scrape(url: string, timeoutMs = 40_000): Promise<Link[]> {
   const run = await start(
-    { key: url, alt: "", url, company: "", title: "", location: "", source: "", postedAt: 0, addedAt: 0 },
+    { key: url, alt: "", listing: "", url, company: "", title: "", location: "", source: "", postedAt: 0, addedAt: 0 },
     "scrape",
     "frame",
   );

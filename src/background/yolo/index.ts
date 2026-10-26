@@ -245,7 +245,7 @@ async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
   if (!a) return { error: { kind: "other", message: "Unknown application" } };
   const run = await getRun();
   if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item);
-  await start({ ...a, postedAt: 0, addedAt: Date.now() }, "apply", "visible");
+  await start({ ...a, listing: "", postedAt: 0, addedAt: Date.now() }, "apply", "visible");
   return { ok: true };
 }
 

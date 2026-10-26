@@ -141,6 +141,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     items.push({
       key: k,
       alt,
+      listing: key,
       url,
       company: l.company,
       title: l.title,
