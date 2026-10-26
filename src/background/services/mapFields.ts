@@ -907,14 +907,15 @@ function termFits(o: string, profile: Profile): boolean | null {
 /**
  * "Which term(s) would you like to be considered for?" (checklist of seasons): each term inside the availability
  * window and among the co-op terms the profile lists ("All" for any). Etched's "Winter (January - May)" and "Summer
- * (May - August)" were left blank.
+ * (May - August)" were left blank. Asked for one ("which term works for you?", "winter or summer internship?"),
+ * the first that fits: Vercel's and Verkada's were left blank.
  */
 function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
-  if (!f.options || !isMulti(f) || !/\b(terms?|semesters?|seasons?)\b/i.test(f.label)) return null;
-  if (!profile.preferences.earliestStartDate) return null;
+  const asks = isMulti(f) ? /\b(terms?|semesters?|seasons?)\b/i : /\b(terms?|semesters?|seasons?|internship)\b/i;
+  if (!f.options || !asks.test(f.label) || !profile.preferences.earliestStartDate) return null;
   const fits = f.options.map((o) => termFits(o, profile));
   if (fits.includes(null) || !fits.includes(true)) return null;
-  const picks = fits.flatMap((ok, i) => (ok ? [i] : []));
+  const picks = fits.flatMap((ok, i) => (ok ? [i] : [])).slice(0, isMulti(f) ? undefined : 1);
   return {
     fieldId: f.id,
     action: "fill",

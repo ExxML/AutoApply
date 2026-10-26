@@ -455,6 +455,23 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(["Summer 2027", "Other"])).toBe("flag");
     profile.coop.availableTerms = ["Summer"];
     expect(await ask(["Winter (January - May)", "Summer (May - August)"])).toBe("Summer (May - August)");
+    profile.coop.availableTerms = ["All"];
+    const one = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("o", {
+            label: "Do you prefer a winter or summer internship?",
+            kind: "select",
+            options: ["Winter 2027", "Summer 2027"],
+          }),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(one.decisions[0].intendedAnswer).toBe("Winter 2027");
   });
 
   it("keeps an office or term pick from a list the profile accepts all of", async () => {
