@@ -193,6 +193,26 @@ function countryIn(text: string): string | undefined {
 const US = "united states";
 
 /**
+ * "Are you applying to a role in:" a list of countries: the job's, else "Other". Waymo's Warsaw internship got
+ * "Other", and a blank on a later run; it asks about the role, not the candidate.
+ */
+function roleCountryDecision(f: FieldDescriptor, job: string | undefined): Decision | null {
+  if (!f.options || isMulti(f) || !job || !/\bapplying (to|for) (an? |this )?(role|position|job)s? in\b/i.test(f.label))
+    return null;
+  const named = f.options.findIndex((o) => canonicalCountry(o.trim()) === job);
+  const i = named >= 0 ? named : f.options.findIndex((o) => /^other\b/i.test(o.trim()));
+  if (i < 0) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["job.location"],
+  };
+}
+
+/**
  * The one country a job's location names, if just one. Each part narrows the candidates, a state or province first:
  * "San Francisco, CA" → united states, "Toronto, ON, CA" → canada, "Atlanta, Georgia" → united states.
  * With neither, a tech hub's name alone ("Hybrid - San Francisco", Vercel).
@@ -1571,6 +1591,7 @@ export async function mapFields(
       compensationDecision(f, pay) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
       citizenDecision(f, input.profile.workAuthorization.entries) ??
+      roleCountryDecision(f, job) ??
       countryDecision(f, home) ??
       regionDecision(f, input.profile.personal.address) ??
       raceDecision(f, input.profile.demographics.raceEthnicity) ??

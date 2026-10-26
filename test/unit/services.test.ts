@@ -295,6 +295,31 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(hints).toEqual([`${hint}. The candidate answered it: "Yes".`]);
   });
 
+  it("answers which country the role is in from the job's location", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const ask = async (location: string) =>
+      (
+        await mapFields(
+          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("r", { label: "Are you applying to a role in:", kind: "select", options: ["Poland", "Other"] }),
+            ],
+            profile: emptyProfile(),
+            documents: [],
+            job: { company: "Waymo", title: "", jobTitle: "Intern", url: "", location, text: "", capturedAt: 0 },
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(await ask("Warsaw, Poland")).toBe("Poland");
+    expect(await ask("Mountain View, CA")).toBe("Other");
+  });
+
   it("ticks the terms inside the availability window", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
