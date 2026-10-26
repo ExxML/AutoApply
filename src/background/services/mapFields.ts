@@ -833,24 +833,28 @@ const TERM_MID: [RegExp, number][] = [
   [/\b(fall|autumn)\b/i, 10],
 ];
 
+/** Whether a term option ("Summer 2027", "Winter (January - May)") suits the profile; null when it names no season. */
+function termFits(o: string, profile: Profile): boolean | null {
+  const { earliestStartDate: from, availableUntil: to } = profile.preferences;
+  const terms = profile.coop.availableTerms;
+  const any = !terms.length || terms.some((t) => /^all$/i.test(t.trim()));
+  const season = TERM_MID.find(([re]) => re.test(o));
+  if (!season || (!any && !terms.some((t) => season[0].test(t)))) return season ? false : null;
+  const year = o.match(/\b20\d\d\b/)?.[0];
+  if (!year) return true;
+  const mid = `${year}-${String(season[1]).padStart(2, "0")}`;
+  return !!from && mid >= from.slice(0, 7) && (!to || mid <= to.slice(0, 7));
+}
+
 /**
  * "Which term(s) would you like to be considered for?" (checklist of seasons): each term inside the availability
  * window and among the co-op terms the profile lists ("All" for any). Etched's "Winter (January - May)" and "Summer
  * (May - August)" were left blank.
  */
 function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
-  const { earliestStartDate: from, availableUntil: to } = profile.preferences;
-  if (!f.options || !isMulti(f) || !/\b(terms?|semesters?|seasons?)\b/i.test(f.label) || !from) return null;
-  const terms = profile.coop.availableTerms;
-  const any = !terms.length || terms.some((t) => /^all$/i.test(t.trim()));
-  const fits = f.options.map((o) => {
-    const season = TERM_MID.find(([re]) => re.test(o));
-    if (!season || (!any && !terms.some((t) => season[0].test(t)))) return season ? false : null;
-    const year = o.match(/\b20\d\d\b/)?.[0];
-    if (!year) return true;
-    const mid = `${year}-${String(season[1]).padStart(2, "0")}`;
-    return mid >= from.slice(0, 7) && (!to || mid <= to.slice(0, 7));
-  });
+  if (!f.options || !isMulti(f) || !/\b(terms?|semesters?|seasons?)\b/i.test(f.label)) return null;
+  if (!profile.preferences.earliestStartDate) return null;
+  const fits = f.options.map((o) => termFits(o, profile));
   if (fits.includes(null) || !fits.includes(true)) return null;
   const picks = fits.flatMap((ok, i) => (ok ? [i] : []));
   return {
@@ -1384,6 +1388,19 @@ function auditQuestion(f: FieldDescriptor): string {
 }
 
 /**
+ * One office or term picked from a list the profile accepts every place or every fitting term of: the audit rejected
+ * MongoDB's "San Francisco, CA" and Verkada's "Summer 2027" as unstated preferences for a candidate open to anywhere
+ * and to any term.
+ */
+function openChoice(f: FieldDescriptor, answer: string, profile: Profile): boolean {
+  if (!f.options || isMulti(f) || !f.options.includes(answer)) return false;
+  const p = profile.preferences;
+  const anywhere = /^(any(where)?)?$/i.test(p.relocationNotes.trim()) && p.preferredLocations.includes("Any");
+  if (p.willingToRelocate === "yes" && anywhere && f.options.every((o) => jobCountry(o))) return true;
+  return termFits(answer, profile) === true && f.options.every((o) => termFits(o, profile) !== null);
+}
+
+/**
  * A second look at the AI's fills, judged against the candidate's data alone: it also catches guesses citing an
  * unrelated profile section ("active funding?" → "No", cited to education). Fails open: the fills stand.
  */
@@ -1392,6 +1409,7 @@ async function auditFills(
   fields: FieldDescriptor[],
   base: ReturnType<typeof mappingPayloadBase>,
   decisions: Decision[],
+  profile: Profile,
 ): Promise<Decision[]> {
   const byId = new Map(fields.map((f) => [f.id, f]));
   const items = decisions.flatMap((d) => {
@@ -1402,6 +1420,7 @@ async function auditFills(
       !needsNoSource(f) &&
       !workAuthAnswer(f, answer ?? "") &&
       !heardOther(f, answer ?? "") &&
+      !openChoice(f, answer ?? "", profile) &&
       d.text !== NOT_APPLICABLE &&
       // An unticked box claims nothing (Airbnb's "I decline to answer the following questions.").
       !(f.kind === "checkbox" && d.checked === false)
@@ -1692,7 +1711,9 @@ export async function mapFields(
   for (let i = 0; i < asked.length; i += size) chunks.push(asked.slice(i, i + size));
   const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
   const withCountry = asked.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
-  const answered = new Map((await auditFills(ctx, withCountry, base, decisions)).map((d) => [d.fieldId, d]));
+  const answered = new Map(
+    (await auditFills(ctx, withCountry, base, decisions, input.profile)).map((d) => [d.fieldId, d]),
+  );
   const entries = input.profile.workAuthorization.entries;
   let all = input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!);
   if (input.yolo) all = await guessFlagged(ctx, input.fields, all, base, sent);

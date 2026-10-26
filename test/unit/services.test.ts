@@ -393,6 +393,53 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(["Winter (January - May)", "Summer (May - August)"])).toBe("Summer (May - August)");
   });
 
+  it("keeps an office or term pick from a list the profile accepts all of", async () => {
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: { fieldId: string }[] } }) => {
+        if (s.system.startsWith("You audit")) {
+          const verdicts = s.payload.items!.map((i) => ({ fieldId: i.fieldId, supported: false }));
+          return { data: { verdicts }, usedModel: "m", keyLabel: "k" };
+        }
+        const decisions = s.payload.fields!.map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          optionIndexes: [1],
+          confidence: "medium",
+          sources: ["preferences"],
+        }));
+        return { data: { decisions }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences = {
+      ...profile.preferences,
+      willingToRelocate: "yes",
+      relocationNotes: "Anywhere",
+      preferredLocations: ["Any"],
+      earliestStartDate: "2027-01-01",
+      availableUntil: "2028-05-01",
+    };
+    profile.coop.availableTerms = ["All"];
+    const sel = (id: string, label: string, options: string[]) => field(id, { label, kind: "select", options });
+    const r = await mapFields(
+      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          sel("o", "Which of the following locations are you open to living and working in?", [
+            "New York, NY",
+            "Austin, TX",
+          ]),
+          sel("t", "Do you prefer a winter or summer internship?", ["Winter 2027", "Summer 2027"]),
+          sel("x", "Which team do you prefer?", ["Infra", "Product"]),
+        ],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions.map((d) => d.action)).toEqual(["fill", "fill", "flag"]);
+  });
+
   it("shows the audit the hint a question points at", async () => {
     const questions: string[] = [];
     const gemini = {
