@@ -73,7 +73,7 @@ function Gmail(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void }) 
         value={props.y.gmailClientId}
         onInput={(v) => props.set({ gmailClientId: v.trim() })}
         placeholder="1234-abc.apps.googleusercontent.com"
-        help="Lets YOLO read verification emails sent to the YOLO email (read-only). Without it, emailed codes are read from the Gmail inbox signed in to this browser; sites that email a link are left for you."
+        help="Optional. Lets YOLO read (read-only) the verification emails job sites send when it creates accounts for you. Without it, emailed codes still work if the YOLO email's Gmail is signed in to this browser, but sites that email a verification link are left for you to finish."
       />
       <details class="help">
         <summary>Set up the client ID (once, about 5 minutes)</summary>
