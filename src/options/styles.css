@@ -23,6 +23,9 @@
 }
 * {
   box-sizing: border-box;
+  /* Thin, track-less scrollbar matching the in-page overlay. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
 }
 body {
   margin: 0;
