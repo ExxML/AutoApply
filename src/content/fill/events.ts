@@ -117,7 +117,21 @@ export function pointerClick(el: HTMLElement, at?: { x: number; y: number }) {
     t.dispatchEvent(p("pointerdown"));
     // As in a browser, a cancelled mousedown moves no focus: older react-select menus (Epic's phone country) cancel
     // it to keep their input focused, and a focused option blurred the input and closed the menu before the click.
-    if (t.dispatchEvent(m("mousedown"))) el.focus?.({ preventScroll: true });
+    if (t.dispatchEvent(m("mousedown"))) {
+      const had = document.activeElement;
+      el.focus?.({ preventScroll: true });
+      // An unfocused page (a background tab, YOLO's hidden host) moves activeElement but fires no focus events, so
+      // widgets that open on focus (Workday's prompts) never would.
+      const now = document.activeElement;
+      if (!document.hasFocus() && now !== had && now instanceof HTMLElement) {
+        if (had instanceof HTMLElement && had !== document.body) {
+          had.dispatchEvent(new FocusEvent("blur", { relatedTarget: now }));
+          had.dispatchEvent(new FocusEvent("focusout", { bubbles: true, composed: true, relatedTarget: now }));
+        }
+        now.dispatchEvent(new FocusEvent("focus", { relatedTarget: had }));
+        now.dispatchEvent(new FocusEvent("focusin", { bubbles: true, composed: true, relatedTarget: had }));
+      }
+    }
     t.dispatchEvent(p("pointerup"));
     t.dispatchEvent(m("mouseup"));
     t.dispatchEvent(m("click"));
