@@ -814,7 +814,8 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
 function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
   const label =
     /\bhow soon\b|\bwhen (can|could|would) you (start|begin|join)\b|\b(availability|able) to (start|begin)\b/i;
-  if (isMulti(f) || !earliest || !label.test(f.label)) return null;
+  // A return offer starts after graduating (returnOfferDecision), not at the internship's start.
+  if (isMulti(f) || !earliest || !label.test(f.label) || RE_RETURN_OFFER.test(f.label)) return null;
   const weeks = Math.max(0, (Date.parse(earliest) - Date.parse(todayIso())) / 6048e5);
   if (!f.options) {
     if (f.kind !== "text" && f.kind !== "textarea") return null;
@@ -844,6 +845,51 @@ function startDecision(f: FieldDescriptor, earliest: string): Decision | null {
     intendedAnswer: f.options[i],
     confidence: "high",
     sources: ["preferences"],
+  };
+}
+
+const RE_RETURN_OFFER = /\breturn offer\b|\bfull[- ]time\b/i;
+
+/**
+ * "If given a return offer, what year would you be able to start?": the graduation year. Semgrep's got "From
+ * January 1, 2027", the internship's earliest start.
+ */
+function returnOfferDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  if (!RE_RETURN_OFFER.test(f.label) || !/\bwhat year\b[^?]*\bstart\b/i.test(f.label) || isMulti(f)) return null;
+  const when = profile.education.find((e) => e.expectedGraduation || e.endDate);
+  const year = (when?.expectedGraduation || when?.endDate)?.slice(0, 4);
+  if (!year) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["education"] };
+  if (!f.options) return f.kind === "text" || f.kind === "textarea" ? { ...base, text: year } : null;
+  const i = f.options.findIndex((o) => o.trim() === year);
+  return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
+}
+
+const RE_FULL_DATE = /\b([a-z]{3,9})\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})\b/gi;
+
+/**
+ * "Are you available to start on either Tuesday, May 25th, 2026 or Tuesday, June 8th, 2027?" (plain Yes/No): Yes
+ * when one of the dates falls inside the profile's availability. Semgrep's got "No" for a January 2027 start.
+ */
+function startOnDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+  const { earliestStartDate: from, availableUntil: to } = prefs;
+  if (!f.options || isMulti(f) || !from || !/\bavailable to (start|begin)\b/i.test(f.label)) return null;
+  const dates = [...f.label.matchAll(RE_FULL_DATE)].map(([, mon, day, year]) => {
+    const m = MONTHS.indexOf(mon.slice(0, 3).toLowerCase()) + 1;
+    return m ? `${year}-${String(m).padStart(2, "0")}-${day.padStart(2, "0")}` : "";
+  });
+  // shortcut: one date or "either … or" only; a "from … to" range stays with the model.
+  if (!dates.length || dates.includes("") || (dates.length > 1 && !/\bor\b/i.test(f.label))) return null;
+  const ok = dates.some((d) => d >= from && (!to || d <= to));
+  const i = f.options.findIndex((o) => (ok ? /^yes\W*$/i : /^no\W*$/i).test(o.trim()));
+  if (i < 0) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: [i],
+    intendedAnswer: f.options[i],
+    confidence: "high",
+    sources: ["preferences.earliestStartDate", "preferences.availableUntil"],
   };
 }
 
@@ -1447,6 +1493,8 @@ export async function mapFields(
       cohortDecision(f, input.profile.preferences) ??
       relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
+      returnOfferDecision(f, input.profile) ??
+      startOnDecision(f, input.profile.preferences) ??
       startDecision(f, input.profile.preferences.earliestStartDate) ??
       durationDecision(f, input.profile.preferences) ??
       compensationDecision(f, pay) ??

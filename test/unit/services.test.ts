@@ -4,7 +4,7 @@ import { chooseOptions, validateChoices } from "../../src/background/services/ch
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
 import type { Gemini } from "../../src/background/gemini/client";
-import type { FieldDescriptor } from "../../src/shared/types";
+import type { FieldDescriptor, FieldKind } from "../../src/shared/types";
 import { defaultSettings } from "../../src/shared/settings";
 import { emptyProfile } from "../../src/shared/profileSchema";
 import { todayIso } from "../../src/shared/time";
@@ -1419,6 +1419,33 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(-30)).toBe("I am able to start immediately");
     expect(await ask(200)).toBe("I would be able to start in more than 12 weeks");
     expect(await ask(21)).toBe("flag");
+  });
+
+  it("answers start-on-a-date and return-offer start questions from the profile", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.preferences.earliestStartDate = "2027-01-01";
+    profile.preferences.availableUntil = "2028-05-01";
+    profile.education = [{ ...emptyProfile().education[0], expectedGraduation: "2028-05" }];
+    const ask = async (label: string, kind: FieldKind = "select") => {
+      const options = kind === "select" ? ["Yes", "No"] : undefined;
+      const r = await mapFields(
+        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields: [field("s", { label, kind, options })], profile, documents: [], job: null },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].text ?? r.decisions[0].action;
+    };
+    const either = "Are you available to start on either Tuesday, May 25th, 2026 or Tuesday, June 8th, 2027?";
+    expect(await ask(either)).toBe("Yes");
+    expect(await ask("Are you available to start on May 25th, 2026?")).toBe("No");
+    expect(await ask("Are you available to start between May 3, 2027 and May 10, 2027?")).toBe("flag");
+    const offer = "If given a return offer (not guaranteed), what year would you be able to start?";
+    expect(await ask(offer, "text")).toBe("2028");
   });
 
   it("answers start and availability text boxes from the profile's dates", async () => {
