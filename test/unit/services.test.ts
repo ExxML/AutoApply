@@ -1218,13 +1218,14 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           }),
           field("c", { label: "Name pronounciation", required: true }),
           field("d", { label: "How do you pronounce your name?" }),
+          field("e", { label: "Please write out how your name is pronounced phonetically." }),
         ],
         profile,
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip"]);
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual(["2", "2-3", "flag", "skip", "skip"]);
   });
 
   it("ticks the cohorts inside the availability window and every relocation option for anywhere", async () => {

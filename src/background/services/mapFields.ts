@@ -817,10 +817,11 @@ function internshipsDecision(f: FieldDescriptor, experience: Profile["experience
 }
 
 /**
- * "How do you pronounce your name?": the profile doesn't say. Sierra's "Name pronounciation" got the pronouns.
+ * "How do you pronounce your name?": the profile doesn't say. Sierra's "Name pronounciation" got the pronouns, and
+ * Akuna's "how your name is pronounced phonetically" a made-up "An-dee Woo".
  */
 const pronunciationDecision = (f: FieldDescriptor): Decision | null =>
-  /\bpronoun(ce|ci?ation)\b|\bpronunciation\b/i.test(f.label)
+  /\bpronoun(ce|ced|ci?ation)\b|\bpronunciation\b/i.test(f.label)
     ? f.required
       ? flag(f.id, "Add how your name is pronounced")
       : { fieldId: f.id, action: "skip", confidence: "high" }
