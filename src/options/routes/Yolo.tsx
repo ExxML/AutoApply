@@ -201,7 +201,7 @@ export function Yolo() {
         />
         <TagInput
           label="Company career sites"
-          help='Workday, Greenhouse, Lever, Ashby or SmartRecruiters boards, or any career search page. "{q}" in a URL is replaced by each query.'
+          help='Enter the exact page that lists jobs, not a homepage. Workday, Greenhouse, Lever, Ashby and SmartRecruiters board URLs are read through their APIs. Any other page is opened once in a hidden page and its job links are read off it; it does not click through or page. For those, use a search results URL, with "{q}" where the query goes (e.g. https://jobs.example.com/search?q={q}).'
           value={y.careerSites}
           onChange={(v) => set({ careerSites: urls(v) })}
         />
