@@ -1515,6 +1515,9 @@ function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | nul
   return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
 }
 
+// "When do you expect to complete your degree program?" asks for the graduation date too.
+const RE_GRADUATION = /graduat|\b(complet|finish)\w*\b[^?]{0,25}\bdegree\b|\bdegree (completion|end)\b/i;
+
 /**
  * A graduation date among options, matched by year and month or season ("2028-05" → "Spring/Summer 2028"). The
  * model picked "Other" for Lyft's "anticipated graduation month and year?" with the note "Graduation is May 2028".
@@ -1525,9 +1528,10 @@ function graduationDecision(f: FieldDescriptor, profile: Profile): Decision | nu
   const school = /high school|secondary/i.test(f.label);
   const when = profile.education.find((e) => e.expectedGraduation || e.endDate);
   const date = school ? profile.highSchool.graduationYear : when?.expectedGraduation || when?.endDate;
-  if (!f.options || isMulti(f) || !/graduat/i.test(f.label) || !date) return null;
+  if (isMulti(f) || !RE_GRADUATION.test(f.label) || !date) return null;
   if (!school && /\b(master|ph\.?\s?d|doctora|mba)/i.test(f.label)) return null;
   const [year, month] = date.split("-").map(Number);
+  if (!f.options) return school || !month ? null : graduationText(f, year, month);
   const hits = f.options.flatMap((o, i) => {
     if (!new RegExp(`\\b${year}\\b`).test(o)) return [];
     const names = MONTHS.filter((m) => new RegExp(`\\b${m}`, "i").test(o));
@@ -1545,6 +1549,24 @@ function graduationDecision(f: FieldDescriptor, profile: Profile): Decision | nu
     confidence: "high",
     sources: [school ? "highSchool" : "education"],
   };
+}
+
+/**
+ * A typed graduation date. Asked for a full date, the model left it blank: the profile holds only the month, so
+ * "May 2028" goes in, and the fill writes it in the input's format on the 1st ("05/01/2028", "2028-05-01").
+ */
+function graduationText(f: FieldDescriptor, year: number, month: number): Decision | null {
+  const typed = f.kind === "date" || f.kind === "month";
+  if (!typed && (f.kind !== "text" || !/\b(date|when|month|year|term)\b/i.test(f.label))) return null;
+  const yearOnly = !typed && /\byear\b/i.test(f.label) && !/\b(date|month|term)\b/i.test(f.label);
+  const text = yearOnly
+    ? String(year)
+    : new Date(Date.UTC(year, month - 1)).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+  return { fieldId: f.id, action: "fill", text, confidence: "high", sources: ["education"] };
 }
 
 /**

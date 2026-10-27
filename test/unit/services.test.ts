@@ -965,18 +965,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             kind: "select",
             options: ["Spring/Summer 2028", "Spring/Summer 2029"],
           }),
+          field("d", { label: "Expected Graduation Date", kind: "date" }),
+          field("t", { label: "When do you expect to graduate?", kind: "text" }),
+          field("y", { label: "Graduation year", kind: "text" }),
+          field("c", { label: "When do you expect to complete your degree program?", kind: "date" }),
+          field("w", { label: "Why did you choose to graduate early?", kind: "textarea" }),
         ],
         profile,
         documents: [],
         job: null,
       },
     );
-    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.text ?? d.action)).toEqual([
       "Spring/Summer 2028",
       "May 2028",
       "2028",
       "flag",
       "Spring/Summer 2024",
+      "flag",
+      "May 2028",
+      "May 2028",
+      "2028",
+      "May 2028",
       "flag",
     ]);
   });
