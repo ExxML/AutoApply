@@ -335,6 +335,13 @@ describe("callGemini rotation", () => {
     expect(h.pool.state.k1.cooldownUntil).toBeGreaterThan(Date.now());
   });
 
+  it("sends the context ahead of the payload in one JSON object, so prompt caches reuse it", async () => {
+    const h = harness(1, ok({ ok: true }), { m: fresh });
+    await h.gemini.call({ ...spec, context: { profile: { x: 1 } }, payload: { fields: [] } }, { model: "m" });
+    const contents = h.calls[0].body.contents as { parts: { text: string }[] }[];
+    expect(contents[0].parts[0].text).toBe('{"profile":{"x":1},"fields":[]}');
+  });
+
   it("uses the fallback model when every key is exhausted for the primary", async () => {
     const h = harness(
       2,

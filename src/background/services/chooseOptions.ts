@@ -3,7 +3,7 @@ import type { Choice, ChooseItem, Profile } from "../../shared/types";
 import { BadOutputError, BlockedError } from "../gemini/errors";
 import { CHOOSE_OPTIONS_PROMPT } from "../gemini/prompts";
 import { CHOOSE_SCHEMA, ChooseZ } from "../gemini/schemas";
-import { compactProfile, numbered, type ServiceCtx } from "./mapFields";
+import { compactProfile, numbered, withoutEssayStyle, type ServiceCtx } from "./mapFields";
 
 export function validateChoices(items: ChooseItem[], raw: Choice[]): Choice[] {
   const byId = new Map(items.map((i) => [i.fieldId, i]));
@@ -35,10 +35,8 @@ export async function chooseOptions(ctx: ServiceCtx, items: ChooseItem[], profil
         const r = await ctx.ai.call(
           {
             system: CHOOSE_OPTIONS_PROMPT,
-            payload: {
-              items: batch.map((i) => ({ ...i, options: numbered(i.options) })),
-              profile: compactProfile(rest),
-            },
+            context: { profile: compactProfile(withoutEssayStyle(rest)) },
+            payload: { items: batch.map((i) => ({ ...i, options: numbered(i.options) })) },
             schema: CHOOSE_SCHEMA,
             validate: (d) => ChooseZ.parse(d),
             timeoutMs: ctx.settings.requestTimeoutMs,

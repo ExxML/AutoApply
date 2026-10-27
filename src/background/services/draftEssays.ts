@@ -19,9 +19,8 @@ export async function draftEssays(
   job: JobContext | null,
 ): Promise<EssayResult[]> {
   const { resumeText, learnedAnswers: _l, ...rest } = profile;
+  const context = { profile: compactProfile(rest) ?? {}, resume: resumeText.slice(0, 12000) };
   const base = {
-    profile: compactProfile(rest) ?? {},
-    resume: resumeText.slice(0, 12000),
     job: compactProfile({
       company: job?.company,
       title: job?.jobTitle,
@@ -41,6 +40,7 @@ export async function draftEssays(
       const r = await ctx.ai.call(
         {
           system: ESSAYS_PROMPT,
+          context,
           payload: { ...base, items: batch.map((i) => ({ ...i, targetWords: target(i) })) },
           schema: ESSAYS_SCHEMA,
           validate: (d) => EssaysZ.parse(d),

@@ -30,6 +30,7 @@ interface Line {
   stop_reason?: string | null;
   api_error_status?: number | null;
   modelUsage?: Record<string, unknown>;
+  usage?: unknown;
   error?: string;
   rate_limit_info?: { status?: string; resetsAt?: number };
 }
@@ -37,7 +38,7 @@ interface Line {
 const SIGNED_OUT = new Set(["authentication_failed", "oauth_org_not_allowed", "account_on_hold", "billing_error"]);
 
 /** claude's reply text and model, or the error it ended with. */
-export function readReply(r: BridgeReply, model: string): { text: string; model: string } {
+export function readReply(r: BridgeReply, model: string): { text: string; model: string; usage?: unknown } {
   const lines = r.out.split("\n").flatMap((l): Line[] => {
     try {
       return [JSON.parse(l)];
@@ -58,7 +59,7 @@ export function readReply(r: BridgeReply, model: string): { text: string; model:
   if (!res.is_error && res.subtype === "success") {
     if (res.stop_reason === "max_tokens") throw new BadOutputError("Response truncated (max_tokens)", true);
     if (res.stop_reason === "refusal") throw new BlockedError("Claude declined this request");
-    return { text: res.result ?? "", model: Object.keys(res.modelUsage ?? {})[0] ?? "" };
+    return { text: res.result ?? "", model: Object.keys(res.modelUsage ?? {})[0] ?? "", usage: res.usage };
   }
   const msg = res.result || res.errors?.join("; ") || "";
   const category = lines.findLast((l) => l.type === "assistant" && l.error)?.error;
@@ -89,7 +90,10 @@ export function createClaude(deps: ClaudeDeps) {
     const req = {
       // shortcut: the schema is only written into the prompt, with zod checking the reply. --json-schema would
       // constrain it but costs an extra tool turn and a Gemini→JSON-Schema conversion; upgrade if replies drift.
-      system: spec.schema ? promptWithSchema(spec.system, spec.schema) : spec.system,
+      // Claude Code caches the system prompt across runs, so the candidate's data goes there to be reused.
+      system:
+        (spec.schema ? promptWithSchema(spec.system, spec.schema) : spec.system) +
+        (spec.context ? `\n\nCandidate data (JSON):\n${JSON.stringify(spec.context)}` : ""),
       prompt: typeof spec.payload === "string" ? spec.payload : JSON.stringify(spec.payload),
       ...task,
     };
@@ -102,6 +106,7 @@ export function createClaude(deps: ClaudeDeps) {
           // Every reply is one JSON object; drop any prose or fence around it.
           const data = parseJsonReply(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}") + 1), spec.validate);
           log("[claude] response", r.model, JSON.stringify(data).slice(0, 4000));
+          log("[claude] usage", r.model, JSON.stringify(r.usage));
           return { data, usedModel: r.model || task.model || "claude", keyLabel: "Claude" };
         } catch (e) {
           if (e instanceof ClaudeSetupError) deps.onSetupError?.();

@@ -73,6 +73,15 @@ describe("Claude client", () => {
     expect(c.timeouts[0]).toBe(2000);
   });
 
+  it("puts the context in the system prompt, which Claude Code caches across runs", async () => {
+    const c = client(reply(ok('{"ok":true}')));
+    await c.claude.call({ ...spec, context: { profile: { x: 1 } } }, task);
+    expect(c.reqs[0].system).toBe(
+      `SYS\n\nJSON schema of the reply:\n${JSON.stringify(VALIDATION_SCHEMA)}\n\nCandidate data (JSON):\n{"profile":{"x":1}}`,
+    );
+    expect(c.reqs[0].prompt).toBe('{"ping":true}');
+  });
+
   it("takes the JSON object out of a fence or prose", async () => {
     const c = client(reply(ok('Here you go:\n```json\n{"ok": true}\n```')));
     expect((await c.claude.call(spec, task)).data).toEqual({ ok: true });

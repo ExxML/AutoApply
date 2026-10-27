@@ -95,6 +95,11 @@ export class Semaphore {
 
 export interface CallSpec<T> {
   system: string;
+  /**
+   * The candidate's own data (trusted, the same across a fill's calls), sent ahead of `payload` so providers reuse
+   * it from their prompt cache: Gemini gets one JSON object with it first; Claude gets it in the system prompt.
+   */
+  context?: object;
   payload: unknown;
   /** Gemini responseSchema; omit for JSON mode without a schema (parseResume). */
   schema?: object;
@@ -286,6 +291,7 @@ export function createGemini(deps: GeminiDeps) {
     return sem.run(async () => {
       const ctx = newCtx(spec.timeoutMs, spec.signal);
       const models = [opts.model, opts.fallback].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
+      const payload = spec.context ? { ...spec.context, ...(spec.payload as object) } : spec.payload;
       const errors: Error[] = [];
       for (const model of models) {
         let caps: ModelCaps;
@@ -303,7 +309,7 @@ export function createGemini(deps: GeminiDeps) {
         let preferKey: string | undefined;
         for (;;) {
           const thinking = spec.essay ? essayThinking(caps) : caps.thinking;
-          const body = buildBody(spec.system, spec.payload, spec.schema, caps, thinking, spec.maxOutputTokens);
+          const body = buildBody(spec.system, payload, spec.schema, caps, thinking, spec.maxOutputTokens);
           if (deps.debug?.()) log("[gemini] request", model, JSON.stringify(body).slice(0, 4000));
           const r = await runOnModel(model, body, ctx, preferKey);
           preferKey = undefined;
@@ -314,7 +320,10 @@ export function createGemini(deps: GeminiDeps) {
             }
             try {
               const data = parseOutput(r.body, spec.validate);
-              if (deps.debug?.()) log("[gemini] response", model, JSON.stringify(data).slice(0, 4000));
+              if (deps.debug?.()) {
+                log("[gemini] response", model, JSON.stringify(data).slice(0, 4000));
+                log("[gemini] usage", model, JSON.stringify((r.body as { usageMetadata?: unknown }).usageMetadata));
+              }
               return { data, usedModel: model, keyLabel: r.key.label };
             } catch (e) {
               if (!(e instanceof BadOutputError) || e.truncated) throw e;

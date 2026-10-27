@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateDecisions, compactProfile, mapFields, payTarget } from "../../src/background/services/mapFields";
 import { chooseOptions, validateChoices } from "../../src/background/services/chooseOptions";
+import { draftEssays } from "../../src/background/services/draftEssays";
 import { pickResume } from "../../src/background/services/pickResume";
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
@@ -1893,8 +1894,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
   it("answers desired pay boxes in the period they ask for", async () => {
     const asked: string[] = [];
     const gemini = {
-      call: async (s: { payload: { fields?: FieldDescriptor[]; profile?: { preferences?: object } } }) => {
-        asked.push(JSON.stringify(s.payload.profile?.preferences));
+      call: async (s: {
+        context?: { profile?: { preferences?: object } };
+        payload: { fields?: FieldDescriptor[] };
+      }) => {
+        asked.push(JSON.stringify(s.context?.profile?.preferences));
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
         return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
       },
@@ -2164,6 +2168,32 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const want = ["0: Canada +1", "1: Cape Verde +238"];
     expect((payloads[0].fields as FieldDescriptor[])[0].options).toEqual(want);
     expect((payloads.at(-1)!.items as { options: string[] }[])[0].options).toEqual(want);
+  });
+
+  it("leaves essay-only guidance out of mapping and option calls, keeping it for essays", async () => {
+    const profiles: { essayGuidance?: object }[] = [];
+    const gemini = {
+      call: async (s: {
+        context?: { profile?: { essayGuidance?: object } };
+        payload: { fields?: FieldDescriptor[] };
+      }) => {
+        profiles.push(s.context?.profile ?? {});
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "skip", confidence: "high" }));
+        return { data: { decisions, choices: [], essays: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const ctx = { ai: gemini, settings: defaultSettings(), model: "m", fallback: null };
+    const profile = emptyProfile();
+    profile.essayGuidance = { ...profile.essayGuidance, aboutMe: "bio", tone: "warm", coverLetterTemplate: "Dear…" };
+    await mapFields(ctx, { fields: [field("a")], profile, documents: [], job: null });
+    const item = { fieldId: "b", question: "q", intendedAnswer: "x", options: ["x"], multiple: false };
+    await chooseOptions(ctx, [item], profile);
+    await draftEssays(ctx, [{ fieldId: "c", question: "Why us?", kind: "essay" }], profile, null);
+    expect(profiles.map((p) => p.essayGuidance)).toEqual([
+      { aboutMe: "bio" },
+      { aboutMe: "bio" },
+      { aboutMe: "bio", tone: "warm", coverLetterTemplate: "Dear…" },
+    ]);
   });
 
   it("compactProfile drops empty values recursively", () => {

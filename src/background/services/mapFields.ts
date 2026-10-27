@@ -1625,7 +1625,8 @@ async function auditFills(
     const r = await ctx.ai.call(
       {
         system: AUDIT_PROMPT,
-        payload: { items, profile, resume, learnedAnswers, job, today },
+        context: { profile, resume },
+        payload: { learnedAnswers, job, today, items },
         schema: AUDIT_SCHEMA,
         validate: (d) => AuditZ.parse(d),
         timeoutMs: ctx.settings.requestTimeoutMs,
@@ -1714,17 +1715,19 @@ async function guessFlagged(
   );
   if (!flagged.length) return decisions;
   const why = new Map(decisions.map((d) => [d.fieldId, d]));
+  const { profile, resume, ...rest } = base;
   try {
     const r = await ctx.ai.call(
       {
         system: BEST_GUESS_PROMPT,
+        context: { profile, resume },
         payload: {
+          ...rest,
           fields: flagged.map((f) => ({
             ...sent(f),
             whyUnanswered: why.get(f.id)?.note,
             earlierGuess: why.get(f.id)?.suggestion,
           })),
-          ...base,
         },
         schema: MAPPING_SCHEMA,
         validate: (d) => MappingZ.parse(d),
@@ -1760,6 +1763,12 @@ export interface MapInput {
 // so each option carries its index for the model to read back.
 export const numbered = (options: string[]) => options.map((o, i) => `${i}: ${o}`);
 
+/** The profile without what only essays use: tone, emphasis, things to avoid and the (often long) cover letter template. */
+export const withoutEssayStyle = <P extends Pick<Profile, "essayGuidance">>(p: P) => ({
+  ...p,
+  essayGuidance: { aboutMe: p.essayGuidance.aboutMe, careerGoals: p.essayGuidance.careerGoals },
+});
+
 export function mappingPayloadBase(input: Omit<MapInput, "fields">, pay: PayTarget | null = null) {
   const { resumeText, learnedAnswers, ...rest } = input.profile;
   // The model gets the pay to answer for this job, not the rule for choosing it.
@@ -1768,7 +1777,8 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">, pay: PayTarg
     ? { ...comp, amount: String(rounded(pay.amount, pay.period)), period: pay.period, currency: pay.currency }
     : comp;
   return {
-    profile: compactProfile({ ...rest, preferences: { ...rest.preferences, desiredCompensation } }) ?? {},
+    profile:
+      compactProfile(withoutEssayStyle({ ...rest, preferences: { ...rest.preferences, desiredCompensation } })) ?? {},
     resume: resumeText.slice(0, 12000),
     learnedAnswers: [...learnedAnswers]
       .sort((a, b) => b.lastUsedAt - a.lastUsedAt)
@@ -1867,13 +1877,16 @@ export async function mapFields(
     };
   };
   let usedModel = ctx.model;
+  // Fields last: everything before them is the same in each of a fill's calls, which prompt caches reuse.
+  const { profile, resume, ...rest } = base;
 
   async function runChunk(chunk: FieldDescriptor[], retried = false): Promise<Decision[]> {
     try {
       const r = await ctx.ai.call(
         {
           system: MAP_FIELDS_PROMPT,
-          payload: { fields: chunk.map(sent), ...base },
+          context: { profile, resume },
+          payload: { ...rest, fields: chunk.map(sent) },
           schema: MAPPING_SCHEMA,
           validate: (d) => MappingZ.parse(d),
           timeoutMs: ctx.settings.requestTimeoutMs,
