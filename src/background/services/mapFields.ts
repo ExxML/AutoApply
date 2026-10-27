@@ -1915,15 +1915,24 @@ export async function mapFields(
     }
   }
 
-  const size = ctx.settings.maxFieldsPerRequest;
   const asked = input.fields.filter((f) => !local.has(f.id));
+  // Even chunks: the slowest one sets the wait, so no 6/6/6/2.
+  const size = Math.ceil(asked.length / Math.ceil(asked.length / ctx.settings.maxFieldsPerRequest));
   const chunks: FieldDescriptor[][] = [];
-  for (let i = 0; i < asked.length; i += size) chunks.push(asked.slice(i, i + size));
-  const decisions = (await Promise.all(chunks.map((c) => runChunk(c)))).flat();
-  const withCountry = asked.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
-  const answered = new Map(
-    (await auditFills(ctx, withCountry, base, decisions, input.profile)).map((d) => [d.fieldId, d]),
+  for (const f of asked) {
+    const last = chunks.at(-1);
+    // A follow-up stays with the question it follows: "If yes, what country?" needs that answer.
+    if (last && (last.length < size || f.hint?.startsWith("Follow-up to the previous question"))) last.push(f);
+    else chunks.push([f]);
+  }
+  // Each chunk is audited as soon as it is mapped, not after the slowest chunk.
+  const audited = await Promise.all(
+    chunks.map(async (c) => {
+      const withCountry = c.map((f) => ({ ...f, workCountry: countries.get(f.id) }));
+      return auditFills(ctx, withCountry, base, await runChunk(c), input.profile);
+    }),
   );
+  const answered = new Map(audited.flat().map((d) => [d.fieldId, d]));
   const entries = input.profile.workAuthorization.entries;
   let all = input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!);
   if (input.yolo) all = await guessFlagged(ctx, input.fields, all, base, sent);

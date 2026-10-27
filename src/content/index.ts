@@ -585,7 +585,6 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         .sort((a, b) => Number(b.desc.required) - Number(a.desc.required));
       const later = new Set(toHarvest);
       const now = pending.filter((h) => !later.has(h));
-      const essays: EssayItem[] = [];
       // Mapped 15 at a time, so the first answers don't wait for a long form's last lists. All are read: past a
       // cap of 15, Riot's last 4 required questions were answered blind.
       const harvestThenMap = async () => {
@@ -624,6 +623,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
           return;
         }
         usedModel = res.usedModel;
+        const essays: EssayItem[] = [];
         for (const d of res.decisions) {
           const h = handles.get(d.fieldId);
           if (!h || states.get(h.id)?.userOwned) continue;
@@ -642,11 +642,12 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
           else if (d.action === "skip") setStatus(h, "skipped");
           else setStatus(h, "needs", d.note ?? "AI could not answer", suggestion);
         }
+        // Drafted now, not after the other mapping calls: an essay needs nothing from them.
+        if (essays.length) jobs.push(draftEssays(essays, groupId, ctrl, mark));
       };
       const fieldsNow = now.map((h) => h.desc);
       await Promise.all([mapAndApply(now, fieldsNow), harvestThenMap()]);
       mark("map");
-      if (essays.length) jobs.push(draftEssays(essays, groupId, ctrl, mark));
     }
     await Promise.all(jobs);
     mark("done");

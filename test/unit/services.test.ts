@@ -226,6 +226,50 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(sizes[0]).toBe(4);
   });
 
+  it("splits fields into even chunks and audits each chunk's own fills", async () => {
+    const mapped: number[] = [];
+    const audited: number[] = [];
+    const gemini = {
+      call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: unknown[] } }) => {
+        if (s.system.startsWith("You audit")) {
+          audited.push(s.payload.items!.length);
+          return { data: { verdicts: [] }, usedModel: "m", keyLabel: "k" };
+        }
+        mapped.push(s.payload.fields!.length);
+        const decisions = s.payload.fields!.map((f) => ({
+          fieldId: f.id,
+          action: "fill",
+          text: "x",
+          confidence: "high",
+          sources: ["profile.education"],
+        }));
+        return { data: { decisions }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const r = await mapFields(
+      { ai: gemini, settings: { ...defaultSettings(), maxFieldsPerRequest: 6 }, model: "m", fallback: null },
+      {
+        fields: Array.from({ length: 20 }, (_, i) => field(`q${i}`)),
+        profile: emptyProfile(),
+        documents: [],
+        job: null,
+      },
+    );
+    expect(mapped).toEqual([5, 5, 5, 5]);
+    expect(audited).toEqual([5, 5, 5, 5]);
+    expect(r.decisions.map((d) => d.fieldId)).toEqual(Array.from({ length: 20 }, (_, i) => `q${i}`));
+
+    mapped.length = 0;
+    const fields = Array.from({ length: 20 }, (_, i) =>
+      field(`q${i}`, i === 5 ? { hint: 'Follow-up to the previous question: "q4"' } : {}),
+    );
+    await mapFields(
+      { ai: gemini, settings: { ...defaultSettings(), maxFieldsPerRequest: 6 }, model: "m", fallback: null },
+      { fields, profile: emptyProfile(), documents: [], job: null },
+    );
+    expect(mapped).toEqual([6, 5, 5, 4]);
+  });
+
   it("audits the AI's fills: an answer the candidate's data does not support is left blank", async () => {
     const audited: string[][] = [];
     const gemini = {

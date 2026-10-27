@@ -65,6 +65,7 @@ const claude = createClaude({
   onSetupError: () => void store.set({ claudeReady: false }),
 });
 const claudeLabel = (t: ClaudeTask) => `Claude (${t.model || "default"})`;
+const CLAUDE_MAP_FIELDS = 6;
 
 const ready = (async () => {
   // Listen before reading, and let anything that changes meanwhile win over the initial read.
@@ -129,7 +130,15 @@ async function serviceCtx(signal?: AbortSignal, task: AiTask = "fill"): Promise<
     if (!(await store.get("claudeReady")))
       return { error: { kind: "noKey", message: "Claude isn't connected: set it up in AutoApply → AI." } };
     const t = settings.claude[task];
-    return { ai: { call: (spec) => claude.call(spec, t) }, settings, model: claudeLabel(t), fallback: null, signal };
+    // Claude always thinks, and thinking is serial: small parallel MAP calls finish sooner (15 fields: ~11 s → ~8.5 s).
+    const capped = { ...settings, maxFieldsPerRequest: Math.min(settings.maxFieldsPerRequest, CLAUDE_MAP_FIELDS) };
+    return {
+      ai: { call: (spec) => claude.call(spec, t) },
+      settings: capped,
+      model: claudeLabel(t),
+      fallback: null,
+      signal,
+    };
   }
   const { selectedModel, fallbackModel } = await store.getMany(["selectedModel", "fallbackModel"]);
   if (!pool.keys.length) return { error: { kind: "noKey", message: "No API key" } };
