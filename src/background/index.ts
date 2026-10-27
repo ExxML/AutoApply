@@ -21,6 +21,7 @@ import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
 import { draftEssays } from "./services/draftEssays";
 import { parseResume } from "./services/parseResume";
+import { pickResume } from "./services/pickResume";
 import { initYolo, isYoloDoc, runTab, yoloApplied, yoloDoc, yoloHandlers, yoloJob, yoloOverrides } from "./yolo";
 
 const store = createStorage("background");
@@ -244,6 +245,12 @@ const handlers: Handlers = {
       await setJobContext(tab.id, ctx, sender.frameId && sender.tab ? (tab.url ?? "") : undefined);
     void pruneClosedTabs().catch(() => undefined);
     return { ok: true };
+  },
+
+  async PICK_RESUME(_, sender) {
+    const tab = await runTab(sender);
+    const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
+    return { id: pickResume(await store.get("documentsIndex"), job) };
   },
 
   async SET_JOB_PAY({ pays, passive }, sender) {

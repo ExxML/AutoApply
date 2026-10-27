@@ -122,6 +122,11 @@ export function Documents() {
       <p class="intro">
         Your primary résumé is attached automatically to résumé/CV upload fields, and its text is used as AI context.
       </p>
+      <p class="intro">
+        <strong>Résumé variants:</strong> upload each tailored résumé with kind Résumé and label it with the job title
+        it targets, spelled out (e.g. “Software Engineer”, “Data Scientist”, not “SWE”). Each application gets the
+        variant whose label shares the most words with the job title; if none does, it gets your primary résumé.
+      </p>
       <div class="panel-box">
         <h2>Upload</h2>
         <DocumentUpload />

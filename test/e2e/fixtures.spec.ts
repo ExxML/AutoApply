@@ -164,6 +164,28 @@ test("dropzone: the résumé goes into the hidden input behind the dropzone", as
   );
 });
 
+test("dropzone: a résumé variant labelled with the job title goes in instead of the primary one", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw);
+  await sw.evaluate(async () => {
+    const { documentsIndex, "doc:resume": doc } = (await chrome.storage.local.get([
+      "documentsIndex",
+      "doc:resume",
+    ])) as { documentsIndex: object[]; "doc:resume": unknown };
+    const variant = { ...documentsIndex[0], id: "mkt", label: "Marketing", fileName: "ada-marketing.pdf" };
+    await chrome.storage.local.set({
+      documentsIndex: [...documentsIndex, { ...variant, isPrimaryResume: false }],
+      "doc:mkt": doc,
+    });
+  });
+  await page.goto(BASE + "dropzone.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#status")).toHaveText("ada-marketing.pdf uploaded ✓");
+});
+
 test("no trigger: an application page is left alone and no UI appears", async ({ page, sw, mock }) => {
   await seed(sw);
   await page.goto(BASE + "plain.html");

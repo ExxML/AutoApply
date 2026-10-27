@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateDecisions, compactProfile, mapFields, payTarget } from "../../src/background/services/mapFields";
 import { chooseOptions, validateChoices } from "../../src/background/services/chooseOptions";
+import { pickResume } from "../../src/background/services/pickResume";
 import { parseEssayLimits, stripMarkdown, trimToLimits, wordCount } from "../../src/shared/essay";
 import { BadOutputError } from "../../src/background/gemini/errors";
 import type { Gemini } from "../../src/background/gemini/client";
-import type { FieldDescriptor, FieldKind } from "../../src/shared/types";
+import type { DocumentMeta, FieldDescriptor, FieldKind, JobContext } from "../../src/shared/types";
 import { defaultSettings } from "../../src/shared/settings";
 import { emptyProfile } from "../../src/shared/profileSchema";
 import { todayIso } from "../../src/shared/time";
@@ -2185,5 +2186,49 @@ describe("essay limits (§15)", () => {
     expect(stripMarkdown("## Title\n**Bold** and *it*\n- item\n[link](http://x)")).toBe(
       "Title\nBold and it\nitem\nlink",
     );
+  });
+});
+
+describe("pickResume", () => {
+  const doc = (id: string, label: string, extra: Partial<DocumentMeta> = {}): DocumentMeta => ({
+    id,
+    label,
+    kind: "resume",
+    fileName: `${id}.pdf`,
+    mimeType: "application/pdf",
+    size: 1,
+    isPrimaryResume: false,
+    uploadedAt: 0,
+    ...extra,
+  });
+  const job = (jobTitle: string, text = ""): JobContext => ({
+    url: "",
+    title: "",
+    company: "",
+    jobTitle,
+    text,
+    capturedAt: 0,
+  });
+  const docs = [
+    doc("swe", "Résumé - Software Engineer", { isPrimaryResume: true }),
+    doc("data", "Data Science / ML"),
+    doc("cl", "Data Science cover letter", { kind: "cover_letter" }),
+  ];
+
+  it("picks the label naming the job title", () => {
+    expect(pickResume(docs, job("Machine Learning Intern, Data Science"))).toBe("data");
+    expect(pickResume(docs, job("Software Engineering Intern"))).toBe("swe");
+  });
+
+  it("keeps the primary résumé when no label names the title, or without a job", () => {
+    expect(pickResume(docs, job("Product Manager", "data-driven, ML-savvy"))).toBe("swe");
+    expect(pickResume(docs, null)).toBe("swe");
+    expect(pickResume([docs[2]], job("Data Science"))).toBeNull();
+  });
+
+  it("breaks title ties with the description", () => {
+    const two = [doc("a", "Engineer - Backend", { isPrimaryResume: true }), doc("b", "Engineer - Embedded")];
+    expect(pickResume(two, job("Software Engineer", "Embedded firmware in C"))).toBe("b");
+    expect(pickResume(two, job("Software Engineer"))).toBe("a");
   });
 });

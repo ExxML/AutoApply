@@ -68,6 +68,8 @@ export type Message =
   | { type: "GET_RUNTIME_CONFIG"; yolo?: boolean }
   | { type: "GET_DOCUMENT"; id: string }
   | { type: "SET_JOB_CONTEXT"; ctx: JobContext }
+  /** Which résumé variant to upload for the tab's job. */
+  | { type: "PICK_RESUME" }
   /** `passive`: read on page load, outside a fill. */
   | { type: "SET_JOB_PAY"; pays: Pay[]; passive?: boolean }
   | { type: "MAP_FIELDS"; fields: FieldDescriptor[]; host: string; groupId: string; yolo?: boolean }
@@ -134,6 +136,7 @@ export interface Responses {
   GET_RUNTIME_CONFIG: RuntimeConfig;
   GET_DOCUMENT: { meta: DocumentMeta; base64: string } | null;
   SET_JOB_CONTEXT: Ok;
+  PICK_RESUME: { id: string | null };
   SET_JOB_PAY: Ok;
   MAP_FIELDS: { decisions: Decision[]; usedModel: string } | Err;
   CHOOSE_OPTIONS: { choices: Choice[] } | Err;

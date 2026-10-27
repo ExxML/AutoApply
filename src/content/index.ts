@@ -91,6 +91,8 @@ let lastError: ApiError | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let timings: [string, number][] = [];
 let usedModel: string | null = null;
+/** This fill's résumé variant for the job, when Documents has several résumés. */
+let resumeId: string | null = null;
 let overlay: Overlay | null = null;
 /** Top frame: a triggered fill found no fields here, and no child frame reported any either. */
 let noForm = false;
@@ -229,7 +231,7 @@ function primaryDocFor(h: FieldHandle): string | null | undefined {
   const docs = config.documentsIndex;
   if (RE_COVER_LETTER.test(text)) return docs.find((d) => d.kind === "cover_letter")?.id ?? null;
   if (RE_RESUME_ONLY.test(text))
-    return (docs.find((d) => d.isPrimaryResume) ?? docs.find((d) => d.kind === "resume"))?.id ?? null;
+    return resumeId ?? (docs.find((d) => d.isPrimaryResume) ?? docs.find((d) => d.kind === "resume"))?.id ?? null;
   return undefined; // not a résumé/cover-letter field: ask the AI
 }
 
@@ -472,6 +474,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
     if (TOP || jc.text) await send({ type: "SET_JOB_CONTEXT", ctx: jc });
+    resumeId =
+      config.documentsIndex.filter((d) => d.kind === "resume").length > 1
+        ? (await send({ type: "PICK_RESUME" })).id
+        : null;
     sendPay(false);
 
     // PHASE A: deterministic and learned answers — no network to Gemini.
@@ -495,8 +501,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       }
       if (h.desc.kind === "file") {
         const doc = primaryDocFor(h);
-        if (doc) jobs.push(doFill(h, { type: "file", documentId: doc }, "filled", "Primary résumé", ctrl));
-        else if (
+        if (doc) {
+          const label = doc === resumeId ? config.documentsIndex.find((d) => d.id === doc)?.label : undefined;
+          jobs.push(doFill(h, { type: "file", documentId: doc }, "filled", label ?? "Primary résumé", ctrl));
+        } else if (
           doc === null &&
           RE_COVER_LETTER.test(h.desc.label) &&
           ((yolo && h.desc.required) || config.settings.coverLetterPdfs)
