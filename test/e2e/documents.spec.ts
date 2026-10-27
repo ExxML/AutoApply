@@ -65,6 +65,6 @@ test("documents: an uploaded document's label and kind can be edited; leaving R�
   await expect
     .poll(async () => (await storage<{ kind: string; isPrimaryResume: boolean }[]>(sw, "documentsIndex"))[0])
     .toMatchObject({ kind: "cover_letter", isPrimaryResume: false, label: "Software Engineer" });
-  await expect(page.getByText("PDF résumés only")).toBeVisible();
+  await expect(page.getByRole("radio", { name: /primary résumé/ })).toBeDisabled();
   await expect.poll(texts).toEqual({});
 });

@@ -198,11 +198,12 @@ export function Documents() {
                   {d.fileName} <span class="muted">({Math.round(d.size / 1024)} KB)</span>
                 </td>
                 <td>
-                  {d.kind === "resume" && (d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName)) ? (
+                  {d.kind !== "resume" || d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName) ? (
                     <input
                       type="radio"
                       name="primary"
                       aria-label={`Make ${d.label} the primary résumé`}
+                      disabled={d.kind !== "resume"}
                       checked={d.isPrimaryResume}
                       onChange={() => void makePrimary(d)}
                     />
