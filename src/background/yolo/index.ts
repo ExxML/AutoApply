@@ -307,6 +307,7 @@ export async function yoloOverrides(sender: chrome.runtime.MessageSender): Promi
     settings: {
       draftEssays: true,
       autoAcceptAcknowledgements: true,
+      coverLetterPdfs: yolo.optionalCoverLetters,
       ...(run.host === "visible" ? {} : { showBadges: false }),
     },
     email: await accountEmail(),
@@ -494,7 +495,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     }
   },
 
-  async YOLO_COVER_LETTER({ question }, sender) {
+  async COVER_LETTER_PDF({ question }, sender) {
     const tab = await runTab(sender);
     const ctx = await deps.serviceCtx();
     if ("error" in ctx) return ctx;

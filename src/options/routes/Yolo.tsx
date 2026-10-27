@@ -298,6 +298,12 @@ export function Yolo() {
           checked={y.tabFallback}
           onChange={(tabFallback) => set({ tabFallback })}
         />
+        <Toggle
+          label="Write optional cover letters"
+          help="Required cover-letter uploads always get a PDF written for the job when Documents has none. On: optional ones do too."
+          checked={y.optionalCoverLetters}
+          onChange={(optionalCoverLetters) => set({ optionalCoverLetters })}
+        />
       </div>
       <h2>Already applied</h2>
       <div class="form">

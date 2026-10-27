@@ -46,6 +46,8 @@ const base = z.object({
   reapplyManual: b(false),
   warnOnYoloApplied: b(true),
   tabFallback: b(true),
+  /** Required cover-letter uploads always get one written; this extends it to optional ones. */
+  optionalCoverLetters: b(false),
 });
 export const YoloSchema = base.catch(() => base.parse({}));
 export type Yolo = z.infer<typeof YoloSchema>;

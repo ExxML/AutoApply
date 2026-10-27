@@ -496,10 +496,14 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       if (h.desc.kind === "file") {
         const doc = primaryDocFor(h);
         if (doc) jobs.push(doFill(h, { type: "file", documentId: doc }, "filled", "Primary résumé", ctrl));
-        else if (doc === null && yolo && RE_COVER_LETTER.test(h.desc.label)) {
-          if (h.desc.required) jobs.push(coverLetter(h, ctrl));
-          else setStatus(h, "skipped");
-        } else if (doc === null)
+        else if (
+          doc === null &&
+          RE_COVER_LETTER.test(h.desc.label) &&
+          ((yolo && h.desc.required) || config.settings.coverLetterPdfs)
+        )
+          jobs.push(coverLetter(h, ctrl));
+        else if (doc === null && yolo && RE_COVER_LETTER.test(h.desc.label)) setStatus(h, "skipped");
+        else if (doc === null)
           setStatus(h, "needs", RE_COVER_LETTER.test(h.desc.label) ? "No cover letter uploaded" : "No résumé uploaded");
         else pending.push(h);
         continue;
@@ -642,10 +646,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   }
 }
 
-/** YOLO: a required cover-letter upload with none in Documents gets one written for this job. */
+/** A cover-letter upload with none in Documents gets one written for this job (always for YOLO's required ones). */
 async function coverLetter(h: FieldHandle, ctrl: AbortController) {
   setStatus(h, "working", "Drafting a cover letter…");
-  const r = await send({ type: "YOLO_COVER_LETTER", question: h.desc.label });
+  const r = await send({ type: "COVER_LETTER_PDF", question: h.desc.label });
   if (isErr(r)) return setStatus(h, "needs", r.error.message);
   config.documentsIndex = [...config.documentsIndex, r.meta];
   guesses.set(h.id, { q: h.desc.label, a: "A cover letter written for this job" });

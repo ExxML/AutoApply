@@ -18,6 +18,11 @@ const TOGGLES: [Bool, string, string][] = [
     "Draft essays with AI",
     "Open-ended questions are drafted and badged “AI draft – review”. Off: they are flagged for you.",
   ],
+  [
+    "coverLetterPdfs",
+    "Write cover letter PDFs",
+    "If no cover letter is uploaded in Documents, generate a tailored cover letter for the job from your cover letter template. Off: the field is flagged for you. YOLO has its own setting.",
+  ],
   ["showBadges", "Show field badges", "Colored outlines and tags on each field. The overlay list works either way."],
   [
     "learnPrompts",

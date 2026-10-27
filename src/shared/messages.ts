@@ -82,7 +82,7 @@ export type Message =
   | { type: "YOLO_ANSWERS"; answers: Record<string, Guess> }
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
-  | { type: "YOLO_COVER_LETTER"; question: string }
+  | { type: "COVER_LETTER_PDF"; question: string }
   // B → C (a YOLO run in a tab), B → offscreen host
   | { type: "YOLO_ATTACH" }
   | { type: "YOLO_HOST_NAVIGATE"; url: string }
@@ -163,7 +163,7 @@ export interface Responses {
   YOLO_ANSWERS: Ok;
   YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
   YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;
-  YOLO_COVER_LETTER: { meta: DocumentMeta } | Err;
+  COVER_LETTER_PDF: { meta: DocumentMeta } | Err;
   YOLO_ATTACH: Ok;
   YOLO_HOST_NAVIGATE: Ok;
   YOLO_STATUS: YoloStatus;

@@ -11,6 +11,8 @@ const base = z.object({
   draftEssays: b(true),
   essayDefaultWords: n(150, 10, 2000),
   coverLetterDefaultWords: n(300, 10, 2000),
+  /** If no cover letter is uploaded in Documents, generate a tailored cover letter. YOLO sets its own. */
+  coverLetterPdfs: b(false),
   showBadges: b(true),
   learnPrompts: b(false),
   excludedHosts: z.array(z.string()).catch([]),
