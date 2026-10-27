@@ -23,7 +23,15 @@ import { isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { addEntries, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
-import { consentPair, isConsent, newScanState, scan, yesNoPair, type FieldHandle } from "./scan/fields";
+import {
+  consentPair,
+  isConsent,
+  lowestCommonAncestor,
+  newScanState,
+  scan,
+  yesNoPair,
+  type FieldHandle,
+} from "./scan/fields";
 import { removeBadge, setBadge, setBadgesVisible, type BadgeColor } from "./ui/badges";
 import { showLearnPrompt } from "./ui/learnPrompt";
 import { createOverlay, type Overlay } from "./ui/overlay";
@@ -206,9 +214,29 @@ function setStatus(h: FieldHandle, status: Status, note?: string, tooltip?: stri
   const b = BADGE[status];
   if (b && config.settings.showBadges) {
     const onClick = status === "draft" ? () => offerLearn(h, "Save as reusable answer?") : undefined;
-    setBadge(h.id, h.container, b[0], b[1], [note, tooltip].filter(Boolean).join(" — ") || b[1], onClick, h.desc.label);
+    setBadge(
+      h.id,
+      badgeTarget(h),
+      b[0],
+      b[1],
+      [note, tooltip].filter(Boolean).join(" — ") || b[1],
+      onClick,
+      h.desc.label,
+    );
   } else removeBadge(h.id);
   report();
+}
+
+/** Badge the control, not its question: a group's options, else the control, or its container if the control is hidden. */
+const badgeTargets = new WeakMap<FieldHandle, HTMLElement>();
+function badgeTarget(h: FieldHandle): HTMLElement {
+  let t = badgeTargets.get(h);
+  if (!t) {
+    t = h.members && h.members.length > 1 ? (lowestCommonAncestor(h.members) as HTMLElement) : h.el;
+    if (!isVisible(t)) t = h.container;
+    badgeTargets.set(h, t);
+  }
+  return t;
 }
 
 // ---------- helpers ----------

@@ -58,7 +58,7 @@ export interface ScanState {
 
 export const newScanState = (): ScanState => ({ ids: new WeakMap(), next: 1 });
 
-function lowestCommonAncestor(els: Element[]): Element {
+export function lowestCommonAncestor(els: Element[]): Element {
   let a: Element | null = els[0].parentElement ?? els[0];
   while (a && !els.every((e) => a!.contains(e))) a = parentOf(a);
   return a ?? els[0];
