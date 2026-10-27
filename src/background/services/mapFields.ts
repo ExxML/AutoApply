@@ -1480,18 +1480,19 @@ function citedDateCheck(f: FieldDescriptor, d: Decision, profile: Profile): Deci
 }
 
 /**
- * A month or year in a résumé section ("Employment": "Start date month"), from that entry: asked about the month
- * lists read apart from the section's company and title, the model skipped Lyft's required ones.
+ * A date, month or year in a résumé section ("Employment": "Start date month"), from that entry: asked about the
+ * month lists read apart from the section's company and title, the model skipped Lyft's required ones. A full date
+ * ("Work Experience 1": "End Date") was left blank for want of a day the profile doesn't hold.
  */
 function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | null {
   const sec = /^(employment|work experience|experience|education)(?: (\d+))?$/i.exec(f.section ?? "");
-  const part = /^(start|end)(?: date)? (month|year)$/i.exec(f.label.trim());
+  const part = /^(start|end|from|to)(?: date)?(?: (month|year))?$/i.exec(f.label.trim());
   if (!sec || !part || isMulti(f)) return null;
   const edu = /education/i.test(sec[1]);
   const i = (Number(sec[2]) || 1) - 1;
   const job = edu ? undefined : profile.experience[i];
   const school = edu ? profile.education[i] : undefined;
-  const end = /end/i.test(part[1]);
+  const end = /^(end|to)$/i.test(part[1]);
   const date = end
     ? job?.current
       ? ""
@@ -1499,13 +1500,17 @@ function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | nul
     : (job ?? school)?.startDate;
   if (!date || !/^\d{4}-\d\d/.test(date)) return null;
   const [year, month] = date.split("-").map(Number);
-  const isMonth = /month/i.test(part[2]);
+  const isMonth = /month/i.test(part[2] ?? "");
   const base = {
     fieldId: f.id,
     action: "fill" as const,
     confidence: "high" as const,
     sources: [edu ? "education" : "experience"],
   };
+  if (!part[2]) {
+    if (f.options || !["date", "month", "text"].includes(f.kind)) return null;
+    return { ...base, text: /^\d{4}-\d\d-\d\d$/.test(date) ? date : monthYear(year, month) };
+  }
   // Text month formats vary ("01", "Jan", "1"): only a typed year is safe.
   if (!f.options) return isMonth ? null : { ...base, text: String(year) };
   const monthOf = (o: string) => MONTHS.findIndex((m) => new RegExp(`^${m}[a-z]*\\.?$`, "i").test(o.trim())) + 1;
@@ -1552,20 +1557,18 @@ function graduationDecision(f: FieldDescriptor, profile: Profile): Decision | nu
 }
 
 /**
- * A typed graduation date. Asked for a full date, the model left it blank: the profile holds only the month, so
- * "May 2028" goes in, and the fill writes it in the input's format on the 1st ("05/01/2028", "2028-05-01").
+ * A profile month as text ("May 2028"): asked for a full date, the fill writes it in the input's format on the 1st
+ * ("05/01/2028", "2028-05-01").
  */
+const monthYear = (year: number, month: number) =>
+  new Date(Date.UTC(year, month - 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
+/** A typed graduation date. Asked for a full date, the model left it blank: the profile holds only the month. */
 function graduationText(f: FieldDescriptor, year: number, month: number): Decision | null {
   const typed = f.kind === "date" || f.kind === "month";
   if (!typed && (f.kind !== "text" || !/\b(date|when|month|year|term)\b/i.test(f.label))) return null;
   const yearOnly = !typed && /\byear\b/i.test(f.label) && !/\b(date|month|term)\b/i.test(f.label);
-  const text = yearOnly
-    ? String(year)
-    : new Date(Date.UTC(year, month - 1)).toLocaleDateString("en-US", {
-        month: "long",
-        year: "numeric",
-        timeZone: "UTC",
-      });
+  const text = yearOnly ? String(year) : monthYear(year, month);
   return { fieldId: f.id, action: "fill", text, confidence: "high", sources: ["education"] };
 }
 

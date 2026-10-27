@@ -1575,6 +1575,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           field("c", { label: "Start date month", section: "Work Experience 2", kind: "dropdown", options: months }),
           field("d", { label: "End date month", section: "Education", kind: "dropdown", options: months }),
           field("e", { label: "Start date month", section: "Employment" }),
+          field("f", { label: "Start Date", section: "Work Experience 1", kind: "date" }),
+          field("g", { label: "To", section: "Work Experience 2", kind: "text" }),
+          field("h", { label: "End Date", section: "Education", kind: "month" }),
+          field("i", { label: "Start Date", section: "Employment", kind: "dropdown", options: months }),
         ],
         profile,
         documents: [],
@@ -1586,6 +1590,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "2026",
       "June",
       "May",
+      "skip",
+      "January 2026",
+      "August 2023",
+      "May 2028",
       "skip",
     ]);
   });
