@@ -3,7 +3,7 @@ import { AI } from "./routes/AI";
 import { Applications } from "./routes/Applications";
 import { Behavior } from "./routes/Behavior";
 import { Data } from "./routes/Data";
-import { Documents } from "./routes/Documents";
+import { Documents, useResumeTexts } from "./routes/Documents";
 import { Profile } from "./routes/Profile";
 import { SavedAnswers } from "./routes/SavedAnswers";
 import { Setup } from "./routes/Setup";
@@ -40,6 +40,7 @@ function SavedIndicator() {
 
 export function App() {
   const hash = useHash();
+  useResumeTexts();
   const [, section = "setup", sub = ""] = hash.split("/");
   let page;
   switch (section) {

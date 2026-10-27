@@ -2215,20 +2215,30 @@ describe("pickResume", () => {
     doc("cl", "Data Science cover letter", { kind: "cover_letter" }),
   ];
 
-  it("picks the label naming the job title", () => {
-    expect(pickResume(docs, job("Machine Learning Intern, Data Science"))).toBe("data");
-    expect(pickResume(docs, job("Software Engineering Intern"))).toBe("swe");
+  it("picks the label naming the job, else the primary résumé", () => {
+    expect(pickResume(docs, job("Machine Learning Intern, Data Science"), {})).toBe("data");
+    expect(pickResume(docs, job("Software Engineering Intern"), {})).toBe("swe");
+    expect(pickResume(docs, job("Product Manager", "Own the roadmap with customers"), {})).toBe("swe");
+    expect(pickResume(docs, null, {})).toBe("swe");
+    expect(pickResume([docs[2]], job("Data Science"), {})).toBeNull();
   });
 
-  it("keeps the primary résumé when no label names the title, or without a job", () => {
-    expect(pickResume(docs, job("Product Manager", "data-driven, ML-savvy"))).toBe("swe");
-    expect(pickResume(docs, null)).toBe("swe");
-    expect(pickResume([docs[2]], job("Data Science"))).toBeNull();
-  });
-
-  it("breaks title ties with the description", () => {
-    const two = [doc("a", "Engineer - Backend", { isPrimaryResume: true }), doc("b", "Engineer - Embedded")];
-    expect(pickResume(two, job("Software Engineer", "Embedded firmware in C"))).toBe("b");
-    expect(pickResume(two, job("Software Engineer"))).toBe("a");
+  it("tells same-title variants apart by what their contents don't share", () => {
+    const shared =
+      "Ada Lovelace. University of Waterloo, Computer Science. Git, Python, SQL. Software Engineer Intern.";
+    const two = [
+      doc("js", "Software Engineer - JavaScript", { isPrimaryResume: true }),
+      doc("sys", "Software Engineer - Systems"),
+    ];
+    const texts = {
+      js: `${shared} Built a React and TypeScript dashboard; Node.js APIs; CSS animations; Next.js.`,
+      sys: `${shared} Wrote a Linux kernel driver in C++; lock-free queues; Rust; low-latency networking.`,
+    };
+    const swe = (text: string) => pickResume(two, job("Software Engineer", text), texts);
+    expect(swe("Our frontend uses React, TypeScript and Node. Python and SQL a plus.")).toBe("js");
+    expect(swe("Work on our storage engine in C++ on Linux; latency matters. Python and SQL a plus.")).toBe("sys");
+    expect(swe("Python and SQL; you will work across the stack with a great team.")).toBe("js");
+    // Without texts (a DOCX), the label still decides.
+    expect(pickResume(two, job("Software Engineer", "Embedded systems, firmware"), {})).toBe("sys");
   });
 });

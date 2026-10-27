@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { DocumentMeta } from "../../shared/types";
 import { TextInput } from "../components/controls";
 import { Prefill } from "../components/Prefill";
@@ -20,6 +20,36 @@ const toBase64 = (buf: ArrayBuffer) => {
   return btoa(s);
 };
 
+/** A PDF's or TXT's text; "" for a DOCX, which has no extractor. */
+async function docText(d: DocumentMeta): Promise<string> {
+  const b64 = await store.getDoc(d.id);
+  if (!b64) return "";
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  if (d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName)) return pdfText(bytes.buffer);
+  return /\.txt$/i.test(d.fileName) ? new TextDecoder().decode(bytes) : "";
+}
+
+/**
+ * Keeps `resumeTexts` to one text per résumé document, however documents change (upload, kind, import, delete), so
+ * the background can match résumé variants to jobs. Extraction happens here: pdf.js isn't in the service worker.
+ */
+export function useResumeTexts() {
+  const docs = useStored("documentsIndex");
+  const texts = useStored("resumeTexts");
+  useEffect(() => {
+    if (!docs || !texts) return;
+    const resumes = docs.filter((d) => d.kind === "resume");
+    if (resumes.length === Object.keys(texts).length && resumes.every((d) => d.id in texts)) return;
+    let live = true;
+    void (async () => {
+      const next: Record<string, string> = {};
+      for (const d of resumes) next[d.id] = texts[d.id] ?? (await docText(d).catch(() => ""));
+      if (live) await store.set({ resumeTexts: next });
+    })();
+    return () => void (live = false);
+  }, [docs, texts]);
+}
+
 export function DocumentUpload() {
   const docs = useStored("documentsIndex") ?? [];
   const [, update] = useProfile();
@@ -27,14 +57,6 @@ export function DocumentUpload() {
   const [kind, setKind] = useState<DocumentMeta["kind"]>("resume");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const extract = async (id: string) => {
-    const b64 = await store.getDoc(id);
-    if (!b64) return;
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const text = await pdfText(bytes.buffer);
-    update((p) => void (p.resumeText = text));
-  };
 
   const upload = async (file: File) => {
     setErr("");
@@ -57,7 +79,10 @@ export function DocumentUpload() {
       };
       await store.setDoc(meta.id, toBase64(buf));
       await save({ documentsIndex: [...docs, meta] });
-      if (primary) await extract(meta.id);
+      if (primary) {
+        const text = await docText(meta);
+        update((p) => void (p.resumeText = text));
+      }
     } catch (e) {
       setErr(`Could not read the file: ${(e as Error).message}`);
     } finally {
@@ -102,11 +127,9 @@ export function Documents() {
   const docs = useStored("documentsIndex") ?? [];
   const [profile, update] = useProfile();
 
-  const makePrimary = async (id: string) => {
-    await save({ documentsIndex: docs.map((d) => ({ ...d, isPrimaryResume: d.id === id })) });
-    const b64 = await store.getDoc(id);
-    if (!b64) return;
-    const text = await pdfText(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer);
+  const makePrimary = async (d: DocumentMeta) => {
+    await save({ documentsIndex: docs.map((x) => ({ ...x, isPrimaryResume: x.id === d.id })) });
+    const text = await docText(d);
     update((p) => void (p.resumeText = text));
   };
 
@@ -126,9 +149,10 @@ export function Documents() {
         Your primary résumé is attached automatically to résumé/CV upload fields, and its text is used as AI context.
       </p>
       <p class="intro">
-        <strong>Résumé variants:</strong> upload each tailored résumé with kind Résumé and label it with the job title
-        it targets, spelled out (e.g. “Software Engineer”, “Data Scientist”, not “SWE”). Each application gets the
-        variant whose label shares the most words with the job title; if none does, it gets your primary résumé.
+        <strong>Résumé variants:</strong> upload each tailored résumé (e.g. JavaScript, Systems) with kind Résumé. Each
+        application gets the variant whose contents and label best match the job’s title and description, judged by what
+        sets the variants apart, so a label of spelled-out keywords (“React TypeScript”) helps. With no clear match, or
+        for a DOCX (its text can’t be read), the label alone decides, then your primary résumé.
       </p>
       <div class="panel-box">
         <h2>Upload</h2>
@@ -180,7 +204,7 @@ export function Documents() {
                       name="primary"
                       aria-label={`Make ${d.label} the primary résumé`}
                       checked={d.isPrimaryResume}
-                      onChange={() => void makePrimary(d.id)}
+                      onChange={() => void makePrimary(d)}
                     />
                   ) : (
                     <span class="muted">PDF résumés only</span>

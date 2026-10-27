@@ -112,6 +112,8 @@ export const LOCAL_SCHEMAS = {
   feedCache: rec(z.object({ etag: z.string().catch(""), modified: z.string().catch("") })),
   /** Site accounts YOLO created, passwords encrypted with a device key (yolo/vault.ts). Never exported. */
   vault: rec(VaultEntrySchema),
+  /** Résumé document id → its extracted text, for matching résumé variants to jobs (options keeps it in sync). */
+  resumeTexts: rec(z.string()),
 };
 
 export type LocalKey = keyof typeof LOCAL_SCHEMAS;

@@ -250,7 +250,8 @@ const handlers: Handlers = {
   async PICK_RESUME(_, sender) {
     const tab = await runTab(sender);
     const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
-    return { id: pickResume(await store.get("documentsIndex"), job) };
+    const s = await store.getMany(["documentsIndex", "resumeTexts"]);
+    return { id: pickResume(s.documentsIndex, job, s.resumeTexts) };
   },
 
   async SET_JOB_PAY({ pays, passive }, sender) {

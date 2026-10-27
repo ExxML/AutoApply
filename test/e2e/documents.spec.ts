@@ -41,6 +41,10 @@ test("documents: uploading a PDF résumé stores it as primary and extracts its 
   await expect
     .poll(async () => (await storage<{ resumeText: string }>(sw, "profile")).resumeText)
     .toContain("Ada Lovelace Analytical Engine");
+  // Each résumé's own text too, for matching variants to jobs.
+  await expect
+    .poll(async () => Object.values(await storage<Record<string, string>>(sw, "resumeTexts")).join(" "))
+    .toContain("Ada Lovelace Analytical Engine");
 });
 
 test("documents: an uploaded document's label and kind can be edited; leaving Résumé clears primary", async ({
@@ -55,9 +59,12 @@ test("documents: an uploaded document's label and kind can be edited; leaving R�
   await expect
     .poll(async () => (await storage<{ label: string }[]>(sw, "documentsIndex"))[0].label)
     .toBe("Software Engineer");
+  const texts = () => storage<Record<string, string> | undefined>(sw, "resumeTexts");
+  await expect.poll(async () => Object.keys((await texts()) ?? {})).toEqual(["resume"]);
   await page.getByLabel("Kind of ada-resume.pdf").selectOption("cover_letter");
   await expect
     .poll(async () => (await storage<{ kind: string; isPrimaryResume: boolean }[]>(sw, "documentsIndex"))[0])
     .toMatchObject({ kind: "cover_letter", isPrimaryResume: false, label: "Software Engineer" });
   await expect(page.getByText("PDF résumés only")).toBeVisible();
+  await expect.poll(texts).toEqual({});
 });
