@@ -155,6 +155,7 @@ export const PROFILE_GROUPS: GroupSpec[] = [
           t("gpa", "GPA", "As you would write it, e.g. 3.8."),
           t("gpaScale", "GPA scale", "e.g. 4.0 or 4.33."),
           t("yearLevel", "Year level", "e.g. 3rd year."),
+          t("creditsCompleted", "Credits completed", "Answers “How many credits have you completed?”, e.g. 90."),
           t("honors", "Honours / awards", "Dean's list, scholarships, etc."),
           t("relevantCourses", "Relevant courses", "Press Enter after each course.", "tags"),
         ],

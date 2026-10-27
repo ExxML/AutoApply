@@ -64,6 +64,7 @@ export const EducationSchema = o({
   gpa: s(),
   gpaScale: s(),
   yearLevel: s(),
+  creditsCompleted: s(),
   honors: s(),
   relevantCourses: strs(),
 });
