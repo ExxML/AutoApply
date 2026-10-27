@@ -179,6 +179,7 @@ export type DetKey =
   | "phone"
   | "phoneNational"
   | "phoneCountryCode"
+  | "phoneExtension"
   | "streetAddress"
   | "line1"
   | "line2"
@@ -204,6 +205,7 @@ export const AUTOCOMPLETE_MAP: Record<string, DetKey> = {
   tel: "phone",
   "tel-national": "phoneNational",
   "tel-country-code": "phoneCountryCode",
+  "tel-extension": "phoneExtension",
   "street-address": "streetAddress",
   "address-line1": "line1",
   "address-line2": "line2",
@@ -226,8 +228,9 @@ export const LABEL_RULES: [RegExp, DetKey][] = [
   [/preferred (first )?name/i, "preferredName"],
   // Not a school address (Jane Street's "university email" got the personal one): the AI decides.
   [/^(?!.*\b(school|university|college|student|\.?edu)\b).*e-?mail/i, "email"],
-  // Not "phonetically" (Akuna's name pronunciation got the phone number).
-  [/phone(?!tic)|mobile|\bcell/i, "phone"],
+  // Not "phonetically" (Akuna's name pronunciation got the phone number), nor "Phone Extension" (it got the number too).
+  [/^(?!.*\bext(ension)?\b).*(phone(?!tic)|mobile|\bcell)/i, "phone"],
+  [/\b(phone|mobile|tel(ephone)?)\b.*\bext(ension)?\b|^ext(ension)?\.?$/i, "phoneExtension"],
   [/country code|dialing code/i, "phoneCountryCode"],
   [/linkedin/i, "linkedin"],
   [/github/i, "github"],

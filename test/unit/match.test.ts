@@ -81,6 +81,12 @@ describe("deterministic matching (§13.2)", () => {
     expect(tel({ placeholder: "+47 40 61 23 45" })).toBe("+1 6045551234"); // Teamtailor
     expect(tel({ currentValue: "+31" })).toBe("+1 6045551234"); // Recruitee seeds the dial code
   });
+  it("leaves a phone extension empty, not the phone number", () => {
+    for (const label of ["Phone Extension", "Phone ext.", "Extension"])
+      expect(deterministicValue(f(label), p)?.value).toBe("");
+    expect(deterministicValue(f("x", { autocomplete: "tel-extension", kind: "tel" }), p)?.value).toBe("");
+    expect(deterministicValue(f("Mobile phone"), p)?.value).toBe("6045551234");
+  });
   it("maps unambiguous label regexes", () => {
     expect(deterministicValue(f("First name"), p)).toEqual({ value: "Ada", path: "personal.firstName" });
     expect(deterministicValue(f("Full name"), p)?.value).toBe("Ada Lovelace");

@@ -19,6 +19,7 @@ const PATHS: Record<DetKey, string> = {
   phone: "personal.phone",
   phoneNational: "personal.phone.number",
   phoneCountryCode: "personal.phone.countryCode",
+  phoneExtension: "personal.phone.extension",
   streetAddress: "personal.address.line1 + line2",
   line1: "personal.address.line1",
   line2: "personal.address.line2",
@@ -98,6 +99,8 @@ export function deterministicValue(d: FieldDescriptor, p: DeterministicProfile["
     },
     phoneNational: () => p.phone.number,
     phoneCountryCode: () => p.phone.countryCode,
+    // The profile has no extension: an optional box is skipped, a required one asks the user.
+    phoneExtension: () => "",
     streetAddress: () => [a.line1, a.line2].filter(Boolean).join(", "),
     line1: () => a.line1,
     line2: () => a.line2,
