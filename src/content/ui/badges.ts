@@ -1,5 +1,5 @@
 // §16.2 field badges: outline box + pill tag in the shadow-root layer, CSS-anchored to the field (styles.css);
-// fields in page shadow trees can't be anchored and are repositioned via rAF instead.
+// fields deep in page shadow trees whose host isn't the field itself can't be anchored and are repositioned via rAF.
 import { anchorTo, el, uiLayer } from "./root";
 
 export type BadgeColor = "green" | "blue" | "purple" | "yellow" | "orange" | "red";

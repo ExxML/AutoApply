@@ -73,29 +73,45 @@ let anchors = 0;
  * same frame the page scrolls; JS repositioning on scroll events always lands a frame or more behind. Anchor names
  * are tree-scoped: a position-anchor declared in our shadow tree can't see a name set on a page element, so it is
  * declared by a ::part() rule in the document tree instead. Names inside page shadow trees can't be reached from
- * outside at all: returns null for those (and without browser support), else the release function.
+ * outside at all, so those anchor to their document-tree host when it is the control itself (anchorable). Returns
+ * null when nothing can be anchored (and without browser support), else the release function.
  */
 export function anchorTo(target: Element, ...els: HTMLElement[]): (() => void) | null {
   if (evicted) return () => {};
-  if (!(target instanceof HTMLElement) || target.getRootNode() !== document || !CSS.supports("anchor-name", "--a"))
+  const anchor = anchorable(target);
+  if (!(anchor instanceof HTMLElement) || anchor.getRootNode() !== document || !CSS.supports("anchor-name", "--a"))
     return null;
   const part = `${HOST_TAG}-${RUN}-${anchors++}`;
-  const own = getComputedStyle(target).getPropertyValue("anchor-name"); // keep the page's own anchors working
-  target.style.setProperty("anchor-name", own === "none" ? `--${part}` : `${own}, --${part}`);
+  const own = getComputedStyle(anchor).getPropertyValue("anchor-name"); // keep the page's own anchors working
+  anchor.style.setProperty("anchor-name", own === "none" ? `--${part}` : `${own}, --${part}`);
   for (const e of els) e.part.add(part);
   // In our host's light DOM: a document-tree stylesheet that leaves with the host.
   const rule = el("style", { textContent: `${HOST_TAG}::part(${part}) { position-anchor: --${part}; }` });
   (els[0].getRootNode() as ShadowRoot).host.append(rule);
   return () => {
     rule.remove();
-    const rest = target.style
+    const rest = anchor.style
       .getPropertyValue("anchor-name")
       .split(",")
       .map((n) => n.trim())
       .filter((n) => n && n !== `--${part}`);
-    if (rest.length) target.style.setProperty("anchor-name", rest.join(", "));
-    else target.style.removeProperty("anchor-name");
+    if (rest.length) anchor.style.setProperty("anchor-name", rest.join(", "));
+    else anchor.style.removeProperty("anchor-name");
   };
+}
+
+/**
+ * `target`, or for one inside page shadow trees its outermost host, if that host is the control's own box (SuccessFactors'
+ * ui5-date-picker: input plus calendar icon) rather than a container of other fields (a form rendered in one shadow
+ * root), which would outline the wrong thing.
+ */
+export function anchorable(target: Element): Element | null {
+  let host = target;
+  for (let root = target.getRootNode(); root instanceof ShadowRoot; root = host.getRootNode()) host = root.host;
+  if (host === target) return target;
+  const a = target.getBoundingClientRect();
+  const b = host.getBoundingClientRect();
+  return b.width <= a.width * 1.5 && b.height <= a.height * 1.5 ? host : null;
 }
 
 export function el<K extends keyof HTMLElementTagNameMap>(
