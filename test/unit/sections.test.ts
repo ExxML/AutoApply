@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { addEntries, saveEntries } from "../../src/content/fill/sections";
+import { addEntries, expandSections, saveEntries } from "../../src/content/fill/sections";
 import { newScanState, scan } from "../../src/content/scan/fields";
 import type { EntryCounts } from "../../src/shared/types";
 
@@ -99,6 +99,41 @@ describe("addEntries", () => {
     for (const b of document.querySelectorAll("button")) b.addEventListener("click", () => clicks++);
     await addEntries({ ...none, experience: 1 }, new AbortController().signal);
     expect(clicks).toBe(0);
+  });
+});
+
+// SuccessFactors: every section but the first collapsed (display:none, Add button included) behind a type=submit
+// toggle in its <h2>; Add (a div[role=button] behind an icon-font glyph) appends a row with its own Remove.
+describe("expandSections", () => {
+  function successFactors() {
+    const section = (title: string, body: string) =>
+      `<div><h2><button aria-expanded="false">${title}</button></h2><div style="display:none">${body}</div></div>`;
+    setBody(
+      `<form>${section("Profile Information", "<label>First Name <input></label>")}` +
+        `${section("Work Experience", `<div role="button" id="add"><span role="presentation">\uE1F6</span> Add</div>`)}` +
+        `${section("Benefits", "<p>Free lunch</p>")}</form>`,
+    );
+    const opened: string[] = [];
+    for (const t of document.querySelectorAll<HTMLButtonElement>("h2 button"))
+      t.addEventListener("click", (e) => {
+        e.preventDefault();
+        opened.push(t.textContent!);
+        t.setAttribute("aria-expanded", "true");
+        t.parentElement!.nextElementSibling!.removeAttribute("style");
+      });
+    const add = document.getElementById("add")!;
+    add.addEventListener("click", () =>
+      add.insertAdjacentHTML("beforebegin", `<div><input><div role="button">Remove</div></div>`),
+    );
+    return opened;
+  }
+
+  it("opens the collapsed sections holding fields, then adds entries to them", async () => {
+    const opened = successFactors();
+    await expandSections(new AbortController().signal);
+    await addEntries({ ...none, experience: 2 }, new AbortController().signal);
+    expect(opened).toEqual(["Profile Information", "Work Experience"]);
+    expect(scan(newScanState()).handles.map((h) => h.desc.label)).toHaveLength(3);
   });
 });
 

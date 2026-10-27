@@ -1,5 +1,5 @@
 // Repeatable sections (Workday "Work Experience" → Add / Add Another): open as many entries as the profile has,
-// before the scan, so their fields get filled. A section the profile has nothing for is never opened. Entries that
+// before the scan, so their fields get filled. A section the profile has nothing for is never added to. Entries that
 // open as an editor with its own Save (SmartRecruiters) are saved once filled; nothing else is ever saved.
 import { RE_FORBIDDEN_CLICK } from "../../shared/constants";
 import { collapse } from "../../shared/normalize";
@@ -26,8 +26,10 @@ const RE_BARE_ADD = /^\+?\s*add( another| more| new)?( entry| item)?$/i;
 const RE_SAVE = /^save$/i;
 const BUTTONS = "button,[role=button]";
 
-/** Rendered text: SmartRecruiters' buttons and headings show theirs through <slot>s. */
-const textOf = (el: Element) => collapse(shownText(el)) || collapse(el.getAttribute("aria-label") ?? "");
+/** Rendered text: SmartRecruiters' buttons and headings show theirs through <slot>s. Icon-font glyphs (Private Use
+ * Area: SuccessFactors' U+E1F6 before "Add") are no text. */
+const textOf = (el: Element) =>
+  collapse(shownText(el).replace(/\p{Co}/gu, "")) || collapse(el.getAttribute("aria-label") ?? "");
 
 /** Elements in document order, through shadow roots (SmartRecruiters' sections live in them). */
 function* deepElements(root: ParentNode): Generator<Element> {
@@ -107,6 +109,39 @@ function findAdders(): Adder[] {
     out.push({ kind, button: el, section, count: entryCount(section) });
   }
   return out;
+}
+
+/** What a collapsed section hides that the scan or findAdders needs: fields, or its Add button. */
+const CONTROLS = `input:not([type=hidden]),textarea,select,[role=combobox],${BUTTONS}`;
+
+/**
+ * Opens collapsed sections that hide form controls (SuccessFactors shows only its first section; the rest, Add buttons
+ * included, are display:none), so the scan and findAdders see them. The ARIA accordion pattern: an aria-expanded
+ * toggle in the section's heading. Sections holding no controls (a job description's FAQ) stay as they are.
+ */
+export async function expandSections(signal: AbortSignal): Promise<void> {
+  const toggles = deepQueryAll(`[aria-expanded="false"]`).filter((t) => {
+    const head = t.closest(HEADINGS);
+    const section = head && parentOf(head);
+    return (
+      !!section &&
+      t.matches(BUTTONS) &&
+      !t.hasAttribute("aria-haspopup") &&
+      !isForbiddenClick(t) &&
+      isVisible(t) &&
+      deepQueryAll(CONTROLS, section).some((c) => !composedContains(head, c) && !isVisible(c))
+    );
+  });
+  if (!toggles.length) return;
+  // Pages may scroll to the section they open.
+  await holdScroll(async () => {
+    // One at a time: a page may re-render its sections on each toggle.
+    for (const t of toggles) {
+      if (signal.aborted) break;
+      dispatching(() => t.click());
+      await waitFor(() => !t.isConnected || t.getAttribute("aria-expanded") === "true", 2000);
+    }
+  });
 }
 
 /**

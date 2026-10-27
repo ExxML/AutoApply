@@ -21,7 +21,7 @@ import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
 import { isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
-import { addEntries, saveEntries } from "./fill/sections";
+import { addEntries, expandSections, saveEntries } from "./fill/sections";
 import { readValue } from "./fill/verify";
 import {
   consentPair,
@@ -486,6 +486,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     setBadgesVisible(config.settings.showBadges);
     report(); // running: the top frame waits for us while we reveal
     if (!TOP && !IN_HOST && rescan().length) await revealFrame();
+    await expandSections(ctrl.signal);
     unsaved.push(...(await addEntries(config.entryCounts, ctrl.signal)));
     const all = rescan();
     mark("scan");
