@@ -591,7 +591,7 @@ describe("YOLO best guesses", () => {
         };
       },
     } as unknown as Gemini;
-    const ctx = { gemini, settings: defaultSettings(), model: "m", fallback: null };
+    const ctx = { ai: gemini, settings: defaultSettings(), model: "m", fallback: null };
     const fields = [field("deadline", { label: "Do you have any offer deadlines?" })];
     const plain = await mapFields(ctx, { fields, profile: emptyProfile(), documents: [], job: null });
     expect(plain.decisions[0].action).toBe("flag");
@@ -618,7 +618,7 @@ describe("YOLO best guesses", () => {
       field("blank", { kind: "radio_group", label: "Are you a citizen of Iran?", options: [" ", ""] }),
     ];
     await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields, profile: emptyProfile(), documents: [], job: null, yolo: true },
     );
     expect(asked).toEqual([["deadline"]]);

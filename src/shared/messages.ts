@@ -12,6 +12,7 @@ import type {
   Pay,
   Profile,
   RuntimeConfig,
+  Settings,
   TabStatus,
 } from "./types";
 import type { Guess, YoloStatus } from "./yolo";
@@ -58,7 +59,7 @@ export type StepKind =
 /** How a YOLO run ended in its frame. "blocked": the page refused to work hidden, so the tab host may retry it. */
 export type YoloResult =
   | { status: "submitted"; doneUrl: string; guesses?: Guess[] }
-  /** `retryAt`: the Gemini quota ran out; the job goes back in the queue until then. */
+  /** `retryAt`: the AI's quota or usage limit ran out; the job goes back in the queue until then. */
   | { status: "needs" | "failed" | "skipped" | "blocked"; reason: string; guesses?: Guess[]; retryAt?: number }
   | { status: "scraped"; links: { href: string; text: string }[] };
 
@@ -120,13 +121,17 @@ export type Message =
   | { type: "TEST_KEY"; id: string }
   | { type: "REFRESH_MODELS"; force: boolean }
   | { type: "VALIDATE_MODEL"; model: string }
-  | { type: "PARSE_RESUME"; text: string };
+  | { type: "PARSE_RESUME"; text: string }
+  | { type: "CLAUDE_TEST" };
 
 export type Ok = { ok: true };
 export type Err = { error: ApiError };
 
 export interface TabStatusResponse {
   status: TabStatus | null;
+  provider: Settings["aiProvider"];
+  /** The AI is set up: keys and a model, or Claude connected. */
+  ready: boolean;
   model: string | null;
   keysTotal: number;
   keysHealthy: number;
@@ -158,6 +163,7 @@ export interface Responses {
   REFRESH_MODELS: Ok | Err;
   VALIDATE_MODEL: Ok | Err;
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
+  CLAUDE_TEST: { model: string; ms: number } | Err;
   APPLY_ATTEMPT: Ok;
   YOLO_HELLO: { mode: "apply" | "scrape"; company: string; title: string; visible: boolean } | null;
   /** `refused`: the site turned down our sign-in or sign-up (an account we hold no password for). */

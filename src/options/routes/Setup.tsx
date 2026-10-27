@@ -1,19 +1,22 @@
+import { ClaudeConnect, ClaudeModels, ProviderPicker } from "../components/Claude";
 import { Keys } from "../components/Keys";
 import { ModelPicker } from "../components/ModelPicker";
 import { Prefill } from "../components/Prefill";
 import { DocumentUpload } from "./Documents";
 import { completeness, useProfile, useStored } from "../store";
 
-const STEPS = ["Add API key(s)", "Choose model", "Upload résumé", "Complete profile"];
+const STEPS = ["Connect AI", "Choose model", "Upload résumé", "Complete profile"];
 
 export function Setup({ step }: { step: number }) {
   const keys = useStored("apiKeys") ?? [];
   const model = useStored("selectedModel");
+  const claude = useStored("settings")?.aiProvider === "claude";
+  const claudeReady = useStored("claudeReady");
   const docs = useStored("documentsIndex") ?? [];
   const [profile] = useProfile();
   const done = [
-    keys.length > 0,
-    !!model,
+    claude ? !!claudeReady : keys.length > 0,
+    claude ? !!claudeReady : !!model,
     docs.some((d) => d.isPrimaryResume),
     !!profile && completeness(profile) >= 80,
   ];
@@ -32,8 +35,13 @@ export function Setup({ step }: { step: number }) {
           </li>
         ))}
       </ol>
-      {s === 1 && <Keys />}
-      {s === 2 && <ModelPicker />}
+      {s === 1 && (
+        <>
+          <ProviderPicker />
+          {claude ? <ClaudeConnect /> : <Keys />}
+        </>
+      )}
+      {s === 2 && (claude ? <ClaudeModels /> : <ModelPicker />)}
       {s === 3 && (
         <div class="panel-box">
           <h2>Upload your résumé (PDF)</h2>

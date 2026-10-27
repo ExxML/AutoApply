@@ -32,7 +32,7 @@ export async function chooseOptions(ctx: ServiceCtx, items: ChooseItem[], profil
   const results = await Promise.all(
     batches.map(async (batch) => {
       try {
-        const r = await ctx.gemini.call(
+        const r = await ctx.ai.call(
           {
             system: CHOOSE_OPTIONS_PROMPT,
             payload: {

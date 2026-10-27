@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { toBase64 } from "../../shared/base64";
 import type { DocumentMeta } from "../../shared/types";
 import { TextInput } from "../components/controls";
 import { Prefill } from "../components/Prefill";
@@ -12,13 +13,6 @@ const KINDS: [DocumentMeta["kind"], string][] = [
   ["transcript", "Transcript"],
   ["other", "Other"],
 ];
-
-const toBase64 = (buf: ArrayBuffer) => {
-  const bytes = new Uint8Array(buf);
-  let s = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-};
 
 /** A PDF's or TXT's text; "" for a DOCX, which has no extractor. */
 async function docText(d: DocumentMeta): Promise<string> {
@@ -226,7 +220,7 @@ export function Documents() {
           <h2>Résumé text</h2>
           <TextInput
             label="Extracted text (editable)"
-            help="Sent to Gemini as context for answers and essays. Edit it if extraction garbled anything."
+            help="Sent to the AI as context for answers and essays. Edit it if extraction garbled anything."
             multiline
             value={profile.resumeText}
             onInput={(v) => update((p) => void (p.resumeText = v))}

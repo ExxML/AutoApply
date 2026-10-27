@@ -42,6 +42,8 @@ export default defineManifest({
     "notifications",
     "identity",
   ],
+  // Claude through the user's own Claude Code (background/claude/bridge.ts); asked for only when chosen.
+  optional_permissions: ["nativeMessaging"],
   host_permissions: ["<all_urls>"],
   commands: {
     _execute_action: { suggested_key: { default: "Alt+Shift+A" } },

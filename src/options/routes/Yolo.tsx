@@ -210,7 +210,7 @@ export function Yolo() {
         />
         <NumberInput
           label="Applications per day"
-          help={`Capped at ${MAX_DAILY_APPLICATIONS} (~1 AI call every 3 mins). Higher numbers mean more Gemini usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 pauses YOLO.`}
+          help={`Capped at ${MAX_DAILY_APPLICATIONS} (~1 AI call every 3 mins). Higher numbers mean more AI usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 pauses YOLO.`}
           value={y.dailyCap}
           min={0}
           max={MAX_DAILY_APPLICATIONS}
@@ -247,7 +247,7 @@ export function Yolo() {
         <TagInput label="Skip companies" value={y.skipCompanies} onChange={(skipCompanies) => set({ skipCompanies })} />
         <Toggle
           label="Check matches with AI"
-          help="One Gemini call per check drops jobs whose level or requirements rule you out (PhD-only, citizens only)."
+          help="One AI call per check drops jobs whose level or requirements rule you out (PhD-only, citizens only)."
           checked={y.aiRelevanceCheck}
           onChange={(aiRelevanceCheck) => set({ aiRelevanceCheck })}
         />

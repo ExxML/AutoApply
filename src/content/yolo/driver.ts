@@ -17,7 +17,7 @@ export interface FillReport {
   unfilled: string[];
   /** Why this application can't go on (a required ID number, no résumé). */
   fatal?: string;
-  /** The Gemini quota ran out; retry after this time. */
+  /** The AI's quota or usage limit ran out; retry after this time. */
   retryAt?: number;
 }
 
@@ -158,7 +158,7 @@ export async function drive(deps: DriverDeps) {
         case "form": {
           const rep = await fill();
           if (deps.debug) await send({ type: "YOLO_ANSWERS", answers: deps.answers() }).catch(() => undefined);
-          if (rep.retryAt) return result({ status: "failed", reason: "Gemini quota used up", retryAt: rep.retryAt });
+          if (rep.retryAt) return result({ status: "failed", reason: "AI usage limit reached", retryAt: rep.retryAt });
           if (rep.fatal) return needs(rep.fatal);
           if (rep.unfilled.length) return needs(`Couldn't fill: ${rep.unfilled.slice(0, 3).join(", ")}`);
           const next = findNext();

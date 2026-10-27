@@ -135,6 +135,10 @@ interface Ctx {
   attempts: { n: number; max: number };
 }
 
+/** The system prompt with the reply's schema written into it, for when the model isn't given the schema itself. */
+export const promptWithSchema = (system: string, schema: object) =>
+  `${system}\n\nJSON schema of the reply:\n${JSON.stringify(schema)}`;
+
 export function buildBody(
   system: string,
   payload: unknown,
@@ -147,7 +151,7 @@ export function buildBody(
   const tc = thinkingConfig(thinking);
   return {
     systemInstruction: {
-      parts: [{ text: promptOnly ? `${system}\n\nJSON schema of the reply:\n${JSON.stringify(schema)}` : system }],
+      parts: [{ text: promptOnly ? promptWithSchema(system, schema) : system }],
     },
     contents: [{ role: "user", parts: [{ text: typeof payload === "string" ? payload : JSON.stringify(payload) }] }],
     generationConfig: {
@@ -170,12 +174,15 @@ export function parseOutput<T>(body: unknown, validate: (d: unknown) => T): T {
   const text = (cand?.content?.parts ?? [])
     .filter((p) => !p.thought && typeof p.text === "string")
     .map((p) => p.text)
-    .join("")
-    .trim()
-    .replace(/^```(?:json)?\s*|\s*```$/g, "");
+    .join("");
+  return parseJsonReply(text, validate);
+}
+
+/** Parses a JSON reply (a ```json fence allowed) and validates it. */
+export function parseJsonReply<T>(text: string, validate: (d: unknown) => T): T {
   let data: unknown;
   try {
-    data = JSON.parse(text);
+    data = JSON.parse(text.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""));
   } catch {
     throw new BadOutputError("Invalid JSON from model");
   }

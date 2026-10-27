@@ -4,7 +4,7 @@ _Effective date: October 15, 2026_
 
 AutoApply is a Chrome extension that fills job application forms from a profile you create. This policy explains what data it handles and where that data goes.
 
-**Summary:** AutoApply has no servers and the developer never receives your data. Everything is stored in your browser. Data leaves your device only when the extension sends it to Google's Gemini API, using the API key you provide, to answer application questions.
+**Summary:** AutoApply has no servers and the developer never receives your data. Everything is stored in your browser. Data leaves your device only when the extension sends it to Google's Gemini API, using the API key you provide, or, if you choose Claude, to Anthropic through the Claude Code app on your computer, to answer application questions.
 
 ## Data AutoApply handles
 
@@ -32,13 +32,15 @@ When AutoApply fills a form, it may send data to the **Google Gemini API** (`gen
 
 Requests are authenticated with **your own** Gemini API key. Google processes them under its own terms: the [Gemini API Additional Terms of Service](https://ai.google.dev/gemini-api/terms) and the [Google Privacy Policy](https://policies.google.com/privacy). Depending on your Google account and API tier, Google may use the data to improve its products. See Google's terms for details.
 
+If you choose **Claude** as the AI provider, the same kind of request goes instead to a small bridge script on your computer, which passes it to your own Claude Code app (`claude -p`). Claude Code sends it to Anthropic under your Claude account and plan, with sessions not saved to disk. AutoApply never sees or stores your Claude sign-in. Anthropic processes the data under its [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) and [Privacy Policy](https://www.anthropic.com/legal/privacy), and your Claude privacy settings apply.
+
 AutoApply attaches your uploaded documents to file-upload fields on the application page you are filling. It never clicks Submit. Information is sent to the employer's site only when you submit the application yourself.
 
 No other third parties receive your data.
 
 ## How data is used
 
-AutoApply uses your data only to fill job applications and for nothing else. Your data is not sold, transferred to third parties (other than Google, as described above), used for advertising, or used to decide creditworthiness or lending eligibility.
+AutoApply uses your data only to fill job applications and for nothing else. Your data is not sold, transferred to third parties (other than Google, or Anthropic if you choose Claude, as described above), used for advertising, or used to decide creditworthiness or lending eligibility.
 
 ## Your control
 
@@ -51,6 +53,7 @@ AutoApply uses your data only to fill job applications and for nothing else. You
 - **Access to all sites:** job applications appear on many different domains. AutoApply reads a page's form only when you ask it to fill that page.
 - **storage / unlimitedStorage:** stores your profile and uploaded documents locally.
 - **scripting, tabs:** run the form filler on open tabs and respond to the popup and the keyboard shortcut.
+- **nativeMessaging (optional, asked for only if you choose Claude):** talk to the Claude bridge script on your computer.
 
 ## Changes
 

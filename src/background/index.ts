@@ -4,18 +4,22 @@ import { createStorage, migrate, session } from "../shared/storage";
 import { normalize } from "../shared/normalize";
 import { formatTime } from "../shared/time";
 import type { ApiError, EntryCounts, ModelCaps, Profile, Settings, TabStatus } from "../shared/types";
-import { defaultSettings } from "../shared/settings";
+import { defaultSettings, type AiTask, type ClaudeTask } from "../shared/settings";
+import { createClaude } from "./claude/client";
 import { createGemini, listModels } from "./gemini/client";
 import {
   AllKeysExhaustedError,
   BadRequestError,
   BlockedError,
+  ClaudeSetupError,
   classify,
   ModelGoneError,
   NoKeysError,
 } from "./gemini/errors";
 import { KeyPool } from "./gemini/keyPool";
 import { defaultModel, updateCatalog, visibleModels } from "./gemini/models";
+import { VALIDATION_PROMPT } from "./gemini/prompts";
+import { VALIDATION_SCHEMA, ValidationZ } from "./gemini/schemas";
 import { getJobContext, getJobPay, setJobContext, setJobPay } from "./jobContext";
 import { mapFields, type ServiceCtx } from "./services/mapFields";
 import { chooseOptions } from "./services/chooseOptions";
@@ -55,6 +59,13 @@ const gemini = createGemini({
   debug: () => settings.debugLogging,
 });
 
+const claude = createClaude({
+  concurrency: () => settings.maxConcurrentRequests,
+  debug: () => settings.debugLogging,
+  onSetupError: () => void store.set({ claudeReady: false }),
+});
+const claudeLabel = (t: ClaudeTask) => `Claude (${t.model || "default"})`;
+
 const ready = (async () => {
   // Listen before reading, and let anything that changes meanwhile win over the initial read.
   const changed = new Set<string>();
@@ -70,7 +81,7 @@ const ready = (async () => {
   pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
   caps = { ...s.modelCapabilities, ...caps };
   await initYolo({
-    serviceCtx: () => serviceCtx(),
+    serviceCtx: (task) => serviceCtx(undefined, task),
     logLimit: () => (settings.debugLogging ? settings.debugLogLimit : 0),
   });
 })();
@@ -88,10 +99,11 @@ function toApiError(e: unknown): ApiError {
   if (e instanceof AllKeysExhaustedError)
     return {
       kind: "allKeysExhausted",
-      message: `All API keys are rate-limited for ${e.model}.${e.earliestRetryAt ? ` Next retry possible at ${formatTime(e.earliestRetryAt)}.` : ""}`,
+      message: `${e.message}${e.earliestRetryAt ? ` Next retry possible at ${formatTime(e.earliestRetryAt)}.` : ""}`,
       earliestRetryAt: e.earliestRetryAt,
     };
   if (e instanceof NoKeysError) return { kind: "noKey", message: "No API key" };
+  if (e instanceof ClaudeSetupError) return { kind: "noKey", message: e.message };
   if (e instanceof ModelGoneError) return { kind: "modelGone", message: e.message };
   if (e instanceof BlockedError) return { kind: "blocked", message: "AI declined this request" };
   if (e instanceof DOMException && e.name === "AbortError") return { kind: "other", message: "Stopped" };
@@ -106,11 +118,18 @@ const hostOf = (url?: string) => {
   }
 };
 
-async function serviceCtx(signal?: AbortSignal): Promise<ServiceCtx | { error: ApiError }> {
+/** What a service calls the AI with; `task` picks Claude's model and effort. */
+async function serviceCtx(signal?: AbortSignal, task: AiTask = "fill"): Promise<ServiceCtx | { error: ApiError }> {
+  if (settings.aiProvider === "claude") {
+    if (!(await store.get("claudeReady")))
+      return { error: { kind: "noKey", message: "Claude isn't connected: set it up in AutoApply → AI." } };
+    const t = settings.claude[task];
+    return { ai: { call: (spec) => claude.call(spec, t) }, settings, model: claudeLabel(t), fallback: null, signal };
+  }
   const { selectedModel, fallbackModel } = await store.getMany(["selectedModel", "fallbackModel"]);
   if (!pool.keys.length) return { error: { kind: "noKey", message: "No API key" } };
   if (!selectedModel) return { error: { kind: "noModel", message: "No model selected" } };
-  return { gemini, settings, model: selectedModel, fallback: fallbackModel, signal };
+  return { ai: gemini, settings, model: selectedModel, fallback: fallbackModel, signal };
 }
 
 async function refreshModels(force: boolean, onlyKey?: string): Promise<Responses["REFRESH_MODELS"]> {
@@ -222,7 +241,7 @@ const handlers: Handlers = {
       entryCounts: entryCounts(s.profile),
       documentsIndex: s.documentsIndex,
       excluded,
-      selectedModel: s.selectedModel,
+      selectedModel: settings.aiProvider === "claude" ? claudeLabel(settings.claude.fill) : s.selectedModel,
       hasKeys: pool.keys.length > 0,
       overlayBottom: s.overlayPos[host] ?? null,
       appliedBefore: y ? undefined : await yoloApplied(sender.tab?.url ?? ""),
@@ -282,7 +301,7 @@ const handlers: Handlers = {
   },
 
   async DRAFT_ESSAYS({ items, groupId }, sender) {
-    const ctx = await serviceCtx(groupSignal(sender, groupId));
+    const ctx = await serviceCtx(groupSignal(sender, groupId), "write");
     if ("error" in ctx) return ctx;
     const profile = await store.get("profile");
     const tab = await runTab(sender);
@@ -367,9 +386,21 @@ const handlers: Handlers = {
   },
 
   async TAB_STATUS({ tabId }) {
+    const status = await currentTabStatus(tabId);
+    if (settings.aiProvider === "claude")
+      return {
+        status,
+        provider: "claude",
+        ready: await store.get("claudeReady"),
+        model: claudeLabel(settings.claude.fill),
+        keysTotal: 0,
+        keysHealthy: 0,
+      };
     const selectedModel = await store.get("selectedModel");
     return {
-      status: await currentTabStatus(tabId),
+      status,
+      provider: "gemini",
+      ready: pool.keys.length > 0 && !!selectedModel,
       model: selectedModel,
       keysTotal: pool.keys.length,
       keysHealthy: pool.healthyCount(selectedModel),
@@ -421,9 +452,30 @@ const handlers: Handlers = {
   },
 
   async PARSE_RESUME({ text }) {
-    const ctx = await serviceCtx();
+    const ctx = await serviceCtx(undefined, "resume");
     if ("error" in ctx) return ctx;
     return { proposed: await parseResume(ctx, text) };
+  },
+
+  /** Asks Claude Code for a tiny reply with the autofill model; success marks Claude set up. */
+  async CLAUDE_TEST() {
+    const t0 = Date.now();
+    try {
+      const r = await claude.call(
+        {
+          system: VALIDATION_PROMPT,
+          payload: '{"ping":true}',
+          schema: VALIDATION_SCHEMA,
+          validate: (d) => ValidationZ.parse(d),
+          timeoutMs: 30000,
+        },
+        settings.claude.fill,
+      );
+      await store.set({ claudeReady: true });
+      return { model: r.usedModel, ms: Date.now() - t0 };
+    } catch (e) {
+      return { error: toApiError(e) };
+    }
   },
 
   ...yoloHandlers,

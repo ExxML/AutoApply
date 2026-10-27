@@ -54,8 +54,20 @@ const NUMBERS: [Num, string, string, number, number][] = [
     1,
     200,
   ],
-  ["requestTimeoutMs", "Request timeout (ms)", "Per AI request; essays get twice this.", 1000, 120000],
-  ["maxConcurrentRequests", "Parallel AI requests", "How many Gemini calls may run at once.", 1, 16],
+  [
+    "requestTimeoutMs",
+    "Request timeout (ms)",
+    "Per AI request; essays get twice this, and Claude twice again (Claude Code starts up each time).",
+    1000,
+    120000,
+  ],
+  [
+    "maxConcurrentRequests",
+    "Parallel AI requests",
+    "How many AI calls may run at once (with Claude, each runs Claude Code).",
+    1,
+    16,
+  ],
 ];
 
 export function Behavior() {

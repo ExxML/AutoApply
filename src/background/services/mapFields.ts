@@ -27,7 +27,8 @@ import { AUDIT_PROMPT, BEST_GUESS_PROMPT, MAP_FIELDS_PROMPT } from "../gemini/pr
 import { AUDIT_SCHEMA, AuditZ, MAPPING_SCHEMA, MappingZ, type RawDecision } from "../gemini/schemas";
 
 export interface ServiceCtx {
-  gemini: Gemini;
+  /** Gemini, or Claude bound to the task's model (serviceCtx in background/index.ts). */
+  ai: Pick<Gemini, "call">;
   settings: Settings;
   model: string;
   fallback: string | null;
@@ -1599,7 +1600,7 @@ async function auditFills(
   if (!items.length) return decisions;
   try {
     const { profile, resume, learnedAnswers, job, today } = base;
-    const r = await ctx.gemini.call(
+    const r = await ctx.ai.call(
       {
         system: AUDIT_PROMPT,
         payload: { items, profile, resume, learnedAnswers, job, today },
@@ -1692,7 +1693,7 @@ async function guessFlagged(
   if (!flagged.length) return decisions;
   const why = new Map(decisions.map((d) => [d.fieldId, d]));
   try {
-    const r = await ctx.gemini.call(
+    const r = await ctx.ai.call(
       {
         system: BEST_GUESS_PROMPT,
         payload: {
@@ -1847,7 +1848,7 @@ export async function mapFields(
 
   async function runChunk(chunk: FieldDescriptor[], retried = false): Promise<Decision[]> {
     try {
-      const r = await ctx.gemini.call(
+      const r = await ctx.ai.call(
         {
           system: MAP_FIELDS_PROMPT,
           payload: { fields: chunk.map(sent), ...base },

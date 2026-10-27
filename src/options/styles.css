@@ -451,6 +451,24 @@ label.inline {
 .steps .done a {
   color: var(--good);
 }
+.claude-steps li + li {
+  margin-top: 12px;
+}
+.cmd {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 4.5em;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.cmd.tall {
+  max-height: 24em;
+}
 .diff {
   list-style: none;
   padding: 0;

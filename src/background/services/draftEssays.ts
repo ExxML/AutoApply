@@ -38,7 +38,7 @@ export async function draftEssays(
 
   async function run(batch: EssayItem[]): Promise<EssayResult[]> {
     try {
-      const r = await ctx.gemini.call(
+      const r = await ctx.ai.call(
         {
           system: ESSAYS_PROMPT,
           payload: { ...base, items: batch.map((i) => ({ ...i, targetWords: target(i) })) },

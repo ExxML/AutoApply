@@ -81,8 +81,6 @@ export function Popup() {
     }
   };
 
-  const ready = info && info.keysTotal > 0 && info.model;
-
   return (
     <div class="popup">
       <h1 class="brand">
@@ -99,8 +97,8 @@ export function Popup() {
       </button>
       {msg && <p class="err">{msg}</p>}
       <div class="meta">
-        {ready ? "Ready" : "Setup needed"} · Model: {info?.model ?? "none"} · {info?.keysTotal ?? 0} keys ·{" "}
-        {info?.keysHealthy ?? 0} healthy
+        {info?.ready ? "Ready" : "Setup needed"} · Model: {info?.model ?? "none"}
+        {info?.provider !== "claude" && ` · ${info?.keysTotal ?? 0} keys · ${info?.keysHealthy ?? 0} healthy`}
       </div>
       {yolo && (
         <button

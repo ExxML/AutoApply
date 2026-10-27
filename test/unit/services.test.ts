@@ -218,7 +218,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     } as unknown as Gemini;
     const fields = ["a", "b", "bad", "d"].map((id) => field(id));
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields, profile: emptyProfile(), documents: [], job: null },
     );
     expect(r.decisions.map((d) => d.action)).toEqual(["fill", "fill", "flag", "fill"]);
@@ -254,7 +254,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       field("decline", { kind: "checkbox", label: "I decline to answer the following questions." }),
     ];
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields, profile: emptyProfile(), documents: [], job: null },
     );
     expect(audited).toEqual([["school", "funding"]]);
@@ -282,7 +282,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const asked = "May we contact your current employer?";
     const hint = `Follow-up to the previous question: "${asked}"`;
     await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: asked, kind: "select", options: ["Yes", "No"] }),
@@ -309,7 +309,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ];
     const asked = "What is your work authorization status in the United States?";
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("s", {
@@ -347,7 +347,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (options?: string[]) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("s", {
@@ -380,7 +380,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (location: string) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("r", { label: "Are you applying to a role in:", kind: "select", options: ["Poland", "Other"] }),
@@ -407,7 +407,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (location: string) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [field("o", { label: "Which office are you applying to?", kind: "radio_group", options })],
             profile,
@@ -435,7 +435,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (options: string[]) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("t", {
@@ -461,7 +461,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(["Winter (January - May)", "Summer (May - August)"])).toBe("Summer (May - August)");
     profile.coop.availableTerms = ["All"];
     const one = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("o", {
@@ -507,7 +507,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.coop.availableTerms = ["All"];
     const sel = (id: string, label: string, options: string[]) => field(id, { label, kind: "select", options });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           sel("o", "Which of the following locations are you open to living and working in?", [
@@ -549,7 +549,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       field("b", { label: "Do you receive active funding?", hint: "Select..." }),
     ];
     await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields, profile: emptyProfile(), documents: [], job: null },
     );
     expect(questions).toEqual([`${label} Needed by citizens of Cuba or Iran.`, "Do you receive active funding?"]);
@@ -569,7 +569,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.personal.address.country = "Canada";
     const ask = (location: string, ...labels: string[]) =>
       mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
           fields: labels.map((l, i) => field(`f${i}`, { label: l, kind: "contenteditable" })),
           profile,
@@ -634,7 +634,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     sent.length = 0;
     const yn = (label: string, options = ["Yes", "No"]) => field(label, { label, kind: "select", options });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           yn("Are you legally authorized to work in the country you reside?"),
@@ -717,7 +717,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (location: string) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [field("a", { label, kind: "radio_group", options })],
             profile,
@@ -737,7 +737,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const live =
       "Your authorization to work in the country where you live. Please choose the option that describes it.";
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [field("v", { label: live, kind: "dropdown", options: vercel })],
         profile: {
@@ -769,7 +769,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const label = "For this specific internship, will you require any of the below sponsorship for employment?";
     const ask = (location: string, l = label) =>
       mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
           fields: [field("v", { label: l, kind: "radio_group", options: ["J1", "F1", "None", "Other"] })],
           profile,
@@ -811,7 +811,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("Replit Profile URL"),
@@ -848,7 +848,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ];
     const run = () =>
       mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields, profile, documents: [], job: null },
       );
     profile.background.consentToInterviewRecording = "no";
@@ -898,7 +898,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ];
     const label = "How Many Years of work experience do you have in your chosen engineering field";
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label, kind: "select", options: ["Less than 2", "2,4", "4,6", "12+"] }),
@@ -948,7 +948,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const label = "What is your anticipated graduation month and year?";
     const ask = (options: string[]) => field(options.join(), { label, kind: "select", options });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           ask(["December 2027", "Spring/Summer 2028", "Other"]),
@@ -993,7 +993,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = (options: string[], required = true) =>
       field(options.join(), { label: "How did you hear about Character AI?", kind: "radio_group", options, required });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           ask(["Linkedin", "Indeed", "Referral", "Character Careers Page", "Other"]),
@@ -1034,7 +1034,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               yn("Are you able to work from our office Monday, Tuesday, and Thursday?"),
@@ -1085,7 +1085,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               sel("Are you located in or willing to relocate to the United Kingdom?", three),
@@ -1126,7 +1126,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           { fields: [field(label, { label, kind: "select", options })], profile, documents: [], job: null },
         )
       ).decisions[0].intendedAnswer ?? "flag";
@@ -1149,7 +1149,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("a", { label: "What time zone are you based in?", kind: "dropdown", options: zones }),
@@ -1185,7 +1185,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("a", {
@@ -1218,7 +1218,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               yn("a", "Do you have consistent internet access?"),
@@ -1253,7 +1253,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("a", { label: "Language Skill(s) (Check all that apply)", kind: "checkbox_group", options }),
@@ -1284,7 +1284,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       job("Cashier", ""),
     ];
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: "How many prior internships have you had?" }),
@@ -1334,7 +1334,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               field("a", {
@@ -1384,7 +1384,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (gpa: string, scale: string) => {
       profile.education = [{ ...profile.education[0], gpa, gpaScale: scale }];
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         {
           fields: [
             field("a", { label: "GPA (Undergraduate)", kind: "select", options: outOf }),
@@ -1428,7 +1428,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.education = [{ ...profile.education[0], school: "UBC", startDate: "2024-09", endDate: "2028-05" }];
     const sel = (id: string, options: string[]) => field(id, { label: "", kind: "select", options });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           sel("y1", ["2027", "2026", "2025", "2024"]),
@@ -1463,7 +1463,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       profile.personal.dateOfBirth = dob;
       const f = field("a", { label: "What is your age range?", kind: "radio_group", options });
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1487,7 +1487,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (label: string) => {
       const f = field("a", { label, kind: "dropdown", options });
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1512,7 +1512,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.education = [{ ...emptyProfile().education[0], startDate: "2024-09", expectedGraduation: "2028-05" }];
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September"];
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: "Start date month", section: "Employment", kind: "dropdown", options: months }),
@@ -1552,7 +1552,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () => {
       const f = field("a", { label: "Are you any of the following?", kind: "dropdown", options });
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1594,7 +1594,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     });
     const ask = async (label: string, required: boolean) => {
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [field("a", { label, required })], profile, documents: [], job: null },
       );
       return r.decisions[0].text ?? r.decisions[0].action;
@@ -1629,7 +1629,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async () =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [field("a", { label, kind: "select", options: ["Yes", "No"] })],
             profile,
@@ -1661,7 +1661,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (options: string[]) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [field("a", { label: "May we contact your current employer?", kind: "select", options })],
             profile,
@@ -1690,7 +1690,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       const f = field("a", { label: "Which ethnicity(ies) do you identify with?", kind: "checkbox_group", options });
       f.multiple = true;
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1716,7 +1716,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (options: string[]) => {
       const f = field("a", { label: "State", kind: "select", options });
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1747,7 +1747,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (label: string) => {
       const f = field("a", { label, kind: "dropdown", options: ["Yes", "No"] });
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [f], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1779,7 +1779,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         .slice(0, 10);
       const label = "Once an offer is accepted, how soon would you be able to begin working with us?";
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [field("s", { label, kind: "select", options })], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
@@ -1810,7 +1810,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       options = kind === "select" ? ["Yes", "No"] : undefined,
     ) => {
       const r = await mapFields(
-        { gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
         { fields: [field("s", { label, kind, options })], profile, documents: [], job: null },
       );
       return r.decisions[0].intendedAnswer ?? r.decisions[0].text ?? r.decisions[0].action;
@@ -1837,7 +1837,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.preferences.earliestStartDate = "2099-01-01";
     profile.preferences.availableUntil = "2100-05-01";
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: "How soon are you able to join if selected?", kind: "textarea" }),
@@ -1898,7 +1898,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       notes: "",
     };
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: "What are your salary expectations?" }),
@@ -1943,7 +1943,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     } as unknown as Gemini;
     const yn = (id: string, label: string, options = ["Yes", "No"]) => field(id, { label, kind: "select", options });
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           yn(
@@ -2009,7 +2009,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [
           field("a", { label: "Your primary college/university/school email", kind: "email" }),
@@ -2037,7 +2037,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const ask = async (location: string) =>
       (
         await mapFields(
-          { gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
           {
             fields: [
               yn("a", "Do you currently hold an active US security clearance?"),
@@ -2063,7 +2063,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       {
         fields: [field("a", { label: "Exercise Submission (Shared URL)", kind: "url", required: true })],
         profile: emptyProfile(),
@@ -2097,7 +2097,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields: ["a", "b", "c"].map((id) => field(id)), profile: emptyProfile(), documents: [], job: null },
     );
     expect(sent).toEqual([["a", "b", "c"], ["b"]]);
@@ -2128,7 +2128,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     } as unknown as Gemini;
     const r = await mapFields(
-      { gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields: ["a", "b", "c"].map((id) => field(id)), profile: emptyProfile(), documents: [], job: null },
     );
     expect(sent).toEqual([["a", "b", "c"], ["b", "c"], ["b"], ["c"]]);
@@ -2143,7 +2143,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
         return { data: { decisions: [], choices: [] }, usedModel: "m", keyLabel: "k" };
       },
     } as unknown as Gemini;
-    const ctx = { gemini, settings: defaultSettings(), model: "m", fallback: null };
+    const ctx = { ai: gemini, settings: defaultSettings(), model: "m", fallback: null };
     const options = ["Canada +1", "Cape Verde +238"];
     await mapFields(ctx, { fields: [field("a", { options })], profile: emptyProfile(), documents: [], job: null });
     await chooseOptions(

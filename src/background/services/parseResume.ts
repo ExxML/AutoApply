@@ -4,7 +4,7 @@ import { parseResumeSystem } from "../gemini/prompts";
 import type { ServiceCtx } from "./mapFields";
 
 export async function parseResume(ctx: ServiceCtx, resumeText: string): Promise<Partial<Profile>> {
-  const r = await ctx.gemini.call(
+  const r = await ctx.ai.call(
     {
       system: parseResumeSystem(),
       payload: resumeText.slice(0, 30000),

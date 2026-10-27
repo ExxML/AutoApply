@@ -3,6 +3,7 @@
 import type { Message, Responses, YoloResult } from "../../shared/messages";
 import { RE_APPLIED } from "../../shared/constants";
 import { createStorage, session } from "../../shared/storage";
+import type { AiTask } from "../../shared/settings";
 import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
 import {
   defaultYolo,
@@ -49,7 +50,7 @@ type Handler<T extends Message["type"]> = (
 ) => Promise<Responses[T]>;
 
 export interface YoloDeps {
-  serviceCtx: () => Promise<ServiceCtx | { error: ApiError }>;
+  serviceCtx: (task?: AiTask) => Promise<ServiceCtx | { error: ApiError }>;
   /** How many applications' debug logs to keep: 0 with debug logging off. */
   logLimit: () => number;
 }
@@ -131,7 +132,7 @@ async function relevance(items: Listing[]): Promise<Set<number>> {
   const ctx = await deps.serviceCtx();
   if ("error" in ctx) return all;
   const p = await store.get("profile");
-  const r = await ctx.gemini
+  const r = await ctx.ai
     .call(
       {
         system: RELEVANCE_PROMPT,
@@ -207,7 +208,7 @@ async function finish(run: Run, r: YoloResult) {
   }
   if (r.status !== "submitted" && r.status !== "scraped" && r.retryAt) {
     await requeue(run.item);
-    await pause(r.retryAt, "Gemini quota used up");
+    await pause(r.retryAt, "AI usage limit reached");
     return;
   }
   const { item } = run;
@@ -497,7 +498,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
 
   async COVER_LETTER_PDF({ question }, sender) {
     const tab = await runTab(sender);
-    const ctx = await deps.serviceCtx();
+    const ctx = await deps.serviceCtx("write");
     if ("error" in ctx) return ctx;
     const profile = await store.get("profile");
     const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;

@@ -4,7 +4,20 @@ import { MAX_DAILY_APPLICATIONS } from "./yolo";
 const b = (d: boolean) => z.boolean().catch(d);
 const n = (d: number, min: number, max: number) => z.number().int().min(min).max(max).catch(d);
 
+/** A Claude Code model alias and effort level; "": Claude Code's own default. */
+const claudeTask = z
+  .object({
+    model: z.enum(["", "haiku", "sonnet", "opus", "fable"]).catch(""),
+    effort: z.enum(["", "low", "medium", "high", "xhigh", "max"]).catch(""),
+  })
+  .catch({ model: "", effort: "" });
+const claudeTasks = z.object({ fill: claudeTask, write: claudeTask, resume: claudeTask });
+
 const base = z.object({
+  /** Gemini with API keys, or Claude through the user's own Claude Code and plan (background/claude). */
+  aiProvider: z.enum(["gemini", "claude"]).catch("gemini"),
+  /** Per task: fill = autofill and YOLO's relevance check, write = essays and cover letters, resume = résumé import. */
+  claude: claudeTasks.catch(() => claudeTasks.parse({})),
   overwritePrefilled: b(false),
   autoAcceptAcknowledgements: b(true),
   optionalConsents: z.enum(["ask", "accept", "decline"]).catch("decline"),
@@ -27,3 +40,5 @@ const base = z.object({
 export const SettingsSchema = base.catch(() => base.parse({}));
 export type Settings = z.infer<typeof SettingsSchema>;
 export const defaultSettings = (): Settings => SettingsSchema.parse({});
+export type AiTask = keyof Settings["claude"];
+export type ClaudeTask = Settings["claude"][AiTask];

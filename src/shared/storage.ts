@@ -96,6 +96,8 @@ export const LOCAL_SCHEMAS = {
   selectedModel: z.string().nullable().catch(null),
   fallbackModel: z.string().nullable().catch(null),
   modelCapabilities: rec(ModelCapsSchema),
+  /** Claude Code answered a Test connection and hasn't failed setup since (background/claude). */
+  claudeReady: z.boolean().catch(false),
   overlayPos: rec(z.number()),
   yolo: YoloSchema,
   yoloState: YoloStateSchema.catch(() => YoloStateSchema.parse({})),

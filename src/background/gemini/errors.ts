@@ -119,3 +119,13 @@ export class ModelGoneError extends Error {
 }
 export class BadRequestError extends Error {}
 export class ServerError extends Error {}
+
+/** The Claude plan's usage limit: handled like exhausted keys (retry or re-queue at the reset). */
+export class ClaudeLimitError extends AllKeysExhaustedError {
+  constructor(resetsAt: number) {
+    super("Claude", resetsAt, {});
+    this.message = "Claude usage limit reached.";
+  }
+}
+/** Claude Code can't be reached or isn't signed in; the message says how to fix it. */
+export class ClaudeSetupError extends Error {}

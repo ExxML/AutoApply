@@ -4,7 +4,7 @@
 
 # AutoApply
 
-A Chrome extension (Manifest V3) that fills job applications on any website from your profile, using Google Gemini with your own API keys. It fills; **you** review and submit.
+A Chrome extension (Manifest V3) that fills job applications on any website from your profile, using Google Gemini with your own API keys, or Claude with your own Claude Pro or Max plan (through Claude Code). It fills; **you** review and submit.
 
 [![Chrome Extension](https://img.shields.io/badge/Chrome_Extension-MV3-34A853?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -17,11 +17,13 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 </div>
 
 ## Table of Contents
+
 - [App Preview](#app-preview)
 - [Features](#features)
 - [Install](#install)
   - [Get Gemini API keys](#get-gemini-api-keys)
   - [Choose a model](#choose-a-model)
+  - [Or use your Claude plan](#or-use-your-claude-plan)
   - [Fill in your profile](#fill-in-your-profile)
   - [How filling works](#how-filling-works)
 - [Badge meanings](#badge-meanings)
@@ -34,6 +36,7 @@ A Chrome extension (Manifest V3) that fills job applications on any website from
 - [License](#license)
 
 ## App Preview
+
 <div align="center">
   <img src="docs/app_previews/extension_popup.png" alt="AutoApply Popup" height="247">
   <img src="docs/app_previews/settings_setup.png" alt="AutoApply Setup Settings" height="247">
@@ -73,7 +76,7 @@ Note: Other Chromium-based browsers that support Manifest V3 should also work, b
 ### Get Gemini API keys
 
 1. Go to <https://aistudio.google.com/apikey> and create a key.
-2. In AutoApply → **Setup** (or **AI (Gemini)**), paste it with a label and click **Add key**. The key is checked by fetching the model list; invalid keys are rejected with Google's error message.
+2. In AutoApply → **Setup** (or **AI**), paste it with a label and click **Add key**. The key is checked by fetching the model list; invalid keys are rejected with Google's error message.
 3. Add more keys if you hit rate limits. AutoApply rotates to the next healthy key automatically when one returns a quota or rate-limit error.
 
 > **Rate limits apply per Google Cloud project, not per key. Keys created in the same project share one quota.** To get more capacity, create keys in _separate_ projects. Free tier limits vary by model; see [Gemini API rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) for up-to-date quotas.
@@ -85,6 +88,16 @@ Each key row shows a status chip: _Healthy_, _Cooling down until 14:32_, _Daily 
 The model list is fetched live with your key and shows only text-in/text-out models that support `generateContent` (no embedding, image, audio, live, TTS or Gemma models), **newest-added first**. A Flash-Lite model is preselected because it is fast and cheap; picking a model runs a quick validation call (✓/✗). You can also set an optional **fallback model**, used automatically when every key is exhausted for the primary model. Click **Refresh list** to re-fetch (it also refreshes automatically once a day).
 
 The newest Gemini models are often under heavy load, and rejected requests may still use up your quota. If consistency matters to you, use a slightly less popular model as your primary or fallback.
+
+### Or use your Claude plan
+
+With a Claude Pro or Max plan and no API key, pick **Claude** under AutoApply → **AI** → Provider. Everything that uses AI (autofill, essays, cover letters, résumé import, YOLO) then goes to Claude instead of Gemini; switch back any time.
+
+1. Install [Claude Code](https://code.claude.com/docs/en/setup), run `claude` once in a terminal, and sign in with your Claude account.
+2. Copy the setup command shown in AutoApply → **AI** and paste it into PowerShell (Windows) or Terminal (macOS/Linux). It installs a small bridge script (`%LOCALAPPDATA%AutoApplyclaude-bridge` or `~/.autoapply/claude-bridge`) and registers it with Chrome, Edge, Chromium and Brave as a [native messaging host](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging). **What this runs** shows the script; **Uninstall** removes it.
+3. Click **Connect**. Chrome asks once to let AutoApply talk to apps on this computer, then a test call shows the model and how long it took.
+
+Each AI request starts `claude -p` once with every tool, MCP server, plugin, hook and memory switched off, and nothing saved to disk. AutoApply never sees your Claude sign-in. Pick a model and effort for each kind of work under **Models**: Haiku at Low effort answers fastest, and a fill waits on it. Each request also pays about a second of Claude Code start-up, so fills take longer than with Gemini Flash-Lite. Usage counts against your plan's limits; when you hit one, YOLO pauses until it resets.
 
 ### Fill in your profile
 
@@ -111,7 +124,7 @@ The newest Gemini models are often under heavy load, and rejected requests may s
 | Badge                | Meaning                                                                                                                                |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Green ✓              | Filled from your profile or a saved answer ("You"/"Saved" once you answered it yourself)                                               |
-| Blue **AI**          | Filled by Gemini's semantic match (hover for the profile fields used and the chosen option)                                            |
+| Blue **AI**          | Filled by the AI's semantic match (hover for the profile fields used and the chosen option)                                            |
 | Purple **AI draft**  | AI-written essay — review it. Click the tag to save it as a reusable answer                                                            |
 | Yellow **Needs you** | Unknown, low confidence, a consent/acknowledgement box, a sensitive field, or the AI declined. Hover for the reason and any suggestion |
 | Orange **Check**     | The page shows something different from what was entered                                                                               |
@@ -132,7 +145,7 @@ Turn on **YOLO mode** in the popup (set it up under **Settings → YOLO mode**) 
 
 ## Privacy
 
-Your profile, documents and settings live only in this browser (`chrome.storage.local`). YOLO mode also keeps its application log and encrypted site passwords there; it reads job boards logged out, and reads verification emails only while a run waits for one. To answer questions, the extension sends your profile, résumé text, saved answers and the page's field labels/job description **to Google Gemini under your own API keys**; there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
+Your profile, documents and settings live only in this browser (`chrome.storage.local`). YOLO mode also keeps its application log and encrypted site passwords there; it reads job boards logged out, and reads verification emails only while a run waits for one. To answer questions, the extension sends your profile, résumé text, saved answers and the page's field labels/job description **to Google Gemini under your own API keys** (or, if you chose Claude, to Anthropic through your own Claude Code); there is no AutoApply server, analytics or telemetry. API keys stay in the extension's background worker — web pages and content scripts never see them, they are masked after entry, and exports exclude them unless you tick **Include API keys**.
 
 ## Limitations
 
@@ -148,6 +161,9 @@ Your profile, documents and settings live only in this browser (`chrome.storage.
 - **"All API keys are rate-limited … Next retry possible at …"**: you hit a quota. The panel retries automatically if the reset is within 90 s. Add keys from **separate Google Cloud projects**, or wait for the daily reset (midnight Pacific).
 - **"Model unavailable on this key"**: the model is not on your key's tier/region; pick another model.
 - **"No API key" / "No model selected"**: open the AI settings from the panel's button.
+- **"Claude bridge isn't installed" / "set up for another copy of AutoApply"**: run the setup command in AutoApply → AI again (the second happens when an unpacked AutoApply folder moves, which changes its ID).
+- **"Claude Code isn't signed in"**: run `claude` in a terminal, sign in with `/login`, then click **Test connection**. **"Claude Code is too old"**: run `claude update`.
+- **"Claude usage limit reached"**: your plan's limit; it lifts at the time shown. Switch the provider to Gemini to keep going meanwhile.
 - **Nothing happens on a page**: use **Fill this page** in the popup (or **Alt+Shift+F**), check that the site isn't excluded (Behavior), and reload pages that were open before the extension was installed or updated.
 - Turn on **Debug logging** (Behavior) to see per-stage timings in the panel and prompts/responses in the service-worker console (keys are never logged).
 
@@ -197,7 +213,6 @@ GEMINI_API_KEY=AIza... npm run test:live
 ```
 
 See `DECISIONS.md` for design choices and deviations from the specification.
-
 
 ## License
 
