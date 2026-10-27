@@ -110,6 +110,9 @@ export function Documents() {
     update((p) => void (p.resumeText = text));
   };
 
+  const edit = (id: string, patch: Partial<DocumentMeta>) =>
+    save({ documentsIndex: docs.map((d) => (d.id === id ? { ...d, ...patch } : d)) });
+
   const remove = async (id: string) => {
     await store.removeDoc(id);
     await save({ documentsIndex: docs.filter((d) => d.id !== id) });
@@ -145,13 +148,33 @@ export function Documents() {
           <tbody>
             {docs.map((d) => (
               <tr>
-                <td>{d.label}</td>
-                <td>{KINDS.find(([k]) => k === d.kind)?.[1]}</td>
+                <td>
+                  <input
+                    aria-label={`Label of ${d.fileName}`}
+                    value={d.label}
+                    onChange={(e) => void edit(d.id, { label: e.currentTarget.value.trim() || d.fileName })}
+                  />
+                </td>
+                <td>
+                  <select
+                    aria-label={`Kind of ${d.fileName}`}
+                    value={d.kind}
+                    onChange={(e) => {
+                      const kind = e.currentTarget.value as DocumentMeta["kind"];
+                      // Only a résumé can be the primary one.
+                      void edit(d.id, kind === "resume" ? { kind } : { kind, isPrimaryResume: false });
+                    }}
+                  >
+                    {KINDS.map(([v, t]) => (
+                      <option value={v}>{t}</option>
+                    ))}
+                  </select>
+                </td>
                 <td>
                   {d.fileName} <span class="muted">({Math.round(d.size / 1024)} KB)</span>
                 </td>
                 <td>
-                  {d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName) ? (
+                  {d.kind === "resume" && (d.mimeType === "application/pdf" || /\.pdf$/i.test(d.fileName)) ? (
                     <input
                       type="radio"
                       name="primary"
@@ -160,7 +183,7 @@ export function Documents() {
                       onChange={() => void makePrimary(d.id)}
                     />
                   ) : (
-                    <span class="muted">PDF only</span>
+                    <span class="muted">PDF résumés only</span>
                   )}
                 </td>
                 <td>

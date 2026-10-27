@@ -42,3 +42,22 @@ test("documents: uploading a PDF résumé stores it as primary and extracts its 
     .poll(async () => (await storage<{ resumeText: string }>(sw, "profile")).resumeText)
     .toContain("Ada Lovelace Analytical Engine");
 });
+
+test("documents: an uploaded document's label and kind can be edited; leaving Résumé clears primary", async ({
+  page,
+  sw,
+}) => {
+  await seed(sw);
+  const id = new URL(sw.url()).host;
+  await page.goto(`chrome-extension://${id}/src/options/index.html#/documents`);
+  await page.getByLabel("Label of ada-resume.pdf").fill("Software Engineer");
+  await page.getByLabel("Label of ada-resume.pdf").blur();
+  await expect
+    .poll(async () => (await storage<{ label: string }[]>(sw, "documentsIndex"))[0].label)
+    .toBe("Software Engineer");
+  await page.getByLabel("Kind of ada-resume.pdf").selectOption("cover_letter");
+  await expect
+    .poll(async () => (await storage<{ kind: string; isPrimaryResume: boolean }[]>(sw, "documentsIndex"))[0])
+    .toMatchObject({ kind: "cover_letter", isPrimaryResume: false, label: "Software Engineer" });
+  await expect(page.getByText("PDF résumés only")).toBeVisible();
+});
