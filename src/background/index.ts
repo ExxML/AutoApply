@@ -76,7 +76,12 @@ const ready = (async () => {
     if (c.modelCapabilities) caps = Object.keys(c.modelCapabilities).length ? { ...caps, ...c.modelCapabilities } : {};
   });
   await migrate();
-  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities"]);
+  const s = await store.getMany(["settings", "apiKeys", "keyState", "modelCapabilities", "claudeRestart"]);
+  // CLAUDE_TEST reloaded the extension to restart this worker: reopen the options page that closed.
+  if (s.claudeRestart) {
+    void store.set({ claudeRestart: "" });
+    void chrome.tabs.create({ url: s.claudeRestart });
+  }
   if (!changed.has("settings")) settings = s.settings;
   pool.setKeys(changed.has("apiKeys") ? pool.keys : s.apiKeys, s.keyState);
   caps = { ...s.modelCapabilities, ...caps };
@@ -458,7 +463,21 @@ const handlers: Handlers = {
   },
 
   /** Asks Claude Code for a tiny reply with the autofill model; success marks Claude set up. */
-  async CLAUDE_TEST() {
+  async CLAUDE_TEST({ restarted }, sender) {
+    // Chromium builds chrome.runtime once per worker, leaving out methods it can't use yet, so a worker started
+    // before the nativeMessaging grant never gets connectNative. Only a reload restarts it; that closes the options
+    // page, so the new worker reopens it (see ready) to test again.
+    if (
+      !restarted &&
+      typeof chrome.runtime.connectNative !== "function" &&
+      (await chrome.permissions.contains({ permissions: ["nativeMessaging"] }))
+    ) {
+      const url = new URL(sender.url ?? chrome.runtime.getURL("src/options/index.html#/ai"));
+      url.search = "?claude-restarted";
+      await store.set({ claudeRestart: url.href });
+      chrome.runtime.reload();
+      return new Promise<never>(() => {});
+    }
     const t0 = Date.now();
     try {
       const r = await claude.call(

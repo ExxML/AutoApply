@@ -50,10 +50,24 @@ export function ClaudeConnect() {
   const [os, setOs] = useState<SetupOs | "unsupported">();
   const [copied, setCopied] = useState(false);
   const [check, setCheck] = useState<Check>(null);
+  const test = async (restarted?: boolean) => {
+    setCheck({ state: "busy", text: "Asking Claude Code…" });
+    const r = await send({ type: "CLAUDE_TEST", restarted });
+    setCheck(
+      isErr(r)
+        ? { state: "err", text: `✗ ${r.error.message}` }
+        : { state: "ok", text: `✓ Connected · ${r.model} · answered in ${(r.ms / 1000).toFixed(1)} s` },
+    );
+  };
   useEffect(() => {
     void chrome.runtime
       .getPlatformInfo()
       .then(({ os }) => setOs(os === "win" || os === "mac" || os === "linux" ? os : "unsupported"));
+    // Reopened by the restart that finishes connecting (background CLAUDE_TEST): finish the test Connect began.
+    if (location.search === "?claude-restarted") {
+      history.replaceState(null, "", location.pathname + location.hash);
+      void test(true);
+    }
   }, []);
   if (!os) return null;
   if (os === "unsupported")
@@ -74,13 +88,7 @@ export function ClaudeConnect() {
     // First, inside the click: Chrome only shows the permission prompt for a user gesture.
     const granted = await chrome.permissions.request({ permissions: ["nativeMessaging"] }).catch(() => false);
     if (!granted) return setCheck({ state: "err", text: "✗ AutoApply needs that permission to talk to Claude Code." });
-    setCheck({ state: "busy", text: "Asking Claude Code…" });
-    const r = await send({ type: "CLAUDE_TEST" });
-    setCheck(
-      isErr(r)
-        ? { state: "err", text: `✗ ${r.error.message}` }
-        : { state: "ok", text: `✓ Connected · ${r.model} · answered in ${(r.ms / 1000).toFixed(1)} s` },
-    );
+    await test();
   };
 
   return (
@@ -116,7 +124,8 @@ export function ClaudeConnect() {
           </details>
         </li>
         <li>
-          <b>Connect.</b> Chrome asks once to let AutoApply talk to apps on this computer.{" "}
+          <b>Connect.</b> Chrome asks once to let AutoApply talk to apps on this computer, then AutoApply restarts and
+          reopens this page.{" "}
           <button
             type="button"
             class="btn primary small"

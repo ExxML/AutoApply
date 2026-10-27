@@ -122,7 +122,7 @@ export type Message =
   | { type: "REFRESH_MODELS"; force: boolean }
   | { type: "VALIDATE_MODEL"; model: string }
   | { type: "PARSE_RESUME"; text: string }
-  | { type: "CLAUDE_TEST" };
+  | { type: "CLAUDE_TEST"; restarted?: boolean };
 
 export type Ok = { ok: true };
 export type Err = { error: ApiError };

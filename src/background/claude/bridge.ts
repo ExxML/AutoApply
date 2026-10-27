@@ -44,7 +44,8 @@ export function runBridge(req: BridgeRequest, timeoutMs: number, signal?: AbortS
     try {
       port = chrome.runtime.connectNative(BRIDGE_HOST);
     } catch {
-      // without the optional nativeMessaging permission connectNative is missing
+      // connectNative is missing without the optional nativeMessaging permission (or until a worker that predates the
+      // grant restarts: background CLAUDE_TEST)
       return reject(
         new ClaudeSetupError("AutoApply isn't allowed to reach Claude Code yet: click Connect in AutoApply → AI."),
       );

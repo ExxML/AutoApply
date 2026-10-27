@@ -98,6 +98,8 @@ export const LOCAL_SCHEMAS = {
   modelCapabilities: rec(ModelCapsSchema),
   /** Claude Code answered a Test connection and hasn't failed setup since (background/claude). */
   claudeReady: z.boolean().catch(false),
+  /** Options page to reopen after the restart that finishes connecting Claude ("" when none; background CLAUDE_TEST). */
+  claudeRestart: z.string().catch(""),
   overlayPos: rec(z.number()),
   yolo: YoloSchema,
   yoloState: YoloStateSchema.catch(() => YoloStateSchema.parse({})),
