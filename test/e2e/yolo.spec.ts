@@ -89,6 +89,34 @@ test("answers a field the page rejected though it wasn't marked required", async
   expect(a.guesses).toEqual([{ q: "Which team are you most interested in?", a: "Payments" }]);
 });
 
+test("waits out a rate limit on a drafted cover letter instead of handing the job to the user", async ({
+  sw,
+  page,
+  mock,
+}) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  // Drafts turned down on every key for the next 6 s, as a per-minute quota does.
+  let until = 0;
+  mock.always = (_key, _model, kind) =>
+    kind === "essay" && (until ||= Date.now() + 6000) > Date.now()
+      ? {
+          status: 429,
+          body: {
+            error: {
+              code: 429,
+              status: "RESOURCE_EXHAUSTED",
+              message: "You exceeded your current quota.",
+              details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "6s" }],
+            },
+          },
+        }
+      : null;
+  await queue(sw, `${BASE}yolo-cover-letter.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

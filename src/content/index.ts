@@ -698,7 +698,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
 async function coverLetter(h: FieldHandle, ctrl: AbortController) {
   setStatus(h, "working", "Drafting a cover letter…");
   const r = await send({ type: "COVER_LETTER_PDF", question: h.desc.label });
-  if (isErr(r)) return setStatus(h, "needs", r.error.message);
+  if (isErr(r)) {
+    rateLimited(r.error);
+    return setStatus(h, "needs", r.error.message);
+  }
   config.documentsIndex = [...config.documentsIndex, r.meta];
   guesses.set(h.id, { q: h.desc.label, a: "A cover letter written for this job" });
   await doFill(h, { type: "file", documentId: r.meta.id }, "draft", "Generated cover letter", ctrl);
@@ -708,6 +711,7 @@ async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortContr
   for (const i of items) setStatus(handles.get(i.fieldId)!, "working", "Drafting…");
   const r = await send({ type: "DRAFT_ESSAYS", items, groupId });
   if (isErr(r)) {
+    rateLimited(r.error);
     for (const i of items) setStatus(handles.get(i.fieldId)!, "needs", r.error.message);
     return;
   }
@@ -734,6 +738,13 @@ async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortContr
     }),
   );
   mark("essays");
+}
+
+/** A rate limit on a drafting call ends the fill as a mapping call's does: retried, or YOLO waits or requeues. */
+function rateLimited(err: ApiError) {
+  if (err.kind !== "allKeysExhausted") return;
+  lastError = err;
+  scheduleAutoRetry(err);
 }
 
 function scheduleAutoRetry(err: ApiError) {
