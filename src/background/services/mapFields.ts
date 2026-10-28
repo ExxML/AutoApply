@@ -883,6 +883,53 @@ function languagesDecision(f: FieldDescriptor, profile: Profile): Decision | nul
   };
 }
 
+/** A technology's name for comparing: "React.js", "ReactJS" and "React" read alike. */
+const techName = (t: string) => {
+  const n = t.toLowerCase().replace(/\s+/g, "");
+  return n.replace(/\.?js$/, "") || n;
+};
+const techNames = (t: string) =>
+  t
+    .split(/[/,()]| or /)
+    .map(techName)
+    .filter(Boolean);
+
+/**
+ * "Which languages are you proficient in?" (checklist of technologies): each one the profile's skills or projects
+ * name. Nimbus's got Python and Java, leaving out the profile's TypeScript and C++.
+ */
+function skillsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  if (!f.options || !isMulti(f) || /\bnot\b|n['’]t\b/i.test(f.label)) return null;
+  if (!/\b(languages?|technolog\w*|frameworks?|tools?|skills?|tech stack)\b/i.test(f.label)) return null;
+  // In the profile's order: "select up to 3" keeps the ones it lists first.
+  const known = [
+    ...profile.skills.technical,
+    ...profile.skills.soft,
+    ...profile.projects.flatMap((p) => p.tech),
+  ].flatMap(techNames);
+  const rank = (o: string) =>
+    Math.min(
+      ...techNames(o)
+        .map((n) => known.indexOf(n))
+        .filter((r) => r >= 0),
+    );
+  const max = Number(f.label.match(/\b(?:up to|at most|max(?:imum)?(?: of)?|top)\s+(\d)\b/i)?.[1]) || undefined;
+  const picks = f.options
+    .flatMap((o, i) => (Number.isFinite(rank(o)) ? [i] : []))
+    .sort((a, b) => rank(f.options![a]) - rank(f.options![b]))
+    .slice(0, max)
+    .sort((a, b) => a - b);
+  if (!picks.length) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: picks,
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["skills.technical", "projects"],
+  };
+}
+
 /**
  * "How many prior internships have you had?" counted from the profile's internship and co-op roles: Harvey and Notion
  * got "1" for two.
@@ -1861,6 +1908,7 @@ export async function mapFields(
       obtainedEducationDecision(f, input.profile) ??
       basicsDecision(f, input.profile) ??
       languagesDecision(f, input.profile) ??
+      skillsDecision(f, input.profile) ??
       internshipsDecision(f, input.profile.experience) ??
       pronunciationDecision(f) ??
       cohortDecision(f, input.profile.preferences) ??

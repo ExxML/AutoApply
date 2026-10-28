@@ -558,6 +558,41 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(["4-month term", "8-month term", "12-month term"])).toBe("4-month term, 8-month term");
   });
 
+  it("ticks the technologies the profile's skills and projects name", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.skills.technical = ["Python", "TypeScript", "Java", "C/C++", "React", "Node.js"];
+    profile.projects = [{ name: "P", url: "", description: "", tech: ["Docker"] }];
+    const ask = async (label: string, options: string[]) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("s", { label, kind: "checkbox_group", options, multiple: true })],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(
+      await ask("Which languages are you proficient in?", ["Go", "Rust", "Python", "Java", "TypeScript", "C++"]),
+    ).toBe("Python, Java, TypeScript, C++");
+    expect(await ask("Which frameworks or tools have you used?", ["ReactJS", "NodeJS", "Docker", "Kubernetes"])).toBe(
+      "ReactJS, NodeJS, Docker",
+    );
+    expect(await ask("Select up to 2 languages you know best", ["Java", "Go", "Python", "TypeScript"])).toBe(
+      "Python, TypeScript",
+    );
+    expect(await ask("Which languages do you speak?", ["English", "French"])).toBe("flag");
+    expect(await ask("Which languages have you not used?", ["Python", "Go"])).toBe("flag");
+  });
+
   it("keeps an office or term pick from a list the profile accepts all of", async () => {
     const gemini = {
       call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: { fieldId: string }[] } }) => {
