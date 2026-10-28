@@ -243,6 +243,7 @@ const handlers: Handlers = {
       settings: y ? { ...settings, ...y.settings } : settings,
       profileSnapshotForDeterministic: {
         personal: y ? { ...s.profile.personal, email: y.email } : s.profile.personal,
+        aiReviewConsent: s.profile.background.consentToAiReview,
         learnedAnswers: s.profile.learnedAnswers.map(({ id, question, normalizedQuestion, kind, options, answer }) => ({
           id,
           question,

@@ -378,6 +378,12 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         "Answers opt-ins to AI notetakers or recorded / transcribed interviews.",
         "yn",
       ),
+      t(
+        "background.consentToAiReview",
+        "Consent to AI review of application",
+        "Answers whether AI tools may assess your application (“By selecting Yes, you consent to the use of AI tools…”).",
+        "yn",
+      ),
     ],
   },
   {

@@ -184,6 +184,8 @@ export interface EssayItem {
 
 export interface DeterministicProfile {
   personal: Profile["personal"];
+  /** Set: AI-review consents are answered from the profile instead of the consent settings. */
+  aiReviewConsent: Profile["background"]["consentToAiReview"];
   learnedAnswers: Pick<LearnedAnswer, "id" | "question" | "normalizedQuestion" | "kind" | "options" | "answer">[];
 }
 

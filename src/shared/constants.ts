@@ -105,6 +105,21 @@ export const RE_OPTIONAL_CONSENT =
 /** Opt-in to AI notetakers or recorded interviews: answered from the profile, not as a consent. Not "transcript". */
 export const RE_INTERVIEW_RECORDING =
   /\bnote-?tak|\b(record|transcrib)\w*\b[^.]*\b(interview|conversation|meeting)s?\b|\b(interview|conversation|meeting)s?\b[^.]*\b(record|transcrib)\w*/i;
+const AI_TERM = String.raw`\b(AI|artificial intelligence|machine learning)\b`;
+const AI_ASSESS = String.raw`\b(assess|evaluat|review|screen|analy[sz]|process|rank|scor)\w*`;
+const RE_AI_REVIEW = new RegExp(
+  String.raw`${AI_TERM}[^.?]*${AI_ASSESS}|${AI_ASSESS}[^.?]*\b(using|with|by|through|via)\b[^.?]*${AI_TERM}`,
+  "i",
+);
+/**
+ * A request to let AI tools assess the application (ADI: "may use artificial intelligence (AI) tools to assess how
+ * your candidate information aligns …"): answered from the profile when set. Not the candidate's own AI work ("Have
+ * you used AI to screen candidates?").
+ */
+export const isAiReview = (text: string): boolean =>
+  RE_AI_REVIEW.test(text) &&
+  /\b(candidat|applica|your (personal )?(data|information|profile|r[eé]sum[eé]|cv|submission|skills))/i.test(text) &&
+  !/\b(have|did) you\b[^?.]*\b(use|used|built|developed|implemented)\b/i.test(text);
 /** Answer choices of a consent question ("Consent" / "Do Not Consent"). */
 export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowledge|accept)/i;
 export const RE_CONSENT_NO = /^(no[\s,:–—-]+)?(i )?(do not|don['’]t|decline|disagree|refuse|withhold)\b/i;

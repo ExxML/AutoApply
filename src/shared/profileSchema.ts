@@ -167,6 +167,7 @@ export const ProfileSchema = o({
     outsideActivities: s(),
     governmentTies: s(),
     consentToInterviewRecording: yn(),
+    consentToAiReview: yn(),
   }),
   referral: o({ howDidYouHearDefault: s(), referrerName: s() }),
   demographics: o({

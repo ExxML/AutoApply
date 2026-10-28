@@ -991,6 +991,52 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["c", "a", "b", "c"]);
   });
 
+  it("answers AI-review consents from the profile", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const label =
+      "To support an efficient recruitment process, ADI may use artificial intelligence (AI) tools to assess how your " +
+      "candidate information aligns with the role requirements. These tools do not make decisions about a " +
+      "candidate’s status. By selecting “Yes,” you consent to the use of AI tools to evaluate your candidate information.";
+    const fields = [
+      field("a", { label, kind: "radio_group", options: ["Yes", "No"] }),
+      field("b", { label: "I consent to AI tools reviewing my application.", kind: "checkbox" }),
+      field("c", {
+        label: "Have you used AI tools to screen candidates?",
+        kind: "radio_group",
+        options: ["Yes", "No"],
+      }),
+    ];
+    const run = () =>
+      mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+    profile.background.consentToAiReview = "yes";
+    expect((await run()).decisions.map((d) => d.intendedAnswer ?? d.checked ?? d.action)).toEqual([
+      "Yes",
+      true,
+      "flag",
+    ]);
+    profile.background.consentToAiReview = "no";
+    expect((await run()).decisions.map((d) => d.intendedAnswer ?? d.checked ?? d.action)).toEqual([
+      "No",
+      false,
+      "flag",
+    ]);
+    profile.background.consentToAiReview = "";
+    await run();
+    expect(asked).toEqual(["a", "b"]);
+  });
+
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
     const asked: string[] = [];
     const gemini = {

@@ -3,6 +3,7 @@
 // (./yolo), which the user turned on: it fills and submits in a page the background loaded for it.
 import {
   canonicalCountry,
+  isAiReview,
   RE_APPLIED,
   RE_CONSENT,
   RE_COVER_LETTER,
@@ -443,6 +444,10 @@ function defaultCountry(h: FieldHandle): boolean {
   return !!shown && !!home && shown !== home;
 }
 
+/** An AI-review consent the profile answers: mapped (decided without AI in the background), not a settings consent. */
+const aiReviewAnswered = (d: FieldDescriptor) =>
+  !!config.profileSnapshotForDeterministic.aiReviewConsent && isAiReview(`${d.label} ${d.hint ?? ""}`);
+
 /** Required and optional consents follow separate settings; a required field is never optional. */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
@@ -564,7 +569,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         continue;
       }
       if (h.consent) {
-        handleConsent(h, undefined, ctrl, jobs);
+        if (aiReviewAnswered(h.desc)) pending.push(h);
+        else handleConsent(h, undefined, ctrl, jobs);
         continue;
       }
       if (h.desc.kind === "file") {
@@ -642,7 +648,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
             return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
           });
           // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
-          const consents = new Set(fields.filter(isConsent).map((f) => f.id));
+          const consents = new Set(fields.filter((f) => isConsent(f) && !aiReviewAnswered(f)).map((f) => f.id));
           for (const h of chunk) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
           maps.push(
             mapAndApply(

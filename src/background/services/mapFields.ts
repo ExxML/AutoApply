@@ -13,6 +13,7 @@ import {
   canonicalCountry,
   HUB_REGIONS,
   HUBS,
+  isAiReview,
   RE_CONSENT,
   RE_ENTRY_SECTION,
   RE_INTERVIEW_RECORDING,
@@ -1572,8 +1573,15 @@ const exerciseDecision = (f: FieldDescriptor): Decision | null =>
     : null;
 
 /** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
-function recordingDecision(f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null {
-  if (!consent || !RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`)) return null;
+const recordingDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null =>
+  consent && RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`) ? optInDecision(f, consent) : null;
+
+/** Consent to AI tools assessing the application (ADI's Yes/No), answered from the profile's preference. */
+const aiReviewDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null =>
+  consent && isAiReview(`${f.label} ${f.hint ?? ""}`) ? optInDecision(f, consent) : null;
+
+/** An opt-in box ticked per the preference, or the one choice that agrees (or declines) with it. */
+function optInDecision(f: FieldDescriptor, consent: "yes" | "no"): Decision | null {
   const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["background"] };
   if (f.kind === "checkbox") return { ...base, checked: consent === "yes" };
   const re =
@@ -1987,6 +1995,7 @@ export async function mapFields(
   for (const f of input.fields) {
     const d =
       aiUseDecision(f) ??
+      aiReviewDecision(f, input.profile.background.consentToAiReview) ??
       schoolEmailDecision(f) ??
       exerciseDecision(f) ??
       clearanceDecision(f, job, input.profile) ??
