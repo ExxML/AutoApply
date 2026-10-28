@@ -94,6 +94,27 @@ export function companyFromHost(loc: Location): string {
   return host.split(".")[0];
 }
 
+const MARKED_DESC =
+  '[class*="description" i],[id*="description" i],[data-qa*="description" i],[data-automation-id*="description" i],[itemprop=description]';
+
+/**
+ * The block the page itself names as the description (Greenhouse's .job__description), for a posting without two
+ * of the usual headings: a short intern posting ("Acme is hiring… The pay is $45 - $55 per hour.") went unread, pay
+ * and all. Not a form's question descriptions.
+ */
+function markedDescription(doc: Document): HTMLElement | null {
+  let best: HTMLElement | null = null;
+  let bestLen = 199;
+  for (const el of doc.querySelectorAll<HTMLElement>(MARKED_DESC)) {
+    const len = (el.textContent ?? "").length;
+    if (len > bestLen && !el.closest("form") && !el.querySelector(CONTROLS) && isVisible(el)) {
+      best = el;
+      bestLen = len;
+    }
+  }
+  return best;
+}
+
 function largestDescriptionBlock(doc: Document): string {
   let best: HTMLElement | null = null;
   let bestLen = 0;
@@ -105,6 +126,7 @@ function largestDescriptionBlock(doc: Document): string {
       bestLen = text.length;
     }
   }
+  best ??= markedDescription(doc);
   return best ? collapse(best.innerText ?? best.textContent ?? "").slice(0, 8000) : "";
 }
 
@@ -263,8 +285,9 @@ function postingText(doc: Document): { text: string; sure: boolean } {
     const p = n.parentElement;
     if (p && !p.closest(SKIP_TEXT)) hits.push(p);
   }
-  if (!hits.length) return { text: "", sure: false };
-  let root: Element | null = hits[0];
+  const marked = hits.length ? null : markedDescription(doc);
+  if (!hits.length && !marked) return { text: "", sure: false };
+  let root: Element | null = marked ?? hits[0];
   while (root && !hits.every((h) => root!.contains(h))) root = root.parentElement;
   for (let i = 0; i < 2 && root?.parentElement && !root.parentElement.querySelector(CONTROLS); i++)
     root = root.parentElement;

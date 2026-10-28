@@ -590,6 +590,16 @@ describe("job context (§11.7)", () => {
     expect(readPay(document, new URL("https://example.com/blog") as unknown as Location)).toBeNull();
   });
 
+  it("reads a posting without the usual headings from the block the page names its description", () => {
+    const board = new URL("https://job-boards.greenhouse.io/acme/jobs/4003") as unknown as Location;
+    const intro = "Acme is hiring Software Engineering Interns for Summer 2027 at our Seattle headquarters. ".repeat(3);
+    setBody(`<h1>Software Engineering Intern</h1><div class="job__description body"><p>${intro}</p>
+      <p>The pay for this role is $45 - $55 per hour.</p></div>
+      <form><p class="field-description">${"Tell us about a project, e.g. one paying $10 per hour. ".repeat(5)}</p><input></form>`);
+    expect(extractJobContext(document, board).text).toContain("Seattle headquarters");
+    expect(readPay(document, board)).toEqual([{ min: 45, max: 55, period: "hour", currency: "" }]);
+  });
+
   it("keeps the text above the form when the page has no description (Lever's apply page)", () => {
     setBody(`<div class="posting-headline"><h2>Infrastructure Engineer, Internship</h2><div>Washington, D.C. / Internship</div></div>
       <form><label>Full name <input></label><p>Not part of the header</p></form>`);
