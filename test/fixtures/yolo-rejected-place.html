@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Software Engineer Intern</title>
+  </head>
+  <body>
+    <h1>Software Engineer Intern</h1>
+    <form id="f" novalidate onsubmit="return false;">
+      <p><label for="fn">First name *</label> <input id="fn" required /></p>
+      <p>
+        <label for="loc">Location (City) *</label>
+        <input id="loc" role="combobox" aria-autocomplete="list" aria-controls="res" autocomplete="off" required />
+      </p>
+      <div id="res" role="listbox"></div>
+      <button type="button" id="go">Submit application</button>
+    </form>
+    <script>
+      // The place search answers only from the second try on; a typed place must be picked from it.
+      const loc = document.getElementById("loc");
+      const res = document.getElementById("res");
+      let ready = false;
+      let picked = false;
+      loc.addEventListener("input", () => {
+        picked = false;
+        res.innerHTML = ready && loc.value ? '<div role="option">Vancouver, BC, Canada</div>' : "";
+      });
+      res.addEventListener("click", (e) => {
+        loc.value = e.target.textContent;
+        picked = true;
+        res.innerHTML = "";
+      });
+      document.getElementById("go").addEventListener("click", () => {
+        document.querySelectorAll("[role=alert]").forEach((x) => x.remove());
+        if (picked && document.getElementById("fn").value) return void (location.href = "yolo-thanks.html");
+        ready = true;
+        loc.setAttribute("aria-invalid", "true");
+        loc.insertAdjacentHTML("afterend", '<span role="alert">Please select a location from the list</span>');
+      });
+    </script>
+  </body>
+</html>

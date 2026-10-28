@@ -176,6 +176,14 @@ test("opens a posting whose application is collapsed in the page", async ({ sw, 
   expect(logs.at(-1)?.text).toContain("Steps: job → form → success");
 });
 
+test("fills again a field the page rejected, though it holds what we typed", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-rejected-place.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

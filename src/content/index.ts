@@ -552,7 +552,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     const pending: FieldHandle[] = [];
     const cityField = all.some((h) => RE_CITY_FIELD.test(h.desc.label));
     for (const h of targets) {
-      if (h.prefilled && !config.settings.overwritePrefilled && !defaultCountry(h)) {
+      // Not one the page rejected: what it holds is ours, and wrong (a typed place never picked from its list).
+      if (h.prefilled && !config.settings.overwritePrefilled && !defaultCountry(h) && !rejected.has(h.id)) {
         setStatus(h, "prefilled");
         continue;
       }
