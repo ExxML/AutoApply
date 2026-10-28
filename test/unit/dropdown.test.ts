@@ -388,6 +388,15 @@ describe("dates split into Month / Day / Year boxes (Workday)", () => {
     });
     expect(readValue(start)).toBe("01/01/2027");
   });
+
+  it("types only the year into a lone Year box", async () => {
+    setBody(`<div><label id="f-label">From</label><div role="group" aria-labelledby="f-label">${box("Year")}</div></div>
+      <div><label id="t-label">To (Actual or Expected)</label><div role="group" aria-labelledby="t-label">${box("Year")}</div></div>`);
+    const [, to] = scan(newScanState()).handles;
+    expect(to.desc).toMatchObject({ kind: "date", label: "To (Actual or Expected)", placeholder: "YYYY" });
+    expect(await fill(to, { type: "text", value: "May 2028" }, deps())).toMatchObject({ outcome: "ok", shown: "2028" });
+    expect(await fill(to, { type: "text", value: "2029" }, deps())).toMatchObject({ outcome: "ok", shown: "2029" });
+  });
 });
 
 describe("slotted options (SmartRecruiters' spl-select)", () => {

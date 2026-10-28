@@ -250,10 +250,12 @@ export function buildUnits(c: Collected): Unit[] {
   const parts = cands.filter(
     (e): e is HTMLInputElement => e instanceof HTMLInputElement && !taken.has(e) && !!datePart(e) && isVisible(e),
   );
-  for (const g of groupBy(parts, (e) => sharedParent(e, parts))) {
+  for (const g of groupBy(parts, (e) => e.closest("[role=group]") ?? sharedParent(e, parts))) {
     const kinds = g.map(datePart);
-    if (g.length < 2 || g.length > 3 || !kinds.includes("y") || new Set(kinds).size !== g.length) continue;
-    take({ kind: "date", el: g[0], groupEl: sharedParent(g[0], g), sections: g });
+    // A lone Year spinbutton too (Workday's education "To"): "May 2028" typed into it read "2805".
+    const lone = g.length === 1 && g[0].getAttribute("role") === "spinbutton";
+    if ((g.length < 2 && !lone) || g.length > 3 || !kinds.includes("y") || new Set(kinds).size !== g.length) continue;
+    take({ kind: "date", el: g[0], groupEl: g[0].closest("[role=group]") ?? sharedParent(g[0], g), sections: g });
     g.forEach((e) => taken.add(e));
   }
 

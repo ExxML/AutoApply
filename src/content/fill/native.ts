@@ -37,7 +37,8 @@ export function parseDate(v: string): { y: number; m: number; d?: number } | nul
 
 /** A date in separate Month / Day / Year boxes (Workday): each part typed into its own box. */
 async function fillDateSections(h: FieldHandle, raw: string): Promise<FillResult> {
-  const p = parseDate(raw);
+  const yearOnly = h.sections!.every((s) => datePart(s) === "y") && /^\d{4}$/.test(raw.trim());
+  const p = yearOnly ? { y: Number(raw.trim()), m: 1 } : parseDate(raw);
   if (!p) return { outcome: "flag", note: `Pick the date manually: ${raw}` };
   const want = { m: pad(p.m), d: pad(p.d ?? 1), y: String(p.y) };
   for (const s of h.sections!) {
