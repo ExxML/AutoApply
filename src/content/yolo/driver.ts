@@ -35,6 +35,8 @@ export interface DriverDeps {
   answers(): Record<string, Guess>;
   /** Debug logging is on: each page's answers go to the background's log of the run. */
   debug: boolean;
+  /** Shares the posting's description and pay before the run leaves its page, for later pages' answers. */
+  posting(): Promise<void>;
 }
 
 /** A test build (VITE_YOLO_DRY=1) stops before the final submit and reports what it filled; others compile it out. */
@@ -131,6 +133,7 @@ export async function drive(deps: DriverDeps) {
           location.reload(); // the step loop guard ends it after a few tries
           return;
         case "embedded":
+          await deps.posting();
           location.href = embeddedForm()!;
           return;
         case "verify": {
@@ -152,6 +155,7 @@ export async function drive(deps: DriverDeps) {
           const board = /(^|\.)(indeed|glassdoor|linkedin|ziprecruiter)\./.test(location.hostname);
           if (RE_EASY_APPLY.test(b.innerText) || (board && !/company|employer/i.test(labelOf(b))))
             return result({ status: "skipped", reason: "Easy Apply only (not supported yet)" });
+          await deps.posting();
           press(b);
           break;
         }

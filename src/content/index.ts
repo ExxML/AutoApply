@@ -905,6 +905,13 @@ async function startYolo() {
     email: () => config.profileSnapshotForDeterministic.personal.email,
     answers,
     debug: config.settings.debugLogging,
+    posting: async () => {
+      const pays = readPay();
+      await Promise.all([
+        pays && send({ type: "SET_JOB_PAY", pays, passive: false }),
+        send({ type: "SET_JOB_CONTEXT", ctx: extractJobContext() }),
+      ]).catch(() => undefined);
+    },
   });
 }
 

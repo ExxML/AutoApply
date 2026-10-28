@@ -1,7 +1,7 @@
 // YOLO mode end to end in the built extension: a queued job applied to in the hidden host, with the Gemini mock.
 import type { Worker } from "@playwright/test";
 import type { Application } from "../../src/shared/yolo";
-import { BASE, expect, fillPage, seed, storage, test, waitDone } from "./extension";
+import { BASE, expect, fillPage, PROFILE, seed, storage, test, waitDone } from "./extension";
 
 const queue = (sw: Worker, url: string, yolo: Record<string, unknown> = {}) =>
   sw.evaluate(
@@ -115,6 +115,18 @@ test("waits out a rate limit on a drafted cover letter instead of handing the jo
       : null;
   await queue(sw, `${BASE}yolo-cover-letter.html`);
   await outcome(sw).toBe("submitted");
+});
+
+test("asks for pay from the posting's range after Apply leads to another page", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  const desiredCompensation = { amount: "20", currency: "CAD", period: "hour", strategy: "q1" };
+  const profile = { ...PROFILE, preferences: { ...PROFILE.preferences, desiredCompensation } };
+  await seed(sw, { caps: true, profile, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-job-pay.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Desired hourly pay = $42.50");
 });
 
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
