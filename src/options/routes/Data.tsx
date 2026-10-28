@@ -23,7 +23,7 @@ const ExportSchema = z.object({
 type Export = z.infer<typeof ExportSchema>;
 
 export function Data() {
-  const [withKeys, setWithKeys] = useState(false);
+  const [withKeys, setWithKeys] = useState(true);
   const [withDocs, setWithDocs] = useState(true);
   const [pending, setPending] = useState<{ data: Export; summary: string[] } | null>(null);
   const [msg, setMsg] = useState("");
