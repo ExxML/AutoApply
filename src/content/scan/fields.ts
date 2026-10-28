@@ -197,6 +197,10 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const nameId = `${el.getAttribute("name") ?? ""} ${el.id} ${el.getAttribute("data-automation-id") ?? ""}`;
     if (RE_SKIP_LABEL.test(label) || RE_SKIP_LABEL.test(nameId)) continue;
     if (excludedContext(el, label, mainForm)) continue;
+    // select2 3.x's keyboard proxy, named by the pick it shows ("Yes"): over a <select>, that select is the question.
+    // Over a hidden input (Greenhouse's school search) it is the only way in.
+    const s2 = el.classList.contains("select2-focusser") ? el.closest(".select2-container") : null;
+    if (s2?.id.startsWith("s2id_") && document.getElementById(s2.id.slice(5)) instanceof HTMLSelectElement) continue;
     // A phone's country picker named only by its value ("Netherlands", Recruitee) follows the dial code we type.
     if (
       u.kind === "dropdown" &&

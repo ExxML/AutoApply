@@ -539,6 +539,22 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.required).toBe(true);
   });
 
+  it("leaves out select2 3.x's keyboard proxy, named by the pick it shows (legacy Greenhouse)", () => {
+    setBody(`<form><div><label for="q">Are you legally authorized to work in Canada? *</label>
+      <select id="q" class="select2-offscreen" tabindex="-1"><option value="">--</option><option>Yes</option><option>No</option></select>
+      <div class="select2-container" id="s2id_q"><a href="javascript:void(0)" class="select2-choice" tabindex="-1">
+        <span class="select2-chosen" id="select2-chosen-1">Yes</span></a>
+        <label for="s2id_autogen1" class="select2-offscreen">Are you legally authorized to work in Canada?</label>
+        <input class="select2-focusser select2-offscreen" type="text" aria-haspopup="true" role="button"
+          aria-labelledby="select2-chosen-1" id="s2id_autogen1"></div></div></form>`);
+    expect(fields().filter((h) => h.el.classList.contains("select2-focusser"))).toEqual([]);
+    // Over a hidden input (an AJAX school search), the proxy is the field.
+    document
+      .querySelector("select")!
+      .replaceWith(Object.assign(document.createElement("input"), { type: "hidden", id: "q" }));
+    expect(fields().filter((h) => h.el.classList.contains("select2-focusser"))).toHaveLength(1);
+  });
+
   it("reads an empty MUI Select, which shows a zero-width space, as empty", () => {
     setBody(`<div><label id="w-label">Where would you like to work from?</label>
       <div role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="w-label"
