@@ -22,7 +22,7 @@ import type {
   StatusCounts,
 } from "../shared/types";
 import { extractJobContext, jobUrl, readPay } from "./jobContextExtract";
-import { deterministicValue, isFreeText, matchLearned } from "./match/deterministic";
+import { deterministicValue, isFreeText, matchLearned, RE_CITY_FIELD } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
@@ -550,6 +550,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     const det = config.profileSnapshotForDeterministic;
     const usedLearned: string[] = [];
     const pending: FieldHandle[] = [];
+    const cityField = all.some((h) => RE_CITY_FIELD.test(h.desc.label));
     for (const h of targets) {
       if (h.prefilled && !config.settings.overwritePrefilled && !defaultCountry(h)) {
         setStatus(h, "prefilled");
@@ -582,7 +583,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         else pending.push(h);
         continue;
       }
-      const d = deterministicValue(h.desc, det.personal);
+      const d = deterministicValue(h.desc, det.personal, cityField);
       if (d) {
         const op: FillOp = d.query
           ? { type: "intended", answer: d.value, query: d.query }

@@ -49,6 +49,9 @@ export function formatPhone(number: string, placeholder?: string): string {
   return placeholder.replace(/[#\dXx_]/g, () => digits[i++]);
 }
 
+const RE_BARE_ADDRESS = /^((home|mailing|street|residential|current|permanent) )?address$/i;
+/** A form's own city box, for telling what its bare "Address" asks. */
+export const RE_CITY_FIELD = /^((current|home) )?(city|town)(\/town)?$/i;
 const PLACES = new Set<DetKey>(["location", "city", "region", "postalCode", "streetAddress", "line1", "line2"]);
 const RE_ENTRY_SECTION = /\b(experience|employment|work history|education)\b/i;
 
@@ -69,11 +72,19 @@ export interface DetResult {
   query?: string;
 }
 
-export function deterministicValue(d: FieldDescriptor, p: DeterministicProfile["personal"]): DetResult | null {
+/**
+ * `cityField`: the form asks the city in a field of its own, so a bare "Address" is the street: JazzHR's got the whole
+ * address beside its City, Province and Postal code boxes. Elsewhere the AI decides.
+ */
+export function deterministicValue(
+  d: FieldDescriptor,
+  p: DeterministicProfile["personal"],
+  cityField = false,
+): DetResult | null {
   // Typeaheads, and remote-search dropdowns (Greenhouse's "Location (City)"), list places to search.
   const typeahead = d.kind === "typeahead" || (d.kind === "dropdown" && !d.optionsKnown);
   if (!TEXT_KINDS.has(d.kind) && !typeahead) return null;
-  const key = keyFor(d);
+  const key = keyFor(d) ?? (cityField && RE_BARE_ADDRESS.test(d.label) ? "streetAddress" : null);
   if (!key) return null;
   // An entry's own place is the job's or school's, not home: Workday's "Work Experience 1" Location got the home city
   // for a Vancouver job. The AI fills it from the entry.
