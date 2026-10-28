@@ -79,6 +79,15 @@ test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) =>
   expect(a.reason).toBe("CAPTCHA");
 });
 
+test("hands a DataDome CAPTCHA to the user instead of failing the hidden run", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-datadome-captcha.html`);
+  await outcome(sw).toBe("needs");
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a.reason).toBe("CAPTCHA");
+});
+
 test("stops at the daily cap", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

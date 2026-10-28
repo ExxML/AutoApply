@@ -85,6 +85,25 @@ describe("YOLO page kinds", () => {
     expect(captchaShown()).toBe(false);
   });
 
+  it("recognizes DataDome's full-page CAPTCHA frame", () => {
+    setBody(`<iframe src="about:blank#https://geo.captcha-delivery.com/captcha/?cid=x"></iframe>`);
+    const f = document.querySelector("iframe")!;
+    f.getBoundingClientRect = () => ({
+      width: 1280,
+      height: 720,
+      top: 0,
+      left: 0,
+      right: 1280,
+      bottom: 720,
+      x: 0,
+      y: 0,
+      toJSON() {},
+    });
+    expect(captchaShown()).toBe(true);
+    // Unlike Cloudflare, this challenge should be handed to the user instead of retried in a background tab.
+    expect(classify(0, true)).toBe("captcha");
+  });
+
   it("sees hCaptcha's challenge in its page-sized frame only while shown (Lever)", () => {
     const enclave = (style: string) =>
       `<iframe style="${style}" src="https://newassets.hcaptcha.com/captcha/v1/x/static/hcaptcha-enclave.html#frame=en"></iframe>`;

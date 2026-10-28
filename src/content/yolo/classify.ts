@@ -56,7 +56,9 @@ function challenge(): HTMLIFrameElement | undefined {
   if (tokens.some((t) => (t as HTMLTextAreaElement).value)) return undefined;
   return (deepQueryAll("iframe") as HTMLIFrameElement[]).find((f) => {
     const shown =
-      /recaptcha\/(api2|enterprise)\/bframe|hcaptcha\.com.*frame=challenge|challenges\.cloudflare\.com/.test(f.src) ||
+      /recaptcha\/(api2|enterprise)\/bframe|hcaptcha\.com.*frame=challenge|challenges\.cloudflare\.com|captcha-delivery\.com\/captcha(?:\/|[?#]|$)/.test(
+        f.src,
+      ) ||
       (/recaptcha\/(api2|enterprise)\/anchor|hcaptcha\.com.*frame=checkbox/.test(f.src) &&
         !/size=invisible/.test(f.src));
     const r = f.getBoundingClientRect();
