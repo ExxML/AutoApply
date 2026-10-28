@@ -79,7 +79,25 @@ export function findButton(re: RegExp, workday: string[] = []): HTMLElement | nu
   return matches.sort((a, b) => a.getBoundingClientRect().bottom - b.getBoundingClientRect().bottom).pop() ?? null;
 }
 
-export const findApply = () => findButton(RE_APPLY, WORKDAY.apply);
+/**
+ * A posting's Apply that is no control at all: a div, or a link without an href, with a click handler (React's
+ * listen at the root). Only entrance wordings, on something that shows as clickable; the innermost such element.
+ */
+function looseApply(): HTMLElement | null {
+  const matches = deepQueryAll("div,span,li,a:not([href])").filter((el) => {
+    if (el.childElementCount > 3 || el.closest(HOST_TAG)) return false;
+    const t = collapse(el.textContent ?? "");
+    return (
+      t.length < 60 &&
+      RE_APPLY_OPENING.test(t) &&
+      (el.matches("a,[onclick],[tabindex]") || getComputedStyle(el).cursor === "pointer") &&
+      usable(el)
+    );
+  });
+  return matches.find((el) => !matches.some((m) => m !== el && el.contains(m))) ?? null;
+}
+
+export const findApply = () => findButton(RE_APPLY, WORKDAY.apply) ?? looseApply();
 export const findNext = () => findButton(RE_NEXT, WORKDAY.next);
 export const findSubmit = () => findButton(RE_SUBMIT);
 

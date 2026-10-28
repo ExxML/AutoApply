@@ -242,6 +242,16 @@ describe("YOLO buttons", () => {
     expect(findApply()).toBeNull();
   });
 
+  it("finds an Apply that is a clickable div or a link without an href", () => {
+    setBody(`<h1>Software Developer Co-op</h1><a class="button apply">Apply to this job</a>`);
+    expect(findApply()?.tagName).toBe("A");
+    setBody(`<div class="apply-btn" style="cursor:pointer"><span>Apply to this job</span></div>`);
+    expect(findApply()?.textContent).toBe("Apply to this job");
+    // A section heading or plain text with the same words is not a control.
+    setBody(`<h2>Apply for this job</h2><div>Apply for this job</div>`);
+    expect(findApply()).toBeNull();
+  });
+
   it("reads validation messages", () => {
     setBody(
       `<div role="alert">Saved</div><div class="field-error">This field is required</div><input aria-invalid="true">`,
