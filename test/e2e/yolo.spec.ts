@@ -139,6 +139,33 @@ test("corrects a site's preselected country to the profile's", async ({ sw, page
   expect(logs.at(-1)?.text).toContain("Province = British Columbia");
 });
 
+test("queues a job again when short rate limits keep coming", async ({ sw, page, mock }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  // Every mapping call turned down, each time with a retry allowed in a second.
+  mock.always = (_key, _model, kind) =>
+    kind === "map"
+      ? {
+          status: 429,
+          body: {
+            error: {
+              code: 429,
+              status: "RESOURCE_EXHAUSTED",
+              message: "You exceeded your current quota.",
+              details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "1s" }],
+            },
+          },
+        }
+      : null;
+  await queue(sw, `${BASE}yolo-reveal.html`);
+  await expect
+    .poll(async () => (await storage<{ pauseReason: string }>(sw, "yoloState"))?.pauseReason, { timeout: 90_000 })
+    .toBe("AI usage limit reached");
+  expect((await storage<unknown[]>(sw, "applications")) ?? []).toEqual([]);
+  expect(await storage<unknown[]>(sw, "yoloQueue")).toHaveLength(1);
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

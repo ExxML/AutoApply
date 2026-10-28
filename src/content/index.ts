@@ -863,10 +863,11 @@ async function yoloFill(): Promise<FillReport> {
     await runPipeline({ rerun: true });
     while (running || queued) await sleep(100);
     if (lastError?.kind === "allKeysExhausted") {
-      // A short wait for a rate limit is spent here; a longer one sends the job back to the queue.
+      // A short wait for a rate limit is spent here; a longer one, or one still there on the last pass, sends the job
+      // back to the queue rather than to the user.
       const wait = (lastError.earliestRetryAt ?? 0) - Date.now();
       clearTimeout(retryTimer);
-      if (wait > 0 && wait <= 90_000) {
+      if (wait > 0 && wait <= 90_000 && pass < 3) {
         await sleep(wait + 250);
         continue;
       }

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Software Engineer Intern</title>
+  </head>
+  <body>
+    <h1>Software Engineer Intern</h1>
+    <form
+      onsubmit="
+        event.preventDefault();
+        location.href = 'yolo-thanks.html';
+      "
+    >
+      <p><label for="fn">First name *</label> <input id="fn" required /></p>
+      <p id="more" hidden><label for="ln">Last name *</label> <input id="ln" required /></p>
+      <fieldset>
+        <legend>Do you have any offer deadlines? *</legend>
+        <label><input type="radio" name="dl" value="yes" required /> Yes</label>
+        <label><input type="radio" name="dl" value="no" /> No</label>
+      </fieldset>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      // Answering one question shows the next, as many forms do.
+      document.getElementById("fn").addEventListener("input", () => (document.getElementById("more").hidden = false));
+    </script>
+  </body>
+</html>
