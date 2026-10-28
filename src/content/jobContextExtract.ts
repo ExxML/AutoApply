@@ -2,7 +2,10 @@
 import { canonicalCountry, HUBS, isAtsHost, regionCountry } from "../shared/constants";
 import { collapse, normalize } from "../shared/normalize";
 import type { JobContext, Pay } from "../shared/types";
-import { isVisible } from "./scan/visibility";
+import { isVisible as isRendered } from "./scan/visibility";
+
+/** A posting fetched rather than shown (YOLO skipped its page) is not rendered: all of it counts as shown. */
+const isVisible = (el: Element) => el.ownerDocument !== document || isRendered(el);
 
 // MongoDB: "What we are looking for in you (qualifications)".
 const RE_DESC =
@@ -136,7 +139,8 @@ function largestDescriptionBlock(doc: Document): string {
     }
   }
   best ??= markedDescription(doc);
-  return best ? collapse(best.innerText ?? best.textContent ?? "").slice(0, 8000) : "";
+  const shown = best && (best.ownerDocument === document ? best.innerText : spacedText(best));
+  return shown ? collapse(shown).slice(0, 8000) : "";
 }
 
 /** Visible text before the first form control (title, location, team on apply pages). */

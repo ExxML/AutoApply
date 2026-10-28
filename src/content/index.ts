@@ -917,6 +917,15 @@ function answers(): Record<string, Guess> {
   return out;
 }
 
+/** Gives the background a posting's description and pay, for the application's later pages. */
+async function sharePosting(doc: Document, loc: Location) {
+  const pays = readPay(doc, loc);
+  await Promise.all([
+    pays && send({ type: "SET_JOB_PAY", pays, passive: false }),
+    send({ type: "SET_JOB_CONTEXT", ctx: extractJobContext(doc, loc) }),
+  ]).catch(() => undefined);
+}
+
 async function startYolo() {
   if (yolo) return;
   yolo = true;
@@ -935,12 +944,14 @@ async function startYolo() {
     email: () => config.profileSnapshotForDeterministic.personal.email,
     answers,
     debug: config.settings.debugLogging,
-    posting: async () => {
-      const pays = readPay();
-      await Promise.all([
-        pays && send({ type: "SET_JOB_PAY", pays, passive: false }),
-        send({ type: "SET_JOB_CONTEXT", ctx: extractJobContext() }),
-      ]).catch(() => undefined);
+    posting: () => sharePosting(document, location),
+    readPosting: async (url) => {
+      // One request, nothing rendered: the description and pay are in its HTML or JSON-LD.
+      const html = await fetch(url, { credentials: "include" })
+        .then((r) => (r.ok ? r.text() : ""))
+        .catch(() => "");
+      if (html)
+        await sharePosting(new DOMParser().parseFromString(html, "text/html"), new URL(url) as unknown as Location);
     },
   });
 }

@@ -37,6 +37,8 @@ export interface DriverDeps {
   debug: boolean;
   /** Shares the posting's description and pay before the run leaves its page, for later pages' answers. */
   posting(): Promise<void>;
+  /** The same for a posting the run went past, read from its address. */
+  readPosting(url: string): Promise<void>;
 }
 
 /** A test build (VITE_YOLO_DRY=1) stops before the final submit and reports what it filled; others compile it out. */
@@ -94,6 +96,7 @@ export async function drive(deps: DriverDeps) {
       await sleep(1500); // result lists often render after the page goes quiet
       return result({ status: "scraped", links: scrapeLinks() });
     }
+    if (hello.posting) await deps.readPosting(hello.posting);
     let refills = 0;
     for (let i = 0; i < 30; i++) {
       await settle();

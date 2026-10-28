@@ -638,6 +638,19 @@ describe("job context (§11.7)", () => {
     expect(readPay(document, new URL("https://example.com/blog") as unknown as Location)).toBeNull();
   });
 
+  it("reads a fetched posting's description and pay, though nothing of it is rendered (Lever)", () => {
+    const posting = new URL("https://jobs.lever.co/acmeco/7d1c2f60") as unknown as Location;
+    const doc = new DOMParser().parseFromString(
+      `<h2>Software Developer Co-op</h2><div class="location">Vancouver, BC</div><div class="section">
+        <p>${"AcmeCo is the payments platform for small businesses across Canada. ".repeat(3)}</p>
+        <h3>What you'll do</h3><ul><li>Ship backend services in Kotlin</li></ul><h3>Who you are</h3>
+        <ul><li>Enrolled in a co-op program</li></ul><div>The hourly range for this co-op is $25 – $32 CAD.</div></div>`,
+      "text/html",
+    );
+    expect(extractJobContext(doc, posting).text).toContain("Ship backend services in Kotlin");
+    expect(readPay(doc, posting)).toEqual([{ min: 25, max: 32, period: "hour", currency: "CAD" }]);
+  });
+
   it("reads pay kept in list items without spaces between them (Recruitee)", () => {
     const board = new URL("https://acme.recruitee.com/o/software-developer-intern") as unknown as Location;
     setBody(
