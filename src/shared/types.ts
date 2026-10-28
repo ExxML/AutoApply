@@ -85,6 +85,13 @@ export interface CatalogEntry {
   lastSeenAt: number;
 }
 
+/** A model in Claude Code's list: `value` is what --model takes (an alias like "opus", or a full id). */
+export interface ClaudeModel {
+  value: string;
+  displayName: string;
+  description: string;
+}
+
 export type ThinkingCap = { kind: "level"; value: "minimal" | "low" } | { kind: "budget"; value: 0 } | { kind: "none" };
 
 export interface ModelCaps {

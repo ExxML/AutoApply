@@ -507,6 +507,17 @@ const handlers: Handlers = {
     }
   },
 
+  /** Claude's REFRESH_MODELS: the models Claude Code offers, so new ones show up without an extension update. */
+  async CLAUDE_MODELS({ force }) {
+    if (!force && Date.now() - (await store.get("claudeModelsFetchedAt")) < 24 * 3600 * 1000) return { ok: true };
+    try {
+      await store.set({ claudeModels: await claude.listModels(), claudeModelsFetchedAt: Date.now() });
+      return { ok: true };
+    } catch (e) {
+      return { error: toApiError(e) };
+    }
+  },
+
   ...yoloHandlers,
 };
 

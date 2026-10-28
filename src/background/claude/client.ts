@@ -1,5 +1,6 @@
 // Claude through the user's own Claude Code and Claude plan, no API key (DECISIONS.md): same call contract as Gemini.
-import type { ClaudeTask } from "../../shared/settings";
+import { CLAUDE_ARG, type ClaudeTask } from "../../shared/settings";
+import type { ClaudeModel } from "../../shared/types";
 import { parseJsonReply, promptWithSchema, Semaphore, type CallResult, type CallSpec } from "../gemini/client";
 import {
   BadOutputError,
@@ -9,7 +10,7 @@ import {
   ModelGoneError,
   ServerError,
 } from "../gemini/errors";
-import { runBridge, type BridgeReply } from "./bridge";
+import { LIST_MODELS, runBridge, type BridgeReply } from "./bridge";
 
 export interface ClaudeDeps {
   concurrency: () => number;
@@ -33,29 +34,36 @@ interface Line {
   usage?: unknown;
   error?: string;
   rate_limit_info?: { status?: string; resetsAt?: number };
+  response?: { subtype?: string; error?: string; response?: { models?: unknown } };
 }
 
 const SIGNED_OUT = new Set(["authentication_failed", "oauth_org_not_allowed", "account_on_hold", "billing_error"]);
 
-/** claude's reply text and model, or the error it ended with. */
-export function readReply(r: BridgeReply, model: string): { text: string; model: string; usage?: unknown } {
-  const lines = r.out.split("\n").flatMap((l): Line[] => {
+const readLines = (r: BridgeReply) =>
+  r.out.split("\n").flatMap((l): Line[] => {
     try {
       return [JSON.parse(l)];
     } catch {
       return [];
     }
   });
+
+/** Why claude gave no answer at all. */
+function failure(r: BridgeReply): Error {
+  if (r.code === 127)
+    return new ClaudeSetupError(
+      "Claude Code wasn't found where setup saw it: run the setup command in AutoApply → AI again.",
+    );
+  if (/unknown option/i.test(r.err))
+    return new ClaudeSetupError("Claude Code is too old for AutoApply: run `claude update`.");
+  return new ServerError(`Claude Code failed: ${r.err.trim().slice(-300) || `exit code ${r.code}`}`);
+}
+
+/** claude's reply text and model, or the error it ended with. */
+export function readReply(r: BridgeReply, model: string): { text: string; model: string; usage?: unknown } {
+  const lines = readLines(r);
   const res = lines.findLast((l) => l.type === "result");
-  if (!res) {
-    if (r.code === 127)
-      throw new ClaudeSetupError(
-        "Claude Code wasn't found where setup saw it: run the setup command in AutoApply → AI again.",
-      );
-    if (/unknown option/i.test(r.err))
-      throw new ClaudeSetupError("Claude Code is too old for AutoApply: run `claude update`.");
-    throw new ServerError(`Claude Code failed: ${r.err.trim().slice(-300) || `exit code ${r.code}`}`);
-  }
+  if (!res) throw failure(r);
   if (!res.is_error && res.subtype === "success") {
     if (res.stop_reason === "max_tokens") throw new BadOutputError("Response truncated (max_tokens)", true);
     if (res.stop_reason === "refusal") throw new BlockedError("Claude declined this request");
@@ -76,6 +84,31 @@ export function readReply(r: BridgeReply, model: string): { text: string; model:
     throw e;
   }
   throw new ServerError(`Claude: ${msg || category || "unknown error"}`);
+}
+
+/**
+ * The models in Claude Code's initialize reply, in its order. Its "default" entry is the "" setting, and a value the
+ * bridge won't pass on (CLAUDE_ARG, e.g. "sonnet[1m]") is left out.
+ */
+export function readModels(r: BridgeReply): ClaudeModel[] {
+  if (r.code === 2 && r.err.includes(LIST_MODELS))
+    throw new ServerError(
+      "AutoApply's Claude bridge predates model lists: run the setup command in AutoApply → AI again to list them.",
+    );
+  const res = readLines(r).findLast((l) => l.type === "control_response")?.response;
+  if (!res) throw failure(r);
+  const models = res.response?.models;
+  if (res.subtype !== "success" || !Array.isArray(models))
+    throw new ServerError(`Claude Code didn't list its models: ${res.error || "run `claude update`"}.`);
+  const out = new Map<string, ClaudeModel>();
+  for (const m of models as Record<string, unknown>[]) {
+    const value = m?.value;
+    if (typeof value !== "string" || !value || value === "default" || !CLAUDE_ARG.test(value) || out.has(value))
+      continue;
+    const str = (v: unknown, d: string) => (typeof v === "string" && v ? v : d);
+    out.set(value, { value, displayName: str(m.displayName, value), description: str(m.description, "") });
+  }
+  return [...out.values()];
 }
 
 export function createClaude(deps: ClaudeDeps) {
@@ -116,7 +149,12 @@ export function createClaude(deps: ClaudeDeps) {
     });
   }
 
-  return { call };
+  /** The models Claude Code offers the user's sign-in; asks nothing of the model, so it uses no plan limits. */
+  async function listModels(signal?: AbortSignal): Promise<ClaudeModel[]> {
+    return readModels(await send({ system: "", prompt: "", model: LIST_MODELS, effort: "" }, 30000, signal));
+  }
+
+  return { call, listModels };
 }
 
 export type Claude = ReturnType<typeof createClaude>;

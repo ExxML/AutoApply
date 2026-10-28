@@ -4,10 +4,13 @@ import { MAX_DAILY_APPLICATIONS } from "./yolo";
 const b = (d: boolean) => z.boolean().catch(d);
 const n = (d: number, min: number, max: number) => z.number().int().min(min).max(max).catch(d);
 
-/** A Claude Code model alias and effort level; "": Claude Code's own default. */
+/** What the Claude bridge passes on claude's command line as a model or effort (src/native). */
+export const CLAUDE_ARG = /^[a-z0-9.-]{0,32}$/;
+
+/** A Claude Code model (an alias or id from its model list) and effort level; "": Claude Code's own default. */
 const claudeTask = z
   .object({
-    model: z.enum(["", "haiku", "sonnet", "opus", "fable"]).catch(""),
+    model: z.string().regex(CLAUDE_ARG).catch(""),
     effort: z.enum(["", "low", "medium", "high", "xhigh", "max"]).catch(""),
   })
   .catch({ model: "", effort: "" });

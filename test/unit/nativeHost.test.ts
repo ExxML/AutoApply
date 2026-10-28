@@ -11,11 +11,16 @@ const win = process.platform === "win32";
 // Not Git Bash on Windows: MSYS hands native programs a stdin that never ends. host.sh is for macOS/Linux.
 const hasSh = !win && spawnSync("sh", ["-c", "true"]).status === 0;
 
-// The fake echoes its argv and stdin back as a stream-json result line, or sleeps when asked to.
+// The fake echoes its argv and stdin back as a stream-json result line (a control_response when listing models), or
+// sleeps when asked to.
 const FAKE = `
 const fs = require("fs");
 const args = process.argv.slice(2);
 const stdin = fs.readFileSync(0, "utf8");
+if (args.includes("--input-format")) {
+  console.log(JSON.stringify({ type: "control_response", response: { subtype: "success", response: { args, stdin } } }));
+  process.exit(0);
+}
 const sys = fs.readFileSync(args.find((a) => a.startsWith("--system-prompt-file=")).split("=").slice(1).join("="), "utf8");
 if (stdin === "SLEEP") { fs.writeFileSync(process.env.PIDFILE, String(process.pid)); setTimeout(() => {}, 60000); }
 else console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: JSON.stringify({ args, stdin, sys, cwd: process.cwd(), env: process.env.DISABLE_AUTOUPDATER }) }));
@@ -126,8 +131,36 @@ describe.each(kinds)("Claude bridge host (%s)", (kind) => {
     expect(out.args).toHaveLength(14);
   }, 30000);
 
+  it("lists the models: the same safe flags and a fixed initialize request, nothing of the request's", async () => {
+    const r = await ask(kind, [b64("s"), b64("p"), "?models", "--tools=Bash"]);
+    expect(r.code).toBe(0);
+    const out = JSON.parse(r.out.trim()).response.response;
+    expect(out.args).toEqual([
+      "-p",
+      "--safe-mode",
+      "--tools",
+      "",
+      "--strict-mcp-config",
+      "--permission-mode",
+      "dontAsk",
+      "--max-turns",
+      "1",
+      "--no-session-persistence",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+    ]);
+    expect(JSON.parse(out.stdin)).toEqual({
+      type: "control_request",
+      request_id: "models",
+      request: { subtype: "initialize" },
+    });
+  }, 30000);
+
   it("refuses anything but a plain model or effort name", async () => {
-    for (const bad of ["--tools=Bash", "haiku --tools Bash", "Haiku", "haiku\n"]) {
+    for (const bad of ["--tools=Bash", "haiku --tools Bash", "Haiku", "haiku\n", "?Models"]) {
       const r = await ask(kind, [b64("s"), b64("p"), bad, ""]);
       expect(r.code).toBe(2);
       expect(r.out).toBe("");

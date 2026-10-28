@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BridgeReply, BridgeRequest } from "../../src/background/claude/bridge";
+import { LIST_MODELS } from "../../src/background/claude/bridge";
 import { createClaude } from "../../src/background/claude/client";
 import {
   BadOutputError,
@@ -10,6 +11,7 @@ import {
 } from "../../src/background/gemini/errors";
 import { VALIDATION_SCHEMA, ValidationZ } from "../../src/background/gemini/schemas";
 import { installerScript, setupCommand } from "../../src/options/claudeSetup";
+import { SettingsSchema } from "../../src/shared/settings";
 
 // Real-shaped stream-json lines (claude -p --output-format stream-json --verbose, Claude Code 2.1.311)
 const init = { type: "system", subtype: "init", tools: [], model: "claude-haiku-5-5" };
@@ -163,6 +165,58 @@ describe("Claude client", () => {
     const d = client(new ClaudeSetupError("not installed"));
     await expect(d.claude.call(spec, task)).rejects.toThrow("not installed");
     expect(d.onSetupError).toHaveBeenCalled();
+  });
+});
+
+describe("Claude model list", () => {
+  // Real-shaped initialize reply (claude -p --input-format stream-json, Claude Code 2.1.312), trimmed.
+  const listed = (models: unknown, subtype = "success") =>
+    reply(
+      { type: "autocompact_state", value: { enabled: true } },
+      { type: "control_response", response: { subtype, request_id: "models", response: { models, pid: 1 } } },
+    );
+  const MODELS = [
+    { value: "default", displayName: "Default (recommended)", description: "Opus 5.5 · Best for everyday tasks" },
+    { value: "opus", displayName: "Opus 5.5", description: "Best for everyday, complex tasks" },
+    { value: "haiku", displayName: "Haiku 5.5", description: "Fastest for quick answers" },
+    { value: "sonnet[1m]", displayName: "Sonnet 5.5 (1M context)", description: "" },
+    { value: "claude-opus-4-8", displayName: "Opus 4.8" },
+    { value: "opus", displayName: "Opus again" },
+    { value: 7 },
+    null,
+  ];
+
+  it("asks the bridge for the list and keeps the models it can pass on, in Claude Code's order", async () => {
+    const c = client(listed(MODELS));
+    expect(await c.claude.listModels()).toEqual([
+      { value: "opus", displayName: "Opus 5.5", description: "Best for everyday, complex tasks" },
+      { value: "haiku", displayName: "Haiku 5.5", description: "Fastest for quick answers" },
+      { value: "claude-opus-4-8", displayName: "Opus 4.8", description: "" },
+    ]);
+    expect(c.reqs[0]).toEqual({ system: "", prompt: "", model: LIST_MODELS, effort: "" });
+  });
+
+  it("a bridge set up before model lists says to run setup again; nothing marks setup needed", async () => {
+    const c = client({ code: 2, out: "", err: `bad model or effort: ${LIST_MODELS}` });
+    await expect(c.claude.listModels()).rejects.toThrow(/run the setup command .* again/);
+    expect(c.onSetupError).not.toHaveBeenCalled();
+  });
+
+  it("failures: claude missing, too old, an error reply", async () => {
+    await expect(client({ code: 127, out: "", err: "" }).claude.listModels()).rejects.toBeInstanceOf(ClaudeSetupError);
+    await expect(client({ code: 1, out: "", err: "unknown option '--safe-mode'" }).claude.listModels()).rejects.toThrow(
+      /claude update/,
+    );
+    await expect(client(listed(undefined)).claude.listModels()).rejects.toThrow(/didn't list its models/);
+    await expect(client(listed(MODELS, "error")).claude.listModels()).rejects.toBeInstanceOf(ServerError);
+  });
+
+  it("settings keep any model the bridge accepts, so listed models need no extension update", () => {
+    const parse = (model: string) => SettingsSchema.parse({ claude: { fill: { model, effort: "low" } } }).claude.fill;
+    expect(parse("claude-opus-9-1")).toEqual({ model: "claude-opus-9-1", effort: "low" });
+    expect(parse("fable")).toEqual({ model: "fable", effort: "low" });
+    expect(parse("sonnet[1m]").model).toBe("");
+    expect(parse("--tools=Bash").model).toBe("");
   });
 });
 

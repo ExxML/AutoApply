@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ProfileSchema } from "./profileSchema";
 import { SettingsSchema } from "./settings";
-import type { DocumentMeta, JobContext, Pay, TabStatus } from "./types";
+import type { ClaudeModel, DocumentMeta, JobContext, Pay, TabStatus } from "./types";
 import { ApplicationSchema, QueueItemSchema, VaultEntrySchema, YoloSchema, YoloStateSchema } from "./yolo";
 
 export const SCHEMA_VERSION = 1;
@@ -76,6 +76,12 @@ export const CatalogEntrySchema = z.object({
   lastSeenAt: z.number(),
 });
 
+export const ClaudeModelSchema = z.object({
+  value: z.string(),
+  displayName: z.string(),
+  description: z.string().catch(""),
+}) satisfies z.ZodType<ClaudeModel>;
+
 export const ModelCapsSchema = z.object({
   thinking: ThinkingSchema,
   schema: z.enum(["responseSchema", "promptOnly"]),
@@ -100,6 +106,9 @@ export const LOCAL_SCHEMAS = {
   claudeReady: z.boolean().catch(false),
   /** Options page to reopen after the restart that finishes connecting Claude ("" when none; background CLAUDE_TEST). */
   claudeRestart: z.string().catch(""),
+  /** The models Claude Code offers the user's sign-in, in its order (background CLAUDE_MODELS). */
+  claudeModels: list(ClaudeModelSchema),
+  claudeModelsFetchedAt: z.number().catch(0),
   overlayPos: rec(z.number()),
   yolo: YoloSchema,
   yoloState: YoloStateSchema.catch(() => YoloStateSchema.parse({})),

@@ -3,11 +3,13 @@ import { toBase64 } from "../../shared/base64";
 import { ClaudeSetupError, ServerError } from "../gemini/errors";
 
 export const BRIDGE_HOST = "com.autoapply.claude";
+/** The model that asks the bridge for Claude Code's model list instead of a reply; older bridges refuse it (code 2). */
+export const LIST_MODELS = "?models";
 
 export interface BridgeRequest {
   system: string;
   prompt: string;
-  /** Claude Code model alias and effort level; "" leaves Claude Code's default. */
+  /** Claude Code model alias and effort level; "" leaves Claude Code's default. LIST_MODELS lists the models. */
   model: string;
   effort: string;
 }

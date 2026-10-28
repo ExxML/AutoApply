@@ -131,7 +131,8 @@ export type Message =
   | { type: "REFRESH_MODELS"; force: boolean }
   | { type: "VALIDATE_MODEL"; model: string }
   | { type: "PARSE_RESUME"; text: string }
-  | { type: "CLAUDE_TEST"; restarted?: boolean };
+  | { type: "CLAUDE_TEST"; restarted?: boolean }
+  | { type: "CLAUDE_MODELS"; force: boolean };
 
 export type Ok = { ok: true };
 export type Err = { error: ApiError };
@@ -173,6 +174,7 @@ export interface Responses {
   VALIDATE_MODEL: Ok | Err;
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
   CLAUDE_TEST: { model: string; ms: number } | Err;
+  CLAUDE_MODELS: Ok | Err;
   APPLY_ATTEMPT: Ok;
   YOLO_HELLO: {
     mode: "apply" | "scrape";

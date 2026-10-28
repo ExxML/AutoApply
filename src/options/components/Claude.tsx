@@ -1,7 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { isErr, send } from "../../shared/messages";
 import type { AiTask, ClaudeTask } from "../../shared/settings";
-import type { Settings } from "../../shared/types";
+import { formatDateTime } from "../../shared/time";
+import type { ClaudeModel, Settings } from "../../shared/types";
 import { installerScript, setupCommand, uninstallCommand, type SetupOs } from "../claudeSetup";
 import { save, useStored } from "../store";
 
@@ -147,13 +148,30 @@ export function ClaudeConnect() {
   );
 }
 
-const MODELS: [ClaudeTask["model"], string][] = [
-  ["", "Default"],
+/** Until Claude Code has listed its models (not connected yet, or a bridge set up before model lists). */
+const BUILT_IN: [string, string][] = [
   ["haiku", "Haiku (fastest)"],
   ["sonnet", "Sonnet"],
   ["opus", "Opus"],
   ["fable", "Fable (may use usage credits)"],
 ];
+/** True of an alias whichever model it points to. */
+const NOTES: Record<string, string> = { haiku: "fastest", fable: "may use usage credits" };
+
+/** [value, label, description] for one task's model select, Default first. */
+function modelOptions(listed: ClaudeModel[], chosen: string): [string, string, string?][] {
+  const names = listed.map((m) => m.displayName);
+  const opts: [string, string, string?][] = listed.length
+    ? listed.map((m) => {
+        const dup = names.indexOf(m.displayName) !== names.lastIndexOf(m.displayName);
+        const notes = [dup && m.value, NOTES[m.value]].filter(Boolean);
+        return [m.value, notes.length ? `${m.displayName} (${notes.join(", ")})` : m.displayName, m.description];
+      })
+    : BUILT_IN;
+  // A choice Claude Code no longer lists stays shown, rather than the select silently showing another.
+  if (chosen && !opts.some(([v]) => v === chosen)) opts.push(BUILT_IN.find(([v]) => v === chosen) ?? [chosen, chosen]);
+  return [["", "Default"], ...opts];
+}
 const EFFORTS: [ClaudeTask["effort"], string][] = [
   ["", "Default"],
   ["low", "Low (fastest)"],
@@ -174,6 +192,21 @@ const TASKS: [AiTask, string, string][] = [
 
 export function ClaudeModels() {
   const s = useStored("settings");
+  const ready = useStored("claudeReady");
+  const listed = useStored("claudeModels") ?? [];
+  const fetchedAt = useStored("claudeModelsFetchedAt") ?? 0;
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshErr, setRefreshErr] = useState("");
+  const refresh = async (force: boolean) => {
+    setRefreshing(true);
+    const r = await send({ type: "CLAUDE_MODELS", force });
+    setRefreshErr(isErr(r) ? r.error.message : "");
+    setRefreshing(false);
+  };
+  // Once connected, Claude Code's own list: new models show up without an AutoApply update.
+  useEffect(() => {
+    if (ready) void refresh(false);
+  }, [ready]);
   if (!s) return null;
   const set = (task: AiTask, patch: Partial<ClaudeTask>) =>
     void save({ settings: { ...s, claude: { ...s.claude, [task]: { ...s.claude[task], ...patch } } } });
@@ -184,6 +217,15 @@ export function ClaudeModels() {
         A model and effort for each kind of work; Default uses Claude Code's own setting. Haiku at Low effort answers
         fastest; larger models and higher effort are slower and use more of your plan's limits.
       </p>
+      {ready && (
+        <div class="row">
+          <button type="button" class="btn" onClick={() => void refresh(true)} disabled={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh list"}
+          </button>
+          <span class="muted">Last updated {fetchedAt ? formatDateTime(fetchedAt) : "never"}</span>
+        </div>
+      )}
+      {ready && refreshErr && <p class="err">{refreshErr}</p>}
       <table class="table">
         <thead>
           <tr>
@@ -203,10 +245,12 @@ export function ClaudeModels() {
                 <select
                   aria-label={`${label}: model`}
                   value={s.claude[k].model}
-                  onChange={(e) => set(k, { model: e.currentTarget.value as ClaudeTask["model"] })}
+                  onChange={(e) => set(k, { model: e.currentTarget.value })}
                 >
-                  {MODELS.map(([v, t]) => (
-                    <option value={v}>{t}</option>
+                  {modelOptions(listed, s.claude[k].model).map(([v, t, d]) => (
+                    <option value={v} title={d}>
+                      {t}
+                    </option>
                   ))}
                 </select>
               </td>
