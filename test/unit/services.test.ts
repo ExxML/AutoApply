@@ -1354,6 +1354,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
                 options: levels,
               }),
               field("b", { label: "Highest level of education", kind: "select", options: levels }),
+              field("c", {
+                label: "What is the highest level of education you have completed or are pursuing?",
+                kind: "select",
+                options: levels,
+              }),
             ],
             profile,
             documents: [],
@@ -1361,9 +1366,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
         )
       ).decisions.map((d) => d.intendedAnswer ?? d.action);
-    expect(await ask()).toEqual(["High School Diploma/GED", "flag"]);
+    expect(await ask()).toEqual(["High School Diploma/GED", "flag", "flag"]);
     profile.education[0] = { ...profile.education[0], endDate: "2020-05", currentlyEnrolled: "no" };
-    expect(await ask()).toEqual(["flag", "flag"]);
+    expect(await ask()).toEqual(["flag", "flag", "flag"]);
   });
 
   it("matches currently enrolled education to current-attendance checkboxes", async () => {
@@ -2399,10 +2404,22 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const item = { fieldId: "b", question: "q", intendedAnswer: "x", options: ["x"], multiple: false };
     await chooseOptions(ctx, [item], profile);
     await draftEssays(ctx, [{ fieldId: "c", question: "Why us?", kind: "essay" }], profile, null);
+    // The cover letter template only with cover letters, drafted apart from other essays.
+    await draftEssays(
+      ctx,
+      [
+        { fieldId: "d", question: "Why us?", kind: "essay" },
+        { fieldId: "e", question: "Cover letter", kind: "cover_letter" },
+      ],
+      profile,
+      null,
+    );
     expect(profiles.map((p) => p.essayGuidance)).toEqual([
       { aboutMe: "bio" },
       { aboutMe: "bio" },
+      { aboutMe: "bio", tone: "warm" },
       { aboutMe: "bio", tone: "warm", coverLetterTemplate: "Dear…" },
+      { aboutMe: "bio", tone: "warm" },
     ]);
   });
 

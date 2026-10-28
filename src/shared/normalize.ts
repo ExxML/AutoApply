@@ -26,7 +26,12 @@ export function humanize(s: string): string {
 export const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, n).trimEnd() : s);
 export const ellipsize = (s: string, n: number): string => (s.length > n ? `${clip(s, n)}...` : s);
 
-export const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
+// Zero-width characters aren't \s: an empty MUI Select shows a lone U+200B, which read as a value.
+export const collapse = (s: string): string =>
+  s
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** Strip trailing "*" / "✱" (Lever), "(required)", "(optional)" markers and collapse whitespace. */
 export function cleanLabel(s: string): string {

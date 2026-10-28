@@ -1,7 +1,7 @@
 // YOLO mode end to end in the built extension: a queued job applied to in the hidden host, with the Gemini mock.
 import type { Worker } from "@playwright/test";
 import type { Application } from "../../src/shared/yolo";
-import { BASE, expect, fillPage, seed, storage, test, waitDone } from "./extension";
+import { BASE, expect, fillPage, PROFILE, seed, storage, test, waitDone } from "./extension";
 
 const queue = (sw: Worker, url: string, yolo: Record<string, unknown> = {}) =>
   sw.evaluate(

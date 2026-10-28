@@ -53,11 +53,8 @@ const RE_BARE_ADDRESS = /^((home|mailing|street|residential|current|permanent) )
 /** A form's own city box, for telling what its bare "Address" asks. */
 export const RE_CITY_FIELD = /^((current|home) )?(city|town)(\/town)?$/i;
 const PLACES = new Set<DetKey>(["location", "city", "region", "postalCode", "streetAddress", "line1", "line2"]);
-const RE_ENTRY_SECTION = /\b(experience|employment|work history|education)\b/i;
 
 function keyFor(d: FieldDescriptor): DetKey | null {
-  // A job's or school's own fields: Analog Devices' Workday "Work Experience 1" "Location" got the home address.
-  if (RE_ENTRY_SECTION.test(d.section ?? "")) return null;
   const tokens = (d.autocomplete ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const ac = AUTOCOMPLETE_MAP[tokens[tokens.length - 1] ?? ""];
   if (ac) return ac === "dateOfBirth" && !/birth/i.test(d.label) ? null : ac;

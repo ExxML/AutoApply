@@ -30,13 +30,14 @@ export function textOf(el: Element, exclude = NON_LABEL): string {
 const rootOf = (el: Element) => el.getRootNode() as Document | ShadowRoot;
 const esc = (s: string) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s.replace(/["\\]/g, "\\$&"));
 
-function byIds(el: Element, attr: string): string {
+/** `outside`: only elements outside `el`, not its own value (select2's combobox names its selection's container). */
+function byIds(el: Element, attr: string, outside = false): string {
   const ids = el.getAttribute(attr)?.split(/\s+/).filter(Boolean) ?? [];
   const root = rootOf(el);
   return collapse(
     ids
       .map((id) => root.getElementById?.(id) ?? document.getElementById(id))
-      .filter((n): n is HTMLElement => !!n)
+      .filter((n): n is HTMLElement => !!n && !(outside && el.contains(n)))
       .map((n) => textOf(n))
       .join(" "),
   );
@@ -66,7 +67,7 @@ function wrapperLabel(el: HTMLElement): string {
 }
 
 function ownName(el: HTMLElement): string {
-  const lb = byIds(el, "aria-labelledby");
+  const lb = byIds(el, "aria-labelledby", true);
   if (lb) return lb;
   const l = labelElementFor(el);
   if (l) {

@@ -463,10 +463,11 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
-  async YOLO_ANSWERS({ answers }, sender) {
+  async YOLO_ANSWERS({ answers, guesses }, sender) {
     const run = await getRun();
     // A later pass over the same field (a refill) replaces its answer.
-    if (fromRun(run, sender)) await saveRun({ ...run, answers: { ...run.answers, ...answers } });
+    if (fromRun(run, sender))
+      await saveRun({ ...run, answers: { ...run.answers, ...answers }, guesses: mergeGuesses(run.guesses, guesses) });
     return { ok: true };
   },
 
