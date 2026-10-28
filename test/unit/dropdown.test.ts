@@ -533,6 +533,22 @@ describe("file uploads", () => {
     expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
     expect(picker).toBe(false);
   });
+
+  it("attaches a legacy Greenhouse résumé through its Attach box, whose file input sits in a separate upload form", async () => {
+    setBody(`<form id="application_form"><div class="field" id="resume_fieldset" aria-required="true">
+      <label id="resume_label">Resume/CV <span class="asterisk">*</span></label><div class="attach-or-paste">
+      <div class="link-container"><button type="button" data-source="attach">Attach</button> or <a href="#">enter manually</a></div>
+      <span class="filename"></span></div></div></form>
+      <form id="s3_upload_for_resume" style="display:none"><input type="file" name="file"></form>`);
+    const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
+    document.querySelector("button")!.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => (document.querySelector(".filename")!.textContent = input.files![0].name));
+    const st = newScanState();
+    const [h] = findDropzones(scan(st).handles, st);
+    expect(h.desc).toMatchObject({ kind: "file", required: true });
+    expect(h.desc.label).toMatch(/^Resume\/CV/);
+    expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+  });
 });
 
 describe("place typeaheads", () => {
