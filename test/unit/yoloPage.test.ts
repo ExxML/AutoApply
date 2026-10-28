@@ -223,6 +223,20 @@ describe("YOLO buttons", () => {
     expect(findSubmit()).toBeNull();
   });
 
+  it("finds Apply buttons worded as their sites word them", () => {
+    for (const label of [
+      "Apply for this job online",
+      "Apply to this job →",
+      "Apply for this opportunity",
+      "Apply Today",
+    ]) {
+      setBody(`<h1>Software Developer Co-op</h1><a href="/apply">${label}</a>`);
+      expect(findApply()?.textContent, label).toBe(label);
+    }
+    setBody(`<button>Apply filters</button>`);
+    expect(findApply()).toBeNull();
+  });
+
   it("reads validation messages", () => {
     setBody(
       `<div role="alert">Saved</div><div class="field-error">This field is required</div><input aria-invalid="true">`,

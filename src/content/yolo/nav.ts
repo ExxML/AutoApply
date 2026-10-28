@@ -4,11 +4,11 @@ import { pointerClick } from "../fill/events";
 import { HOST_TAG, deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 
-export const RE_APPLY =
-  /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)?|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
+/** A job page's way into its application: "Apply for this job online" (iCIMS), "Apply to this job →". */
+const APPLY_OPENING = String.raw`apply( now| today| here| online| manually| (for|to) (this |the )?(job|position|role|opportunity|opening|internship|posting|vacancy)( online| now)?)|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website)`;
+export const RE_APPLY = new RegExp(`^(apply|${APPLY_OPENING})(\\s*[→›»])?$`, "i");
 /** Unlike a bare "Apply", these labels belong to a job detail page rather than a final form submission. */
-export const RE_APPLY_OPENING =
-  /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
+export const RE_APPLY_OPENING = new RegExp(`^(${APPLY_OPENING})(\\s*[→›»])?$`, "i");
 export type ApplyKind = "none" | "link" | "entry" | "submit";
 export const RE_NEXT =
   /^(next( step| page)?|continue( to (the )?(next step|review|application))?|save (and|&) (continue|next)|proceed|review( (and|&) submit| (my |your )?application)?|go to review|i accept|i agree|(accept|agree) and continue)(\s*[→›»])?$/i;
