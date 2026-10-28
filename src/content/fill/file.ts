@@ -75,17 +75,23 @@ export async function fillFile(h: FieldHandle, meta: DocumentMeta, base64: strin
   return ok ? { outcome: "ok", shown: meta.fileName } : { outcome: "flag", note: "Upload the file manually" };
 }
 
-/** Résumé dropzones that have no file input at all become pseudo file fields. */
+/**
+ * Résumé dropzones that have no file input at all become pseudo file fields. Legacy Greenhouse's "Attach, Dropbox, …"
+ * box clicks a file input in a separate upload form, and its question ("Resume/CV") sits beside it.
+ */
 export function findDropzones(handles: FieldHandle[], state: ScanState): FieldHandle[] {
   const out: FieldHandle[] = [];
-  for (const z of deepQueryAll('[class*="drop" i],[class*="upload" i]')) {
-    const text = collapse(z.textContent ?? "");
+  for (const box of deepQueryAll('[class*="drop" i],[class*="upload" i],[class*="attach" i]')) {
+    const own = collapse(box.textContent ?? "");
+    const z = RE_RESUME_FILE.test(own) || !box.parentElement ? box : box.parentElement;
+    const text = z === box ? own : collapse(z.textContent ?? "");
     if (!RE_RESUME_FILE.test(text) || !RE_DROPZONE.test(text) || text.length > 300 || !isVisible(z)) continue;
     if (fileInputIn(z) || handles.some((h) => h.container.contains(z) || z.contains(h.el))) continue;
     if (out.some((o) => o.el.contains(z) || z.contains(o.el))) continue;
     let id = state.ids.get(z);
     if (!id) state.ids.set(z, (id = `f${state.next++}`));
-    const desc = { id, kind: "file" as const, label: text.slice(0, 120), required: false, optionsKnown: true };
+    const required = z.getAttribute("aria-required") === "true" || /\*/.test(text);
+    const desc = { id, kind: "file" as const, label: text.slice(0, 120), required, optionsKnown: true };
     out.push({
       id,
       desc,

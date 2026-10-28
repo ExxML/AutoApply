@@ -17,7 +17,7 @@ import {
 import { clip, collapse, humanize } from "../../shared/normalize";
 import type { FieldDescriptor } from "../../shared/types";
 import { readValue } from "../fill/verify";
-import { buildUnits, memberText, type Unit } from "./groups";
+import { buildUnits, datePart, memberText, type Unit } from "./groups";
 import {
   controlLabel,
   fallbackLabel,
@@ -45,6 +45,8 @@ export interface FieldHandle {
   searchInput?: HTMLInputElement;
   listbox?: HTMLElement;
   hiddenSelect?: HTMLSelectElement;
+  /** A date's separate Month / Day / Year boxes, in their order. */
+  sections?: HTMLInputElement[];
   container: HTMLElement;
   prefilled: boolean;
   sensitive: boolean;
@@ -181,12 +183,20 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const memberLabels = (members ?? [])
       .map((m) => (m instanceof HTMLInputElement ? labelElementFor(m) : m))
       .filter((x): x is HTMLElement => !!x);
+    // select2 3.x's keyboard proxy, named by the pick it shows ("Yes"): over a <select>, that select is the question.
+    // Over a hidden input (Greenhouse's school search) it is the way in, asking what that input's label asks.
+    const s2 = el.classList.contains("select2-focusser") ? el.closest(".select2-container") : null;
+    const s2for = s2?.id.startsWith("s2id_") ? document.getElementById(s2.id.slice(5)) : null;
+    if (s2for instanceof HTMLSelectElement) continue;
     const rawLabel =
+      (s2for && controlLabel(s2for)) ||
       (isGroup
         ? groupLabel(u.groupEl ?? null) || precedingText(container, members![0], memberLabels)
-        : ownLabel(el, u, owner) ||
-          (u.searchInput ? controlLabel(u.searchInput) : "") ||
-          precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
+        : u.sections
+          ? groupLabel(u.groupEl ?? null) || precedingText(container, el, [labelElementFor(el) ?? el])
+          : ownLabel(el, u, owner) ||
+            (u.searchInput ? controlLabel(u.searchInput) : "") ||
+            precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
       labelAbove(u, container, owner, collected.order) ||
       fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
@@ -202,7 +212,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       continue;
 
     let kind = u.kind;
-    if (kind === "text" && el instanceof HTMLInputElement && isTypeaheadInput(el, label)) kind = "typeahead";
+    if (kind === "text" && el instanceof HTMLInputElement && (isTypeaheadInput(el, label) || s2for)) kind = "typeahead";
 
     const h: FieldHandle = {
       id: "",
@@ -212,6 +222,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       buttonStyle: u.buttonStyle,
       searchInput: u.searchInput,
       listbox: u.listbox,
+      sections: u.sections,
       container,
       prefilled: false,
       sensitive: false,
@@ -269,7 +280,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const section = sectionFor(el, collected.order, collected.headings);
     if (section && section !== label) d.section = section;
     const required =
-      [el, u.searchInput, u.groupEl, ...(members ?? [])].some(
+      [el, u.searchInput, u.groupEl, s2for, ...(members ?? [])].some(
         (n) => n && ((n as HTMLInputElement).required || n.getAttribute("aria-required") === "true"),
       ) ||
       /\*|\(required\)/i.test(rawLabel) ||
@@ -281,6 +292,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const input = (u.searchInput ?? el) as HTMLInputElement;
     const ph = input.getAttribute?.("placeholder");
     if (ph) d.placeholder = clip(ph, 120);
+    if (u.sections) d.placeholder = u.sections.map((e) => ({ m: "MM", d: "DD", y: "YYYY" })[datePart(e)!]).join("/");
     if (el instanceof HTMLInputElement) d.inputType = el.type;
     const ac = input.getAttribute?.("autocomplete");
     if (ac && ac !== "on" && ac !== "off") d.autocomplete = ac;

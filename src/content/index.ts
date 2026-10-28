@@ -1,7 +1,14 @@
 // Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
 // Fills only when the user triggers it. Never sees API keys; never clicks submit/next. The exception is a YOLO run
 // (./yolo), which the user turned on: it fills and submits in a page the background loaded for it.
-import { RE_APPLIED, RE_CONSENT, RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
+import {
+  canonicalCountry,
+  RE_APPLIED,
+  RE_CONSENT,
+  RE_COVER_LETTER,
+  RE_OPTIONAL_CONSENT,
+  RE_RESUME_ONLY,
+} from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
 import type {
@@ -15,7 +22,7 @@ import type {
   StatusCounts,
 } from "../shared/types";
 import { extractJobContext, jobUrl, readPay } from "./jobContextExtract";
-import { deterministicValue, isFreeText, matchLearned } from "./match/deterministic";
+import { deterministicValue, isFreeText, matchLearned, RE_CITY_FIELD } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
@@ -410,6 +417,23 @@ async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: str
   else setStatus(h, "needs", r.note);
 }
 
+const RE_COUNTRY_FIELD =
+  /^(country|country\/region|country or region|country\/territory|(country )?phone (country )?code)$/i;
+/**
+ * A site's own default country where the profile names another: Workday tenants preselect theirs ("United States of
+ * America (+1)"), whose states then left a Canadian's province unanswerable. Not someone's answer, so it is filled.
+ */
+function defaultCountry(h: FieldHandle): boolean {
+  if (!RE_COUNTRY_FIELD.test(h.desc.label)) return false;
+  const shown = canonicalCountry(
+    readValue(h)
+      .replace(/\(.*?\)|\+\d+/g, "")
+      .trim(),
+  );
+  const home = canonicalCountry(config.profileSnapshotForDeterministic.personal.address.country);
+  return !!shown && !!home && shown !== home;
+}
+
 /** Required and optional consents follow separate settings; a required field is never optional. */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
@@ -495,8 +519,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       const s = states.get(h.id);
       if (s?.userOwned) return false;
       if (!s || s.status === "pending") return true;
-      // A YOLO pass re-tries only what it couldn't fill: its guesses ("check") stand.
-      return !!opts.rerun && (yolo ? ["needs", "failed"] : ["needs", "failed", "check"]).includes(s.status);
+      // A YOLO pass re-tries only what it couldn't fill: its guesses ("check") stand, unless the page emptied them (a
+      // province guessed from the states listed before the country changed).
+      if (!opts.rerun) return false;
+      if (!yolo) return ["needs", "failed", "check"].includes(s.status);
+      return ["needs", "failed"].includes(s.status) || (s.status === "check" && !readValue(h));
     });
     for (const h of targets) setStatus(h, "pending");
     report();
@@ -514,8 +541,10 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     const det = config.profileSnapshotForDeterministic;
     const usedLearned: string[] = [];
     const pending: FieldHandle[] = [];
+    const cityField = all.some((h) => RE_CITY_FIELD.test(h.desc.label));
     for (const h of targets) {
-      if (h.prefilled && !config.settings.overwritePrefilled) {
+      // Not one the page rejected: what it holds is ours, and wrong (a typed place never picked from its list).
+      if (h.prefilled && !config.settings.overwritePrefilled && !defaultCountry(h) && !rejected.has(h.id)) {
         setStatus(h, "prefilled");
         continue;
       }
@@ -546,7 +575,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         else pending.push(h);
         continue;
       }
-      const d = deterministicValue(h.desc, det.personal);
+      const d = deterministicValue(h.desc, det.personal, cityField);
       if (d) {
         const op: FillOp = d.query
           ? { type: "intended", answer: d.value, query: d.query }
@@ -816,10 +845,11 @@ async function yoloFill(): Promise<FillReport> {
     await runPipeline({ rerun: true });
     while (running || queued) await sleep(100);
     if (lastError?.kind === "allKeysExhausted") {
-      // A short wait for a rate limit is spent here; a longer one sends the job back to the queue.
+      // A short wait for a rate limit is spent here; a longer one, or one still there on the last pass, sends the job
+      // back to the queue rather than to the user.
       const wait = (lastError.earliestRetryAt ?? 0) - Date.now();
       clearTimeout(retryTimer);
-      if (wait > 0 && wait <= 90_000) {
+      if (wait > 0 && wait <= 90_000 && pass < 3) {
         await sleep(wait + 250);
         continue;
       }
@@ -867,6 +897,15 @@ function answers(): Record<string, Guess> {
   return out;
 }
 
+/** Gives the background a posting's description and pay, for the application's later pages. */
+async function sharePosting(doc: Document, loc: Location) {
+  const pays = readPay(doc, loc);
+  await Promise.all([
+    pays && send({ type: "SET_JOB_PAY", pays, passive: false }),
+    send({ type: "SET_JOB_CONTEXT", ctx: extractJobContext(doc, loc) }),
+  ]).catch(() => undefined);
+}
+
 async function startYolo() {
   if (yolo) return;
   yolo = true;
@@ -875,7 +914,8 @@ async function startYolo() {
   listen();
   await drive({
     fieldStats: () => {
-      const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? ""));
+      // Nor the fields of a form still collapsed (JazzHR's, until its Apply): file inputs are scanned hidden too.
+      const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? "") && isVisible(h.container));
       return { fields: fields.length, requiredFields: fields.filter((h) => h.desc.required).length };
     },
     fill: yoloFill,
@@ -884,6 +924,15 @@ async function startYolo() {
     email: () => config.profileSnapshotForDeterministic.personal.email,
     answers,
     debug: config.settings.debugLogging,
+    posting: () => sharePosting(document, location),
+    readPosting: async (url) => {
+      // One request, nothing rendered: the description and pay are in its HTML or JSON-LD.
+      const html = await fetch(url, { credentials: "include" })
+        .then((r) => (r.ok ? r.text() : ""))
+        .catch(() => "");
+      if (html)
+        await sharePosting(new DOMParser().parseFromString(html, "text/html"), new URL(url) as unknown as Location);
+    },
   });
 }
 

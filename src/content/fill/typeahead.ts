@@ -16,11 +16,15 @@ import {
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, sameValue } from "./verify";
+import { isVisible } from "../scan/visibility";
 
 /** The pick a combobox shows beside its emptied search box: react-select's single value (Epic Games). */
 function shownBeside(input: HTMLElement): string {
+  // Up to the question's label; not a screen-reader copy (select2 3.x keeps one beside its keyboard proxy).
+  const question = (p: Element) =>
+    [...p.querySelectorAll("label")].some((l) => !/offscreen|sr-only|visually-hidden/.test(l.className));
   let p = input.parentElement;
-  for (let i = 0; i < 4 && p && !p.querySelector("label"); i++, p = p.parentElement) {
+  for (let i = 0; i < 4 && p && !question(p); i++, p = p.parentElement) {
     const clone = p.cloneNode(true) as HTMLElement;
     clone
       .querySelectorAll('input,svg,script,style,[aria-live],[class*="placeholder" i],[class*="a11y" i]')
@@ -30,6 +34,8 @@ function shownBeside(input: HTMLElement): string {
   }
   return "";
 }
+
+const plainLists = (h: FieldHandle) => [...h.container.querySelectorAll<HTMLElement>("ul,ol")];
 
 export async function fillTypeahead(
   h: FieldHandle,
@@ -43,11 +49,19 @@ export async function fillTypeahead(
   let typed = query || intended;
   const suggest = async () => {
     const before = snapshot();
+    const shown = new Set(plainLists(h).filter(isVisible));
     focus(input);
-    setNativeValue(input, "");
+    // An input event with nothing to clear already opens some lists (select2 3.x), taking focus before we type.
+    if (input.value) setNativeValue(input, "");
     await typeText(input, typed);
     if (h.searchInput) submitSearch(input);
-    let c = await waitFor(() => findOptionsContainer(h, before), 2000);
+    // A plain list beside the box that shows up naming what was typed (legacy Greenhouse's place search).
+    const word = normalize(typed).split(" ")[0];
+    const plain = () =>
+      plainLists(h).find(
+        (l) => !shown.has(l) && isVisible(l) && optionElements(l).some((o) => normalize(optText(o)).includes(word)),
+      ) ?? null;
+    let c = await waitFor(() => findOptionsContainer(h, before) ?? plain(), 2000);
     // A slow suggestion search (Lever's location lookup) shows its spinner meanwhile: wait it out.
     if (!c && busy([h.container])) {
       await waitFor(() => findOptionsContainer(h, before) || !busy([h.container]), PAGE_MAX_MS);
@@ -91,10 +105,21 @@ export async function fillTypeahead(
       ? { outcome: "ok", shown: input.value, note: "No suggestion list; typed value" }
       : { outcome: "flag", note: "No suggestions appeared" };
   }
-  const els = optionElements(c);
-  const texts = els.map(optText);
+  let els = optionElements(c);
+  let texts = els.map(optText);
   const q = normalize(typed);
   let i = localMatch(intended, texts);
+  // Suggestions for an earlier keystroke may still show, the search for the whole query pending (select2's delay).
+  if (i === null) {
+    const stale = texts.join("\n");
+    const box = c;
+    if (await waitFor(() => box.isConnected && optionElements(box).map(optText).join("\n") !== stale, 600)) {
+      await settle(box);
+      els = optionElements(box);
+      texts = els.map(optText);
+      i = localMatch(intended, texts);
+    }
+  }
   if (i === null && texts.length === 1 && normalize(texts[0]).startsWith(q)) i = 0;
   if (i === null) i = await choose(texts);
   if (i === null || !els[i]) {

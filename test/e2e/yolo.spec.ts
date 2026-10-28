@@ -78,6 +78,112 @@ test("opens a posting beside a required talent community signup", async ({ sw, p
   await outcome(sw).toBe("submitted");
 });
 
+test("answers a field the page rejected though it wasn't marked required", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-optional-marked.html`);
+  await outcome(sw).toBe("submitted");
+  // Guessed on the page the submit left: still logged for review.
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a.guesses).toEqual([{ q: "Which team are you most interested in?", a: "Payments" }]);
+});
+
+test("waits out a rate limit on a drafted cover letter instead of handing the job to the user", async ({
+  sw,
+  page,
+  mock,
+}) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  // Drafts turned down on every key for the next 6 s, as a per-minute quota does.
+  let until = 0;
+  mock.always = (_key, _model, kind) =>
+    kind === "essay" && (until ||= Date.now() + 6000) > Date.now()
+      ? {
+          status: 429,
+          body: {
+            error: {
+              code: 429,
+              status: "RESOURCE_EXHAUSTED",
+              message: "You exceeded your current quota.",
+              details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "6s" }],
+            },
+          },
+        }
+      : null;
+  await queue(sw, `${BASE}yolo-cover-letter.html`);
+  await outcome(sw).toBe("submitted");
+});
+
+test("asks for pay from the posting's range after Apply leads to another page", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  const desiredCompensation = { amount: "20", currency: "CAD", period: "hour", strategy: "q1" };
+  const profile = { ...PROFILE, preferences: { ...PROFILE.preferences, desiredCompensation } };
+  await seed(sw, { caps: true, profile, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-job-pay.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Desired hourly pay = $42.50");
+});
+
+test("corrects a site's preselected country to the profile's", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-default-country.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Province = British Columbia");
+});
+
+test("queues a job again when short rate limits keep coming", async ({ sw, page, mock }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  // Every mapping call turned down, each time with a retry allowed in a second.
+  mock.always = (_key, _model, kind) =>
+    kind === "map"
+      ? {
+          status: 429,
+          body: {
+            error: {
+              code: 429,
+              status: "RESOURCE_EXHAUSTED",
+              message: "You exceeded your current quota.",
+              details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "1s" }],
+            },
+          },
+        }
+      : null;
+  await queue(sw, `${BASE}yolo-reveal.html`);
+  await expect
+    .poll(async () => (await storage<{ pauseReason: string }>(sw, "yoloState"))?.pauseReason, { timeout: 90_000 })
+    .toBe("AI usage limit reached");
+  expect((await storage<unknown[]>(sw, "applications")) ?? []).toEqual([]);
+  expect(await storage<unknown[]>(sw, "yoloQueue")).toHaveLength(1);
+});
+
+test("opens a posting whose application is collapsed in the page", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-collapsed.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Steps: job → form → success");
+});
+
+test("fills again a field the page rejected, though it holds what we typed", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-rejected-place.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

@@ -171,7 +171,14 @@ export interface Responses {
   PARSE_RESUME: { proposed: Partial<Profile> } | Err;
   CLAUDE_TEST: { model: string; ms: number } | Err;
   APPLY_ATTEMPT: Ok;
-  YOLO_HELLO: { mode: "apply" | "scrape"; company: string; title: string; visible: boolean } | null;
+  YOLO_HELLO: {
+    mode: "apply" | "scrape";
+    company: string;
+    title: string;
+    visible: boolean;
+    /** The posting the run went past straight to its form (Lever's /apply): read for its description and pay. */
+    posting?: string;
+  } | null;
   /** `refused`: the site turned down our sign-in or sign-up (an account we hold no password for). */
   YOLO_STEP: { kind: StepKind; stop?: string; refused?: boolean };
   YOLO_RESULT: Ok;

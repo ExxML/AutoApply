@@ -419,9 +419,16 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_HELLO(_m, sender) {
     const run = await getRun();
     if (!fromRun(run, sender)) return null;
+    const skipped = run.mode === "apply" && !run.helloAt && applyUrl(run.item.url) !== run.item.url;
     run.helloAt = run.stepAt = Date.now();
     await saveRun(run);
-    return { mode: run.mode, company: run.item.company, title: run.item.title, visible: run.host === "visible" };
+    return {
+      mode: run.mode,
+      company: run.item.company,
+      title: run.item.title,
+      visible: run.host === "visible",
+      ...(skipped ? { posting: run.item.url } : {}),
+    };
   },
 
   async YOLO_STEP({ facts, url, guesses }, sender) {

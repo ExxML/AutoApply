@@ -2,7 +2,7 @@
 import { OPTION_SELECTORS, RE_NO_OPTIONS, RE_PLACEHOLDER_OPTION } from "../../shared/constants";
 import { collapse, normalize } from "../../shared/normalize";
 import type { FieldHandle } from "../scan/fields";
-import { deepQueryAll } from "../scan/traverse";
+import { deepQueryAll, shadowOf } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 import { isTextInput } from "../scan/widgets";
 import { dispatching, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
@@ -18,8 +18,8 @@ export const optText = (o: Element) => {
   return collapse(clone.textContent ?? "");
 };
 // react-select's "No options" / "Loading…" notice sits in its listbox in place of options, worded as the site likes
-// (Greenhouse's school search: "Start typing…").
-const RE_NOTICE_CLASS = /menu-notice|NoOptionsMessage|LoadingMessage/;
+// (Greenhouse's school search: "Start typing…"), as do select2 3.x's ("Please enter 1 or more character").
+const RE_NOTICE_CLASS = /menu-notice|NoOptionsMessage|LoadingMessage|select2-(no-results|searching|more-results)/;
 const isRealOption = (o: HTMLElement) => {
   const t = optText(o);
   return (
@@ -31,9 +31,19 @@ const isRealOption = (o: HTMLElement) => {
   );
 };
 
+/** Options slotted into a listbox from the light DOM, their role in their own shadow root (SmartRecruiters' spl-select). */
+const slotted = (c: Element) =>
+  [...c.querySelectorAll("slot")]
+    .flatMap((s) => s.assignedElements({ flatten: true }))
+    .filter(
+      (e): e is HTMLElement =>
+        e instanceof HTMLElement && (e.matches(OPTION_SELECTORS) || !!shadowOf(e)?.querySelector("[role=option]")),
+    );
+
 export function optionElements(c: Element): HTMLElement[] {
   // Innermost match only: Workday's [role=option] row ignores clicks; its promptOption label inside takes them.
   let els = [...c.querySelectorAll<HTMLElement>(OPTION_SELECTORS)].filter((o) => !o.querySelector(OPTION_SELECTORS));
+  if (!els.length) els = slotted(c);
   if (!els.length && c.getAttribute("role") === "listbox") els = [...c.querySelectorAll<HTMLElement>(":scope > *")];
   // Plain list rows in a popup its button controls (Jane Street's li.dropdown-row).
   if (!els.length) els = [...c.querySelectorAll<HTMLElement>("li")].filter((o) => !o.querySelector("li"));
@@ -138,7 +148,21 @@ export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
   if (h.listbox || !c) return;
   key(h.searchInput ?? triggerOf(h), "Escape");
   await sleep(30);
-  if (c.isConnected && isVisible(c)) realClick(document.body, { x: 1, y: 1 });
+  // A modal menu (MUI's Popover) hears Escape from inside it, and a click on the invisible backdrop covering the
+  // page, not on the body beneath: left open, the backdrop took the form's Submit (Dover).
+  if (c.isConnected && isVisible(c)) {
+    key(c, "Escape");
+    await sleep(30);
+  }
+  if (c.isConnected && isVisible(c)) {
+    const at = document.elementFromPoint(1, 1);
+    realClick(
+      at && !at.closest("a,button,input,select,textarea,[role=button],[role=link]")
+        ? (at as HTMLElement)
+        : document.body,
+      { x: 1, y: 1 },
+    );
+  }
 }
 
 // Virtualized lists re-render from scroll events, which fire on the next rendering frame. Hidden tabs render no
@@ -351,10 +375,15 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
     return on;
   };
   const took = async () => shows(h, text) || (showsPart(h, text) && (dropdownText(h) !== before || (await selected())));
+  const listed = optionElements(c);
   realClick(el);
   await sleep(40);
   if (await took()) return true;
   if (index < 0) return false;
+  // A category that opened its own list (Workday's "How Did You Hear About Us?") is no pick, and keys pressed now
+  // land in that list: a UBC student got "WaterlooWorks".
+  const now = c.isConnected && isVisible(c) ? optionElements(c) : null;
+  if (now && (now.length !== listed.length || now.some((o, i) => o !== listed[i]))) return false;
   // Keyboard-driven widgets: ArrowDown to the option, then Enter.
   const t = h.searchInput ?? triggerOf(h);
   focus(t);

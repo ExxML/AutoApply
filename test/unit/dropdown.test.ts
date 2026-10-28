@@ -1,7 +1,14 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
-import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
+import {
+  closeDropdown,
+  fillDropdown,
+  harvestOptions,
+  openDropdown,
+  optionElements,
+  searchOptions,
+} from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
@@ -143,6 +150,76 @@ describe("remote dropdowns (Select2 AJAX)", () => {
 
     expect(await searchOptions(h, "Computer")).toEqual(["Computer Engineering", "Computer Science"]);
     expect(await fillDropdown(h, ["Computer Science"])).toEqual({ outcome: "ok", shown: "Computer Science" });
+  });
+
+  it("searches a Workday prompt for how they heard when its list shows only categories", async () => {
+    setBody(`<div><label for="src">How Did You Hear About Us?</label><div data-automation-id="multiSelectContainer">
+      <div data-automation-id="multiselectInputContainer"><input id="src" placeholder="Search" enterkeyhint="search">
+      </div></div></div>`);
+    const h = scan(newScanState()).handles[0];
+    const input = h.searchInput!;
+    let popup: HTMLElement | null = null;
+    const show = (rows: string[]) => {
+      popup?.remove();
+      popup = document.createElement("div");
+      popup.setAttribute("role", "listbox");
+      popup.innerHTML = rows
+        .map((t) => `<div role="option"><div data-automation-id="promptOption">${t}</div></div>`)
+        .join("");
+      document.body.append(popup);
+    };
+    input.addEventListener("click", () => show(["Company Website", "Job Board"]));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") popup?.remove();
+      if (e.key === "Enter") show(["Glassdoor", "LinkedIn"].filter((t) => t.includes(input.value)));
+    });
+    document.addEventListener("click", (e) => {
+      const label = (e.target as Element).closest?.('[data-automation-id="promptOption"]');
+      if (!label || label.textContent === "Job Board") return;
+      input.insertAdjacentHTML("afterend", `<div>${label.textContent}</div>`);
+      popup?.remove();
+    });
+    const chosen: string[][] = [];
+    const d = { ...deps(), choose: async (_: unknown, __: string, o: string[]) => (chosen.push(o), [1]) };
+    d.harvested.set(h.id, ["Company Website", "Job Board"]);
+    expect(await fill(h, { type: "intended", answer: "LinkedIn", query: "LinkedIn" }, d)).toMatchObject({
+      outcome: "ok",
+      shown: "LinkedIn",
+    });
+    expect(chosen).toEqual([]);
+  });
+
+  it("closes a modal menu that hears Escape only from inside it (MUI)", async () => {
+    setBody(`<div><label>Where would you like to work from?</label>
+      <div role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="menu">Select</div></div>
+      <ul id="menu" role="listbox" hidden><li role="option">Remote - Canada</li><li role="option">Vancouver</li></ul>`);
+    const h = scan(newScanState()).handles[0];
+    const ul = document.getElementById("menu")!;
+    h.el.addEventListener("mousedown", () => (ul.hidden = false));
+    ul.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") ul.hidden = true;
+    });
+    const c = await openDropdown(h);
+    expect(c).toBe(ul);
+    await closeDropdown(h, c);
+    expect(ul.hidden).toBe(true);
+  });
+
+  it("presses no keys into the list a category opened instead of picking", async () => {
+    const { h, ul } = select2(`<li role="option">Company Website</li><li role="option">University Co-op</li>`);
+    let picked = "";
+    let focused = -1;
+    ul.addEventListener("click", (e) => {
+      // A category opens its own list.
+      if ((e.target as Element).textContent === "University Co-op")
+        ul.innerHTML = `<li role="option">UBC Science Co-op</li><li role="option">WaterlooWorks</li>`;
+    });
+    h.el.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") focused++;
+      if (e.key === "Enter") picked = ul.querySelectorAll("li")[focused]?.textContent ?? "";
+    });
+    expect((await fillDropdown(h, ["University Co-op"])).outcome).toBe("failed");
+    expect(picked).toBe("");
   });
 
   it("a list too long to harvest is searched from its popup search box", async () => {
@@ -302,6 +379,112 @@ describe("text fills", () => {
   });
 });
 
+describe("dates split into Month / Day / Year boxes (Workday)", () => {
+  const box = (part: string) =>
+    `<div><input type="text" role="spinbutton" aria-label="${part}" inputmode="numeric" value=""></div>`;
+  it("reads them as one date question and types each part into its box", async () => {
+    setBody(`<div><label id="g-label">What is your expected graduation date?</label>
+      <div role="group" aria-labelledby="g-label">${box("Month")}${box("Year")}</div></div>
+      <div><label id="s-label">Earliest start date</label>
+      <div role="group" aria-labelledby="s-label">${box("Month")}${box("Day")}${box("Year")}</div></div>`);
+    const [grad, start] = scan(newScanState()).handles;
+    expect(scan(newScanState()).handles).toHaveLength(2);
+    expect(grad.desc).toMatchObject({
+      kind: "date",
+      label: "What is your expected graduation date?",
+      placeholder: "MM/YYYY",
+    });
+    expect(start.desc.placeholder).toBe("MM/DD/YYYY");
+    expect(await fill(grad, { type: "text", value: "May 2028" }, deps())).toMatchObject({
+      outcome: "ok",
+      shown: "05/2028",
+    });
+    expect(await fill(start, { type: "text", value: "2027-01-01" }, deps())).toMatchObject({
+      outcome: "ok",
+      shown: "01/01/2027",
+    });
+    expect(readValue(start)).toBe("01/01/2027");
+  });
+
+  it("types only the year into a lone Year box", async () => {
+    setBody(`<div><label id="f-label">From</label><div role="group" aria-labelledby="f-label">${box("Year")}</div></div>
+      <div><label id="t-label">To (Actual or Expected)</label><div role="group" aria-labelledby="t-label">${box("Year")}</div></div>`);
+    const [, to] = scan(newScanState()).handles;
+    expect(to.desc).toMatchObject({ kind: "date", label: "To (Actual or Expected)", placeholder: "YYYY" });
+    expect(await fill(to, { type: "text", value: "May 2028" }, deps())).toMatchObject({ outcome: "ok", shown: "2028" });
+    expect(await fill(to, { type: "text", value: "2029" }, deps())).toMatchObject({ outcome: "ok", shown: "2029" });
+  });
+});
+
+describe("slotted options (SmartRecruiters' spl-select)", () => {
+  it("reads options slotted into a listbox from the light DOM, their role in their own shadow root", () => {
+    setBody(`<x-select><x-option>May 2028</x-option><x-option>May 2029</x-option></x-select>`);
+    const host = document.querySelector("x-select")!;
+    host.attachShadow({ mode: "open" }).innerHTML = `<div role="listbox"><slot></slot></div>`;
+    for (const o of document.querySelectorAll("x-option"))
+      o.attachShadow({ mode: "open" }).innerHTML = `<div role="option"><slot></slot></div>`;
+    const lb = host.shadowRoot!.querySelector<HTMLElement>("[role=listbox]")!;
+    expect(optionElements(lb).map((o) => o.textContent)).toEqual(["May 2028", "May 2029"]);
+  });
+});
+
+describe("select2 3.x AJAX search over a hidden input (legacy Greenhouse's school)", () => {
+  it("types into its search box once it takes focus, and picks from the results for the whole query", async () => {
+    setBody(`<div class="field"><label for="school">School *</label><input type="hidden" id="school" aria-required="true">
+      <div class="select2-container" id="s2id_school"><a class="select2-choice"><span class="select2-chosen"
+        id="select2-chosen-1">Select a School</span></a><label for="s2id_autogen1" class="select2-offscreen">School</label>
+        <input class="select2-focusser select2-offscreen" type="text" aria-labelledby="select2-chosen-1"
+          id="s2id_autogen1"></div></div>`);
+    const hidden = document.getElementById("school") as HTMLInputElement;
+    const focusser = document.getElementById("s2id_autogen1") as HTMLInputElement;
+    const chosen = document.getElementById("select2-chosen-1")!;
+    const schools = ["University of Alberta", "University of British Columbia", "University of Calgary"];
+    let drop: HTMLElement | null = null;
+    // The first key opens the list, moves to its search box and is typed there; results come after a short delay,
+    // the first ones for that one key.
+    focusser.addEventListener("input", () => {
+      if (drop) return;
+      drop = document.createElement("div");
+      drop.innerHTML = `<input class="select2-input" type="text"><ul class="select2-results" role="listbox"></ul>`;
+      document.body.append(drop);
+      const search = drop.querySelector("input")!;
+      const ul = drop.querySelector("ul")!;
+      const show = () => {
+        const hits = schools.filter((t) => t.toLowerCase().includes(search.value.toLowerCase()));
+        ul.innerHTML = hits
+          .map(
+            (t) =>
+              `<li class="select2-result select2-result-selectable"><div class="select2-result-label" role="option">${t}</div></li>`,
+          )
+          .join("");
+        ul.querySelectorAll("li").forEach((li) =>
+          li.addEventListener("mouseup", () => {
+            hidden.value = li.textContent!;
+            chosen.textContent = li.textContent!;
+            drop?.remove();
+          }),
+        );
+      };
+      search.value = focusser.value;
+      focusser.value = "";
+      search.focus();
+      ul.innerHTML = `<li class="select2-no-results">Please enter 1 or more character</li>`;
+      setTimeout(show, 10);
+      let t: ReturnType<typeof setTimeout>;
+      search.addEventListener("input", () => (clearTimeout(t), (t = setTimeout(show, 300))));
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc).toMatchObject({ kind: "typeahead", label: "School", required: true });
+    const op = {
+      type: "intended",
+      answer: "University of British Columbia",
+      query: "University of British Columbia",
+    } as const;
+    expect(await fill(h, op, deps())).toMatchObject({ outcome: "ok", shown: "University of British Columbia" });
+    expect(hidden.value).toBe("University of British Columbia");
+  });
+});
+
 describe("clicks", () => {
   it("land inside a custom element's shadow root, where its listener is (SmartRecruiters)", () => {
     setBody(`<x-option></x-option>`);
@@ -451,6 +634,22 @@ describe("file uploads", () => {
     expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
     expect(picker).toBe(false);
   });
+
+  it("attaches a legacy Greenhouse résumé through its Attach box, whose file input sits in a separate upload form", async () => {
+    setBody(`<form id="application_form"><div class="field" id="resume_fieldset" aria-required="true">
+      <label id="resume_label">Resume/CV <span class="asterisk">*</span></label><div class="attach-or-paste">
+      <div class="link-container"><button type="button" data-source="attach">Attach</button> or <a href="#">enter manually</a></div>
+      <span class="filename"></span></div></div></form>
+      <form id="s3_upload_for_resume" style="display:none"><input type="file" name="file"></form>`);
+    const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
+    document.querySelector("button")!.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => (document.querySelector(".filename")!.textContent = input.files![0].name));
+    const st = newScanState();
+    const [h] = findDropzones(scan(st).handles, st);
+    expect(h.desc).toMatchObject({ kind: "file", required: true });
+    expect(h.desc.label).toMatch(/^Resume\/CV/);
+    expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+  });
 });
 
 describe("place typeaheads", () => {
@@ -469,6 +668,31 @@ describe("place typeaheads", () => {
     const r = await fillTypeahead(h, "Vancouver, BC", "Vancouver, BC", async () => 0);
     expect(r).toMatchObject({ outcome: "ok", shown: "Vancouver, British Columbia, Canada" });
     expect(input.value).toBe("Vancouver, British Columbia, Canada");
+  });
+
+  it("pick a place from a plain list beside the box, which keeps its coordinates (legacy Greenhouse)", async () => {
+    setBody(`<div class="field"><label for="loc">Location (City) *</label>
+      <input id="loc" name="job_application[location]"><input type="hidden" name="job_application[latitude]">
+      <ul class="pelias-results" style="display:none"></ul></div>`);
+    const input = document.querySelector<HTMLInputElement>("#loc")!;
+    const lat = document.querySelector<HTMLInputElement>("[type=hidden]")!;
+    const ul = document.querySelector("ul")!;
+    input.addEventListener("input", () => {
+      ul.innerHTML =
+        input.value.length > 2 ? "<li>Langley, British Columbia, Canada</li><li>Langley, Washington</li>" : "";
+      ul.style.display = ul.innerHTML ? "" : "none";
+      ul.querySelectorAll("li").forEach((li) =>
+        li.addEventListener(
+          "mousedown",
+          () => ((input.value = li.textContent!), (lat.value = "49.1"), (ul.style.display = "none")),
+        ),
+      );
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc.kind).toBe("typeahead");
+    const r = await fillTypeahead(h, "Langley", "Langley, British Columbia, Canada", async () => null);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Langley, British Columbia, Canada" });
+    expect(lat.value).toBe("49.1");
   });
 
   it("search by the country when the picker lists only countries (Airwallex)", async () => {

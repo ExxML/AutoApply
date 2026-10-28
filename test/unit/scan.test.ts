@@ -526,6 +526,54 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("reads a popup button a label names as a dropdown, though its list renders elsewhere (BambooHR)", () => {
+    setBody(`<form><div class="fab-FormField"><label id="cLabel" for="c">Country</label><div class="fab-Select">
+      <button type="button" class="fab-SelectToggle" id="c" aria-haspopup="true" aria-expanded="false"
+        aria-labelledby="cLabel cContent"><div id="cContent"><span>–Select–</span></div></button>
+      <input type="hidden" name="country"></div></div>
+      <div><span>Text style</span><button type="button" aria-haspopup="true" aria-expanded="false">Bold</button></div></form>`);
+    const hs = fields();
+    expect(hs.map((h) => [h.desc.kind, h.desc.label])).toEqual([["dropdown", "Country"]]);
+  });
+
+  it("labels a select2 by its question, not by the selection it names itself after (iCIMS)", () => {
+    setBody(`<form><div><label for="q">Will you now or in the future require sponsorship? <span>*</span></label>
+      <select id="q" class="select2-hidden-accessible" aria-hidden="true" tabindex="-1" required>
+        <option value="">—Make a Selection—</option><option>Yes</option><option>No</option></select>
+      <span class="select2 select2-container"><span class="selection"><span class="select2-selection select2-selection--single"
+        role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-labelledby="select2-q-container">
+        <span class="select2-selection__rendered" id="select2-q-container">—Make a Selection—</span></span></span></span></div>
+      <div><label for="p">Phone</label><input id="p"></div></form>`);
+    const [h] = fields();
+    expect(h.desc.label).toBe("Will you now or in the future require sponsorship?");
+    expect(h.desc.required).toBe(true);
+  });
+
+  it("leaves out select2 3.x's keyboard proxy, named by the pick it shows (legacy Greenhouse)", () => {
+    setBody(`<form><div><label for="q">Are you legally authorized to work in Canada? *</label>
+      <select id="q" class="select2-offscreen" tabindex="-1"><option value="">--</option><option>Yes</option><option>No</option></select>
+      <div class="select2-container" id="s2id_q"><a href="javascript:void(0)" class="select2-choice" tabindex="-1">
+        <span class="select2-chosen" id="select2-chosen-1">Yes</span></a>
+        <label for="s2id_autogen1" class="select2-offscreen">Are you legally authorized to work in Canada?</label>
+        <input class="select2-focusser select2-offscreen" type="text" aria-haspopup="true" role="button"
+          aria-labelledby="select2-chosen-1" id="s2id_autogen1"></div></div></form>`);
+    expect(fields().filter((h) => h.el.classList.contains("select2-focusser"))).toEqual([]);
+    // Over a hidden input (an AJAX school search), the proxy is the field.
+    document
+      .querySelector("select")!
+      .replaceWith(Object.assign(document.createElement("input"), { type: "hidden", id: "q" }));
+    expect(fields().filter((h) => h.el.classList.contains("select2-focusser"))).toHaveLength(1);
+  });
+
+  it("reads an empty MUI Select, which shows a zero-width space, as empty", () => {
+    setBody(`<div><label id="w-label">Where would you like to work from?</label>
+      <div role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="w-label"
+        class="MuiSelect-select"><span class="notranslate">\u200B</span></div><input aria-hidden="true" tabindex="-1" value=""></div>`);
+    const [h] = fields();
+    expect(h.desc.kind).toBe("dropdown");
+    expect(h.prefilled).toBe(false);
+  });
+
   it("labels an upload named only 'Choose a file or drop it here' by its context (SmartRecruiters)", () => {
     setBody(`<form><div><h3>Resume</h3><label for="u">Choose a file or drop it here</label><input type="file" id="u"></div>
       <div><label for="n">Name</label><input id="n"></div></form>`);
@@ -588,6 +636,28 @@ describe("job context (§11.7)", () => {
     setBody(`<p>Pay range: $90,000 - $110,000</p>`);
     expect(readPay(document, board)).toBeNull();
     expect(readPay(document, new URL("https://example.com/blog") as unknown as Location)).toBeNull();
+  });
+
+  it("reads a fetched posting's description and pay, though nothing of it is rendered (Lever)", () => {
+    const posting = new URL("https://jobs.lever.co/acmeco/7d1c2f60") as unknown as Location;
+    const doc = new DOMParser().parseFromString(
+      `<h2>Software Developer Co-op</h2><div class="location">Vancouver, BC</div><div class="section">
+        <p>${"AcmeCo is the payments platform for small businesses across Canada. ".repeat(3)}</p>
+        <h3>What you'll do</h3><ul><li>Ship backend services in Kotlin</li></ul><h3>Who you are</h3>
+        <ul><li>Enrolled in a co-op program</li></ul><div>The hourly range for this co-op is $25 – $32 CAD.</div></div>`,
+      "text/html",
+    );
+    expect(extractJobContext(doc, posting).text).toContain("Ship backend services in Kotlin");
+    expect(readPay(doc, posting)).toEqual([{ min: 25, max: 32, period: "hour", currency: "CAD" }]);
+  });
+
+  it("reads pay kept in list items without spaces between them (Recruitee)", () => {
+    const board = new URL("https://acme.recruitee.com/o/software-developer-intern") as unknown as Location;
+    setBody(
+      `<div><h3>Responsibilities</h3><p>Build</p><h3>Requirements</h3><p>Java</p>
+      <ul><li>We offer $24/hour</li><li>Hybrid</li></ul></div>`.replace(/>\s+</g, "><"),
+    );
+    expect(readPay(document, board)).toEqual([{ min: 24, max: 24, period: "hour", currency: "" }]);
   });
 
   it("reads a posting without the usual headings from the block the page names its description", () => {

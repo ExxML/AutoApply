@@ -16,6 +16,14 @@ export interface Unit {
   buttonStyle?: boolean;
   searchInput?: HTMLInputElement;
   listbox?: HTMLElement;
+  /** A date typed into separate Month / Day / Year boxes, in their order. */
+  sections?: HTMLInputElement[];
+}
+
+/** Which part of a date a box holds, by its name: Workday's spinbuttons are "Month", "Day", "Year". */
+export function datePart(el: HTMLInputElement): "m" | "d" | "y" | null {
+  const n = (el.getAttribute("aria-label") || el.placeholder || "").trim();
+  return /^(month|mm)$/i.test(n) ? "m" : /^(day|dd)$/i.test(n) ? "d" : /^(year|yyyy|yy)$/i.test(n) ? "y" : null;
 }
 
 const INPUT_KIND: Record<string, FieldKind | null> = {
@@ -91,6 +99,20 @@ export function isQuestionContainer(parent: Element, first: Element): boolean {
   return false;
 }
 
+/** A <label for> or an aria-labelledby target outside the control names it: a field, not a toolbar button. */
+function labelledFromOutside(b: HTMLElement): boolean {
+  const root = b.getRootNode() as Document | ShadowRoot;
+  const ids = b.getAttribute("aria-labelledby")?.split(/\s+/).filter(Boolean) ?? [];
+  if (
+    ids.some((id) => {
+      const n = root.getElementById?.(id);
+      return !!n && !b.contains(n) && !!textOf(n);
+    })
+  )
+    return true;
+  return !!b.id && !!labelElementFor(b);
+}
+
 /** Popups (listboxes, menus) opened by a dropdown/combobox, found via aria-controls/aria-owns. */
 function dropdownPopups(cands: HTMLElement[]): Element[] {
   const popups: Element[] = [];
@@ -131,12 +153,15 @@ export function buildUnits(c: Collected): Unit[] {
     take({ kind: "dropdown", el: t, searchInput: inner && !inner.readOnly ? inner : undefined });
     cands.filter((x) => t.contains(x)).forEach((x) => taken.add(x));
   }
-  // A button[aria-expanded][aria-controls] under a question label also opens a list (Appendix C.3).
+  // A button[aria-expanded][aria-controls] under a question label also opens a list (Appendix C.3), as does a popup
+  // button a label names (BambooHR's Fabric selects: their list renders elsewhere once opened, no aria-controls).
   for (const b of c.buttons) {
-    if (taken.has(b) || !b.hasAttribute("aria-expanded") || !b.hasAttribute("aria-controls") || !isVisible(b)) continue;
+    if (taken.has(b) || !b.hasAttribute("aria-expanded") || !isVisible(b)) continue;
+    const labelled = /^(true|listbox|menu)$/.test(b.getAttribute("aria-haspopup") ?? "") && labelledFromOutside(b);
+    if (!b.hasAttribute("aria-controls") && !labelled) continue;
     if (RE_NAV_BUTTON.test(textOf(b)) || !b.parentElement) continue;
     // One keeping its pick in a named hidden input is a form's select (Jane Street: "Select your college").
-    if (!isQuestionContainer(b.parentElement, b) && !b.querySelector("input[type=hidden][name]")) continue;
+    if (!labelled && !isQuestionContainer(b.parentElement, b) && !b.querySelector("input[type=hidden][name]")) continue;
     take({ kind: "dropdown", el: b });
   }
 
@@ -220,7 +245,21 @@ export function buildUnits(c: Collected): Unit[] {
       take({ kind: "radio_group", el: members[0], members, groupEl: members[0].parentElement, buttonStyle: true });
   }
 
-  // 5. Everything else, one unit per control.
+  // 5. A date split into Month / Day / Year boxes: one question, not a "Month" and a bare "Year" (Workday's expected
+  // graduation got 08/2027 for May 2028).
+  const parts = cands.filter(
+    (e): e is HTMLInputElement => e instanceof HTMLInputElement && !taken.has(e) && !!datePart(e) && isVisible(e),
+  );
+  for (const g of groupBy(parts, (e) => e.closest("[role=group]") ?? sharedParent(e, parts))) {
+    const kinds = g.map(datePart);
+    // A lone Year spinbutton too (Workday's education "To"): "May 2028" typed into it read "2805".
+    const lone = g.length === 1 && g[0].getAttribute("role") === "spinbutton";
+    if ((g.length < 2 && !lone) || g.length > 3 || !kinds.includes("y") || new Set(kinds).size !== g.length) continue;
+    take({ kind: "date", el: g[0], groupEl: g[0].closest("[role=group]") ?? sharedParent(g[0], g), sections: g });
+    g.forEach((e) => taken.add(e));
+  }
+
+  // 6. Everything else, one unit per control.
   for (const el of cands) {
     if (taken.has(el)) continue;
     const role = el.getAttribute("role");

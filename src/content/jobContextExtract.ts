@@ -2,7 +2,10 @@
 import { canonicalCountry, HUBS, isAtsHost, regionCountry } from "../shared/constants";
 import { collapse, normalize } from "../shared/normalize";
 import type { JobContext, Pay } from "../shared/types";
-import { isVisible } from "./scan/visibility";
+import { isVisible as isRendered } from "./scan/visibility";
+
+/** A posting fetched rather than shown (YOLO skipped its page) is not rendered: all of it counts as shown. */
+const isVisible = (el: Element) => el.ownerDocument !== document || isRendered(el);
 
 // MongoDB: "What we are looking for in you (qualifications)".
 const RE_DESC =
@@ -13,8 +16,17 @@ const descHits = (text: string) => new Set((text.match(RE_DESC) ?? []).map((m) =
 const meta = (doc: Document, prop: string) =>
   doc.querySelector<HTMLMetaElement>(`meta[property="${prop}"],meta[name="${prop}"]`)?.content?.trim() ?? "";
 
+/** Text with its pieces apart: textContent runs blocks together ("$24/hourHybrid"), hiding pay from its words. */
+function spacedText(root: Node): string {
+  const parts: string[] = [];
+  const walker = (root.ownerDocument ?? (root as Document)).createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) parts.push(n.textContent ?? "");
+  return parts.join(" ");
+}
+
 function htmlToText(html: string): string {
-  const text = new DOMParser().parseFromString(html, "text/html").body?.textContent ?? "";
+  const body = new DOMParser().parseFromString(html, "text/html").body;
+  const text = body ? spacedText(body) : "";
   // Brex's JSON-LD escapes its HTML twice ("&lt;div class=&quot;…"): one pass leaves markup behind.
   return /<\/?[a-z][^>]*>/i.test(text) && text !== html ? htmlToText(text) : collapse(text);
 }
@@ -127,7 +139,8 @@ function largestDescriptionBlock(doc: Document): string {
     }
   }
   best ??= markedDescription(doc);
-  return best ? collapse(best.innerText ?? best.textContent ?? "").slice(0, 8000) : "";
+  const shown = best && (best.ownerDocument === document ? best.innerText : spacedText(best));
+  return shown ? collapse(shown).slice(0, 8000) : "";
 }
 
 /** Visible text before the first form control (title, location, team on apply pages). */
@@ -291,7 +304,10 @@ function postingText(doc: Document): { text: string; sure: boolean } {
   while (root && !hits.every((h) => root!.contains(h))) root = root.parentElement;
   for (let i = 0; i < 2 && root?.parentElement && !root.parentElement.querySelector(CONTROLS); i++)
     root = root.parentElement;
-  return { text: collapse(root?.textContent ?? ""), sure: descHits(hits.map((h) => h.textContent).join(" ")) >= 2 };
+  return {
+    text: collapse(root ? spacedText(root) : ""),
+    sure: descHits(hits.map((h) => h.textContent).join(" ")) >= 2,
+  };
 }
 
 /**

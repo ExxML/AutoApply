@@ -74,6 +74,20 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("x", { autocomplete: "address-level1", maxLength: 2 }), p)?.value).toBe("BC");
     expect(deterministicValue(f("x", { autocomplete: "tel", kind: "tel" }), p)?.value).toBe("6045551234");
   });
+  it("reads a bare Address as the street when the form asks the city apart", () => {
+    const q = structuredClone(p);
+    q.address.line1 = "7396 202 Street";
+    expect(deterministicValue(f("Address"), q, true)?.value).toBe("7396 202 Street");
+    expect(deterministicValue(f("Address"), q)).toBeNull();
+  });
+  it("leaves a work or education entry's own place to its entry", () => {
+    const q = structuredClone(p);
+    q.address.city = "Langley";
+    expect(deterministicValue(f("City"), q)?.value).toBe("Langley");
+    expect(deterministicValue(f("Location", { section: "Work Experience 1" }), q)).toBeNull();
+    expect(deterministicValue(f("City", { section: "Education 1" }), q)).toBeNull();
+    expect(deterministicValue(f("First Name", { section: "Work Experience 1" }), q)?.value).toBe("Ada");
+  });
   it("adds the country code only when the phone box shows one", () => {
     const tel = (extra: Partial<FieldDescriptor>) =>
       deterministicValue(f("Phone", { kind: "tel", ...extra }), p)?.value;

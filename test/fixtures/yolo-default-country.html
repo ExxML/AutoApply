@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Software Engineer Intern</title>
+  </head>
+  <body>
+    <h1>Software Engineer Intern</h1>
+    <!-- The site preselects its own country; the province list follows the country. -->
+    <form
+      id="f"
+      onsubmit="
+        event.preventDefault();
+        location.href = 'yolo-thanks.html';
+      "
+    >
+      <p><label for="fn">First name *</label> <input id="fn" required /></p>
+      <p>
+        <label for="country">Country</label>
+        <select id="country" required>
+          <option>United States</option>
+          <option>Canada</option>
+        </select>
+      </p>
+      <p>
+        <label for="prov">Province *</label>
+        <select id="prov" required></select>
+      </p>
+      <button type="submit">Submit application</button>
+    </form>
+    <script>
+      const regions = { "United States": ["California", "Washington"], Canada: ["Alberta", "British Columbia"] };
+      const country = document.getElementById("country");
+      const prov = document.getElementById("prov");
+      const render = () =>
+        (prov.innerHTML = [
+          '<option value="">Select</option>',
+          ...regions[country.value].map((r) => `<option>${r}</option>`),
+        ].join(""));
+      country.addEventListener("change", render);
+      render();
+    </script>
+  </body>
+</html>
