@@ -87,8 +87,11 @@ export type Message =
   /** `guesses`: this page's made-up answers so far; the run keeps every page's. */
   | { type: "YOLO_STEP"; facts: PageFacts; url: string; guesses: Guess[] }
   | { type: "YOLO_RESULT"; result: YoloResult }
-  /** Debug logging: each field on the page and its answer after a fill, keyed by document and field. */
-  | { type: "YOLO_ANSWERS"; answers: Record<string, Guess> }
+  /**
+   * After a fill, before the page moves on: its made-up answers, and with debug logging each field on the page and
+   * its answer, keyed by document and field.
+   */
+  | { type: "YOLO_ANSWERS"; answers: Record<string, Guess>; guesses: Guess[] }
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
   | { type: "COVER_LETTER_PDF"; question: string }

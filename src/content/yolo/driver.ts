@@ -157,7 +157,12 @@ export async function drive(deps: DriverDeps) {
         }
         case "form": {
           const rep = await fill();
-          if (deps.debug) await send({ type: "YOLO_ANSWERS", answers: deps.answers() }).catch(() => undefined);
+          // Now: a Submit that loads the confirmation page would take this page's guesses with it.
+          await send({
+            type: "YOLO_ANSWERS",
+            answers: deps.debug ? deps.answers() : {},
+            guesses: deps.guesses(),
+          }).catch(() => undefined);
           if (rep.retryAt) return result({ status: "failed", reason: "AI usage limit reached", retryAt: rep.retryAt });
           if (rep.fatal) return needs(rep.fatal);
           if (rep.unfilled.length) return needs(`Couldn't fill: ${rep.unfilled.slice(0, 3).join(", ")}`);

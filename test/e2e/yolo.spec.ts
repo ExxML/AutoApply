@@ -84,6 +84,9 @@ test("answers a field the page rejected though it wasn't marked required", async
   void page;
   await queue(sw, `${BASE}yolo-optional-marked.html`);
   await outcome(sw).toBe("submitted");
+  // Guessed on the page the submit left: still logged for review.
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a.guesses).toEqual([{ q: "Which team are you most interested in?", a: "Payments" }]);
 });
 
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
