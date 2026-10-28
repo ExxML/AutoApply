@@ -355,7 +355,7 @@ export const PROFILE_GROUPS: GroupSpec[] = [
       t(
         "background.nonCompeteOrRestrictions",
         "Non-compete / restrictions",
-        "Describe any agreements; leave empty if none.",
+        "Describe any agreements; write “None” if you have none",
       ),
       t(
         "background.offerDeadlines",
