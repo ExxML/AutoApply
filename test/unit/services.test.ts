@@ -1319,6 +1319,11 @@ describe("mapFields chunking and splitting (§10.7)", () => {
                 options: levels,
               }),
               field("b", { label: "Highest level of education", kind: "select", options: levels }),
+              field("c", {
+                label: "What is the highest level of education you have completed or are pursuing?",
+                kind: "select",
+                options: levels,
+              }),
             ],
             profile,
             documents: [],
@@ -1326,9 +1331,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           },
         )
       ).decisions.map((d) => d.intendedAnswer ?? d.action);
-    expect(await ask()).toEqual(["High School Diploma/GED", "flag"]);
+    expect(await ask()).toEqual(["High School Diploma/GED", "flag", "flag"]);
     profile.education[0] = { ...profile.education[0], endDate: "2020-05", currentlyEnrolled: "no" };
-    expect(await ask()).toEqual(["flag", "flag"]);
+    expect(await ask()).toEqual(["flag", "flag", "flag"]);
   });
 
   it("answers remote-work basics and English fluency", async () => {

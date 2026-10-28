@@ -802,13 +802,15 @@ function timezoneDecision(f: FieldDescriptor, address: Profile["personal"]["addr
 
 /**
  * "Highest level of education you have obtained/completed?" while no degree is finished yet: high school. Appian's
- * got "Bachelor's Degree" for a student graduating in 2028. With a finished degree, the model decides.
+ * got "Bachelor's Degree" for a student graduating in 2028. With a finished degree, the model decides, as it does
+ * for "completed or are pursuing" (iCIMS's got high school).
  */
 function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decision | null {
   const done = /\b(obtained|completed|attained|earned|achieved|received|finished)\b/i;
   if (!f.options || isMulti(f) || !/\bhighest\b/i.test(f.label) || !/\b(education|degree)\b/i.test(f.label))
     return null;
-  if (!done.test(f.label) || !profile.highSchool.graduationYear) return null;
+  if (!done.test(f.label) || /\b(pursu\w*|enrolled|in progress|working (toward|on))\b/i.test(f.label)) return null;
+  if (!profile.highSchool.graduationYear) return null;
   const today = todayIso().slice(0, 7);
   const finished = profile.education.some(
     (e) =>
