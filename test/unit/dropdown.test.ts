@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
 import {
+  closeDropdown,
   fillDropdown,
   harvestOptions,
   openDropdown,
@@ -186,6 +187,22 @@ describe("remote dropdowns (Select2 AJAX)", () => {
       shown: "LinkedIn",
     });
     expect(chosen).toEqual([]);
+  });
+
+  it("closes a modal menu that hears Escape only from inside it (MUI)", async () => {
+    setBody(`<div><label>Where would you like to work from?</label>
+      <div role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="menu">Select</div></div>
+      <ul id="menu" role="listbox" hidden><li role="option">Remote - Canada</li><li role="option">Vancouver</li></ul>`);
+    const h = scan(newScanState()).handles[0];
+    const ul = document.getElementById("menu")!;
+    h.el.addEventListener("mousedown", () => (ul.hidden = false));
+    ul.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") ul.hidden = true;
+    });
+    const c = await openDropdown(h);
+    expect(c).toBe(ul);
+    await closeDropdown(h, c);
+    expect(ul.hidden).toBe(true);
   });
 
   it("presses no keys into the list a category opened instead of picking", async () => {

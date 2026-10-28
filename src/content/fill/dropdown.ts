@@ -148,7 +148,21 @@ export async function closeDropdown(h: FieldHandle, c: HTMLElement | null) {
   if (h.listbox || !c) return;
   key(h.searchInput ?? triggerOf(h), "Escape");
   await sleep(30);
-  if (c.isConnected && isVisible(c)) realClick(document.body, { x: 1, y: 1 });
+  // A modal menu (MUI's Popover) hears Escape from inside it, and a click on the invisible backdrop covering the
+  // page, not on the body beneath: left open, the backdrop took the form's Submit (Dover).
+  if (c.isConnected && isVisible(c)) {
+    key(c, "Escape");
+    await sleep(30);
+  }
+  if (c.isConnected && isVisible(c)) {
+    const at = document.elementFromPoint(1, 1);
+    realClick(
+      at && !at.closest("a,button,input,select,textarea,[role=button],[role=link]")
+        ? (at as HTMLElement)
+        : document.body,
+      { x: 1, y: 1 },
+    );
+  }
 }
 
 // Virtualized lists re-render from scroll events, which fire on the next rendering frame. Hidden tabs render no
