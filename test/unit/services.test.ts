@@ -556,6 +556,19 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask(["4 months", "Other"])).toBe("flag");
     profile.coop.acceptableTermLengths = ["4 months", "8 months"];
     expect(await ask(["4-month term", "8-month term", "12-month term"])).toBe("4-month term, 8-month term");
+    // Asked for one: "Either" when two or more suit.
+    const one = async (label: string, options: string[]) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { fields: [field("o", { label, kind: "radio_group", options })], profile, documents: [], job: null },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    const terms = ["Jan - Apr 2027 (4 months)", "Jan - Aug 2027 (8 months)", "Either"];
+    expect(await one("Which co-op term are you applying for?", terms)).toBe("Either");
+    expect(await one("Which co-op term are you applying for?", terms.slice(0, 2))).toBe("flag");
+    profile.coop.acceptableTermLengths = ["8 months"];
+    expect(await one("Which co-op term are you applying for?", terms)).toBe("flag");
   });
 
   it("ticks the technologies the profile's skills and projects name", async () => {

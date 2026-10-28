@@ -1056,17 +1056,28 @@ const monthsIn = (o: string) => Number(o.match(/\b(\d{1,2})[- ]?months?\b/i)?.[1
 
 /**
  * "Which work term lengths are you available for? (select all that apply)": each length among the profile's
- * acceptable ones ("All" for any). The AI ticked only the posting's own 8 months for a candidate open to all.
+ * acceptable ones ("All" for any). The AI ticked only the posting's own 8 months for a candidate open to all. Asked
+ * for one, with two or more that suit, the list's "Either": JazzHR's got "Jan–Aug 2027 (8 months)".
  */
 function termLengthsDecision(f: FieldDescriptor, coop: Profile["coop"]): Decision | null {
   const lengths = coop.acceptableTermLengths.map((t) => t.trim()).filter(Boolean);
-  if (!isMulti(f) || !f.options || !lengths.length) return null;
-  if (!/\b(lengths?|durations?|how long|months?)\b/i.test(f.label)) return null;
+  if (!f.options || !lengths.length) return null;
+  if (!/\b(lengths?|durations?|how long|months?)\b/i.test(f.label) && (isMulti(f) || !/\bterms?\b/i.test(f.label)))
+    return null;
   const months = f.options.map(monthsIn);
-  if (months.includes(null)) return null;
   const any = lengths.some((t) => /^(all|any)$/i.test(t));
   const ok = new Set(lengths.map(monthsIn));
-  const picks = months.flatMap((m, i) => (any || ok.has(m) ? [i] : []));
+  const fit = months.flatMap((m, i) => (m !== null && (any || ok.has(m)) ? [i] : []));
+  const either = f.options.flatMap((o, i) =>
+    /^(either|both|any|no preference|flexible|open to (either|any|both))\b/i.test(o.trim()) ? [i] : [],
+  );
+  const picks = isMulti(f)
+    ? months.includes(null)
+      ? []
+      : fit
+    : fit.length >= 2 && either.length === 1 && months.every((m, i) => m !== null || i === either[0])
+      ? either
+      : [];
   if (!picks.length) return null;
   return {
     fieldId: f.id,
