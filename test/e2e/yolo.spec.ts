@@ -166,6 +166,16 @@ test("queues a job again when short rate limits keep coming", async ({ sw, page,
   expect(await storage<unknown[]>(sw, "yoloQueue")).toHaveLength(1);
 });
 
+test("opens a posting whose application is collapsed in the page", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-collapsed.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Steps: job → form → success");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

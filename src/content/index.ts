@@ -925,7 +925,8 @@ async function startYolo() {
   listen();
   await drive({
     fieldStats: () => {
-      const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? ""));
+      // Nor the fields of a form still collapsed (JazzHR's, until its Apply): file inputs are scanned hidden too.
+      const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? "") && isVisible(h.container));
       return { fields: fields.length, requiredFields: fields.filter((h) => h.desc.required).length };
     },
     fill: yoloFill,

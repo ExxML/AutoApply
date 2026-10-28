@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Software Engineer Intern – Acme Careers</title>
+  </head>
+  <body>
+    <h1>Software Engineer Intern</h1>
+    <p>Acme · Vancouver, BC, Canada</p>
+    <button
+      type="button"
+      id="apply"
+      onclick="
+        document.getElementById('app').hidden = false;
+        this.remove();
+      "
+    >
+      Apply
+    </button>
+    <!-- The application is in the page, collapsed until Apply is pressed. -->
+    <div id="app" hidden>
+      <form
+        onsubmit="
+          event.preventDefault();
+          location.href = 'yolo-thanks.html';
+        "
+      >
+        <p><label for="fn">First name *</label> <input id="fn" required /></p>
+        <p><label for="cv">Resume *</label> <input id="cv" type="file" required /></p>
+        <button type="submit">Submit application</button>
+      </form>
+    </div>
+  </body>
+</html>
