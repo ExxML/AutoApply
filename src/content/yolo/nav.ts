@@ -36,7 +36,9 @@ export const labelOf = (el: HTMLElement): string => {
 
 /**
  * Distinguishes a real job-page entrance from a final form action. A relative or absolute anchor can only navigate;
- * native submits must stay in the form path so validation/refills and YOLO dry runs still work.
+ * native submits must stay in the form path so validation/refills and YOLO dry runs still work, unless worded as an
+ * entrance: a page-wide form (ASP.NET's) makes a posting's "Apply to this job" a submit. The step's required fields
+ * still tell a form apart (background/yolo/classify.ts).
  */
 export function applyInfo(el: HTMLElement | null): { kind: ApplyKind; inForm: boolean } {
   if (!el) return { kind: "none", inForm: false };
@@ -50,9 +52,9 @@ export function applyInfo(el: HTMLElement | null): { kind: ApplyKind; inForm: bo
     control instanceof HTMLInputElement
       ? control.type === "submit" || control.type === "image"
       : !!control && control.type === "submit" && !!control.closest("form");
-  if (nativeSubmit) return { kind: "submit", inForm };
-
   const label = labelOf(el);
+  if (nativeSubmit) return { kind: RE_APPLY_OPENING.test(label) ? "entry" : "submit", inForm };
+
   // A custom button outside a form is commonly a job-detail entry point. A generic Apply in a form is a submit.
   if (RE_APPLY_OPENING.test(label) || (RE_APPLY.test(label) && !inForm)) return { kind: "entry", inForm };
   return { kind: "submit", inForm };

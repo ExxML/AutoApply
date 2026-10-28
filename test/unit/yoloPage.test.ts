@@ -189,6 +189,11 @@ describe("YOLO page kinds", () => {
     expect(classify(3, false, 3)).toBe("form");
     setBody(`<input aria-required="true"><input aria-required="true"><input aria-required="true"><button type="button">Apply to this job</button>`);
     expect(classify(3, false, 3)).toBe("form");
+    // A page-wide form (ASP.NET) makes the posting's own Apply a native submit.
+    setBody(
+      `<form><input aria-label="Search jobs"><p>About the role</p><button type="submit">Apply to this job</button></form>`,
+    );
+    expect(classify(1)).toBe("job");
     setBody(`<form><button type="submit">Apply</button></form>`);
     expect(classify(0)).toBe("form");
     setBody(`<h2>Review</h2><button>Submit application</button>`);
