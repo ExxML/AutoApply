@@ -183,7 +183,13 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const memberLabels = (members ?? [])
       .map((m) => (m instanceof HTMLInputElement ? labelElementFor(m) : m))
       .filter((x): x is HTMLElement => !!x);
+    // select2 3.x's keyboard proxy, named by the pick it shows ("Yes"): over a <select>, that select is the question.
+    // Over a hidden input (Greenhouse's school search) it is the way in, asking what that input's label asks.
+    const s2 = el.classList.contains("select2-focusser") ? el.closest(".select2-container") : null;
+    const s2for = s2?.id.startsWith("s2id_") ? document.getElementById(s2.id.slice(5)) : null;
+    if (s2for instanceof HTMLSelectElement) continue;
     const rawLabel =
+      (s2for && controlLabel(s2for)) ||
       (isGroup
         ? groupLabel(u.groupEl ?? null) || precedingText(container, members![0], memberLabels)
         : u.sections
@@ -197,10 +203,6 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const nameId = `${el.getAttribute("name") ?? ""} ${el.id} ${el.getAttribute("data-automation-id") ?? ""}`;
     if (RE_SKIP_LABEL.test(label) || RE_SKIP_LABEL.test(nameId)) continue;
     if (excludedContext(el, label, mainForm)) continue;
-    // select2 3.x's keyboard proxy, named by the pick it shows ("Yes"): over a <select>, that select is the question.
-    // Over a hidden input (Greenhouse's school search) it is the only way in.
-    const s2 = el.classList.contains("select2-focusser") ? el.closest(".select2-container") : null;
-    if (s2?.id.startsWith("s2id_") && document.getElementById(s2.id.slice(5)) instanceof HTMLSelectElement) continue;
     // A phone's country picker named only by its value ("Netherlands", Recruitee) follows the dial code we type.
     if (
       u.kind === "dropdown" &&
@@ -210,7 +212,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       continue;
 
     let kind = u.kind;
-    if (kind === "text" && el instanceof HTMLInputElement && isTypeaheadInput(el, label)) kind = "typeahead";
+    if (kind === "text" && el instanceof HTMLInputElement && (isTypeaheadInput(el, label) || s2for)) kind = "typeahead";
 
     const h: FieldHandle = {
       id: "",
@@ -278,7 +280,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const section = sectionFor(el, collected.order, collected.headings);
     if (section && section !== label) d.section = section;
     const required =
-      [el, u.searchInput, u.groupEl, ...(members ?? [])].some(
+      [el, u.searchInput, u.groupEl, s2for, ...(members ?? [])].some(
         (n) => n && ((n as HTMLInputElement).required || n.getAttribute("aria-required") === "true"),
       ) ||
       /\*|\(required\)/i.test(rawLabel) ||

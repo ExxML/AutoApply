@@ -160,6 +160,7 @@ export const OPTION_SELECTORS = [
   ".ant-select-item-option",
   ".choices__item--choice",
   ".select2-results__option",
+  ".select2-result-selectable", // select2 3.x (legacy Greenhouse's school search)
   ".vs__dropdown-option",
   "li[data-value]",
   ".dropdown-location", // Lever's location suggestions

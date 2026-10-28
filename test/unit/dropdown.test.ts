@@ -428,6 +428,63 @@ describe("slotted options (SmartRecruiters' spl-select)", () => {
   });
 });
 
+describe("select2 3.x AJAX search over a hidden input (legacy Greenhouse's school)", () => {
+  it("types into its search box once it takes focus, and picks from the results for the whole query", async () => {
+    setBody(`<div class="field"><label for="school">School *</label><input type="hidden" id="school" aria-required="true">
+      <div class="select2-container" id="s2id_school"><a class="select2-choice"><span class="select2-chosen"
+        id="select2-chosen-1">Select a School</span></a><label for="s2id_autogen1" class="select2-offscreen">School</label>
+        <input class="select2-focusser select2-offscreen" type="text" aria-labelledby="select2-chosen-1"
+          id="s2id_autogen1"></div></div>`);
+    const hidden = document.getElementById("school") as HTMLInputElement;
+    const focusser = document.getElementById("s2id_autogen1") as HTMLInputElement;
+    const chosen = document.getElementById("select2-chosen-1")!;
+    const schools = ["University of Alberta", "University of British Columbia", "University of Calgary"];
+    let drop: HTMLElement | null = null;
+    // The first key opens the list, moves to its search box and is typed there; results come after a short delay,
+    // the first ones for that one key.
+    focusser.addEventListener("input", () => {
+      if (drop) return;
+      drop = document.createElement("div");
+      drop.innerHTML = `<input class="select2-input" type="text"><ul class="select2-results" role="listbox"></ul>`;
+      document.body.append(drop);
+      const search = drop.querySelector("input")!;
+      const ul = drop.querySelector("ul")!;
+      const show = () => {
+        const hits = schools.filter((t) => t.toLowerCase().includes(search.value.toLowerCase()));
+        ul.innerHTML = hits
+          .map(
+            (t) =>
+              `<li class="select2-result select2-result-selectable"><div class="select2-result-label" role="option">${t}</div></li>`,
+          )
+          .join("");
+        ul.querySelectorAll("li").forEach((li) =>
+          li.addEventListener("mouseup", () => {
+            hidden.value = li.textContent!;
+            chosen.textContent = li.textContent!;
+            drop?.remove();
+          }),
+        );
+      };
+      search.value = focusser.value;
+      focusser.value = "";
+      search.focus();
+      ul.innerHTML = `<li class="select2-no-results">Please enter 1 or more character</li>`;
+      setTimeout(show, 10);
+      let t: ReturnType<typeof setTimeout>;
+      search.addEventListener("input", () => (clearTimeout(t), (t = setTimeout(show, 300))));
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc).toMatchObject({ kind: "typeahead", label: "School", required: true });
+    const op = {
+      type: "intended",
+      answer: "University of British Columbia",
+      query: "University of British Columbia",
+    } as const;
+    expect(await fill(h, op, deps())).toMatchObject({ outcome: "ok", shown: "University of British Columbia" });
+    expect(hidden.value).toBe("University of British Columbia");
+  });
+});
+
 describe("clicks", () => {
   it("land inside a custom element's shadow root, where its listener is (SmartRecruiters)", () => {
     setBody(`<x-option></x-option>`);

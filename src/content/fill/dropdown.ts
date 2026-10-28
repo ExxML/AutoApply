@@ -18,8 +18,8 @@ export const optText = (o: Element) => {
   return collapse(clone.textContent ?? "");
 };
 // react-select's "No options" / "Loading…" notice sits in its listbox in place of options, worded as the site likes
-// (Greenhouse's school search: "Start typing…").
-const RE_NOTICE_CLASS = /menu-notice|NoOptionsMessage|LoadingMessage/;
+// (Greenhouse's school search: "Start typing…"), as do select2 3.x's ("Please enter 1 or more character").
+const RE_NOTICE_CLASS = /menu-notice|NoOptionsMessage|LoadingMessage|select2-(no-results|searching|more-results)/;
 const isRealOption = (o: HTMLElement) => {
   const t = optText(o);
   return (

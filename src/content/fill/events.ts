@@ -223,10 +223,30 @@ export function key(el: HTMLElement, k: string, type: "keydown" | "keyup" | "bot
   });
 }
 
-/** Per-character typing for masked inputs and typeaheads. */
+/** The focused element, inside open shadow roots too. */
+function activeDeep(): Element | null {
+  let a = document.activeElement;
+  while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
+  return a;
+}
+
+/**
+ * Per-character typing for masked inputs and typeaheads. Like a keyboard, it follows focus: select2 3.x's keyboard
+ * proxy opens its list at the first key and moves focus, with that key, to the list's search box.
+ */
 export async function typeText(el: HTMLInputElement | HTMLTextAreaElement, text: string, delayMs = 15) {
+  const follow = activeDeep() === el;
   let prefix = el.value;
   for (const ch of text) {
+    const now = follow ? activeDeep() : el;
+    if (
+      now !== el &&
+      (now instanceof HTMLTextAreaElement ||
+        (now instanceof HTMLInputElement && /^(text|search|email|tel|url)$/.test(now.type)))
+    ) {
+      el = now;
+      prefix = el.value;
+    }
     dispatching(() => {
       const init = { key: ch, bubbles: true, composed: true, cancelable: true };
       el.dispatchEvent(new KeyboardEvent("keydown", init));
