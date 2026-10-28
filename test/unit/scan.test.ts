@@ -526,6 +526,15 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("reads an empty MUI Select, which shows a zero-width space, as empty", () => {
+    setBody(`<div><label id="w-label">Where would you like to work from?</label>
+      <div role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="w-label"
+        class="MuiSelect-select"><span class="notranslate">\u200B</span></div><input aria-hidden="true" tabindex="-1" value=""></div>`);
+    const [h] = fields();
+    expect(h.desc.kind).toBe("dropdown");
+    expect(h.prefilled).toBe(false);
+  });
+
   it("labels an upload named only 'Choose a file or drop it here' by its context (SmartRecruiters)", () => {
     setBody(`<form><div><h3>Resume</h3><label for="u">Choose a file or drop it here</label><input type="file" id="u"></div>
       <div><label for="n">Name</label><input id="n"></div></form>`);
