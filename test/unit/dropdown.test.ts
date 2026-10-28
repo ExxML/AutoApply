@@ -182,6 +182,23 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(chosen).toEqual([]);
   });
 
+  it("presses no keys into the list a category opened instead of picking", async () => {
+    const { h, ul } = select2(`<li role="option">Company Website</li><li role="option">University Co-op</li>`);
+    let picked = "";
+    let focused = -1;
+    ul.addEventListener("click", (e) => {
+      // A category opens its own list.
+      if ((e.target as Element).textContent === "University Co-op")
+        ul.innerHTML = `<li role="option">UBC Science Co-op</li><li role="option">WaterlooWorks</li>`;
+    });
+    h.el.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") focused++;
+      if (e.key === "Enter") picked = ul.querySelectorAll("li")[focused]?.textContent ?? "";
+    });
+    expect((await fillDropdown(h, ["University Co-op"])).outcome).toBe("failed");
+    expect(picked).toBe("");
+  });
+
   it("a list too long to harvest is searched from its popup search box", async () => {
     const { h, ul } = select2(`<li role="option">Aalto University</li><li role="option">Loading more results…</li>`);
     ul.insertAdjacentHTML("beforebegin", `<input type="search" aria-controls="res" hidden>`);

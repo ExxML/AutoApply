@@ -351,10 +351,15 @@ async function pickOne(h: FieldHandle, text: string): Promise<boolean> {
     return on;
   };
   const took = async () => shows(h, text) || (showsPart(h, text) && (dropdownText(h) !== before || (await selected())));
+  const listed = optionElements(c);
   realClick(el);
   await sleep(40);
   if (await took()) return true;
   if (index < 0) return false;
+  // A category that opened its own list (Workday's "How Did You Hear About Us?") is no pick, and keys pressed now
+  // land in that list: a UBC student got "WaterlooWorks".
+  const now = c.isConnected && isVisible(c) ? optionElements(c) : null;
+  if (now && (now.length !== listed.length || now.some((o, i) => o !== listed[i]))) return false;
   // Keyboard-driven widgets: ArrowDown to the option, then Enter.
   const t = h.searchInput ?? triggerOf(h);
   focus(t);
