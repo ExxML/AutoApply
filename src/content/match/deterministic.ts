@@ -49,6 +49,9 @@ export function formatPhone(number: string, placeholder?: string): string {
   return placeholder.replace(/[#\dXx_]/g, () => digits[i++]);
 }
 
+const PLACES = new Set<DetKey>(["location", "city", "region", "postalCode", "streetAddress", "line1", "line2"]);
+const RE_ENTRY_SECTION = /\b(experience|employment|work history|education)\b/i;
+
 function keyFor(d: FieldDescriptor): DetKey | null {
   const tokens = (d.autocomplete ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const ac = AUTOCOMPLETE_MAP[tokens[tokens.length - 1] ?? ""];
@@ -72,6 +75,9 @@ export function deterministicValue(d: FieldDescriptor, p: DeterministicProfile["
   if (!TEXT_KINDS.has(d.kind) && !typeahead) return null;
   const key = keyFor(d);
   if (!key) return null;
+  // An entry's own place is the job's or school's, not home: Workday's "Work Experience 1" Location got the home city
+  // for a Vancouver job. The AI fills it from the entry.
+  if (PLACES.has(key) && RE_ENTRY_SECTION.test(d.section ?? "")) return null;
   // A city/location typeahead lists places ("Langley, BC, Canada"): the AI mixed up the résumé's city for it.
   if (typeahead && key !== "city" && key !== "location") return null;
   if (d.kind === "email" && key !== "email") return null;
