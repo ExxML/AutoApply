@@ -628,6 +628,15 @@ describe("job context (§11.7)", () => {
     expect(readPay(document, new URL("https://example.com/blog") as unknown as Location)).toBeNull();
   });
 
+  it("reads pay kept in list items without spaces between them (Recruitee)", () => {
+    const board = new URL("https://acme.recruitee.com/o/software-developer-intern") as unknown as Location;
+    setBody(
+      `<div><h3>Responsibilities</h3><p>Build</p><h3>Requirements</h3><p>Java</p>
+      <ul><li>We offer $24/hour</li><li>Hybrid</li></ul></div>`.replace(/>\s+</g, "><"),
+    );
+    expect(readPay(document, board)).toEqual([{ min: 24, max: 24, period: "hour", currency: "" }]);
+  });
+
   it("reads a posting without the usual headings from the block the page names its description", () => {
     const board = new URL("https://job-boards.greenhouse.io/acme/jobs/4003") as unknown as Location;
     const intro = "Acme is hiring Software Engineering Interns for Summer 2027 at our Seattle headquarters. ".repeat(3);
