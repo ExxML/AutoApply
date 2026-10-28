@@ -1621,7 +1621,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask("Country of citizenship")).toBe("flag");
   });
 
-  it("fills résumé-section dates from the section's entry", async () => {
+  it("fills résumé-section dates and locations from the section's entry", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "skip", confidence: "high" }));
@@ -1632,9 +1632,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const job = { title: "", company: "A", location: "", employmentType: "", description: "", current: false };
     profile.experience = [
       { ...job, startDate: "2026-01", endDate: "2026-08" },
-      { ...job, startDate: "2023-06", endDate: "2023-08" },
+      { ...job, startDate: "2023-06", endDate: "2023-08", location: "Vancouver, BC" },
     ];
     profile.education = [{ ...emptyProfile().education[0], startDate: "2024-09", expectedGraduation: "2028-05" }];
+    profile.personal.address.country = "Canada";
     const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September"];
     const r = await mapFields(
       { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
@@ -1649,6 +1650,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
           field("g", { label: "To", section: "Work Experience 2", kind: "text" }),
           field("h", { label: "End Date", section: "Education", kind: "month" }),
           field("i", { label: "Start Date", section: "Employment", kind: "dropdown", options: months }),
+          // Analog Devices' Workday entry "Location" got the home address.
+          field("j", { label: "Location", section: "Work Experience 2" }),
+          field("k", { label: "Location", section: "Work Experience 1" }),
+          field("l", { label: "Country", section: "Employment", kind: "dropdown", options: ["Canada", "Mexico"] }),
         ],
         profile,
         documents: [],
@@ -1664,6 +1669,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "January 2026",
       "August 2023",
       "May 2028",
+      "skip",
+      "Vancouver, BC",
+      "skip",
       "skip",
     ]);
   });

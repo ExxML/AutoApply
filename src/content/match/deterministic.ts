@@ -1,5 +1,5 @@
 // §13.2 deterministic matching: autocomplete tokens, unambiguous label regexes, learned answers.
-import { AUTOCOMPLETE_MAP, LABEL_RULES, type DetKey } from "../../shared/constants";
+import { AUTOCOMPLETE_MAP, LABEL_RULES, RE_ENTRY_SECTION, type DetKey } from "../../shared/constants";
 import { digitsOnly, normalize } from "../../shared/normalize";
 import type { DeterministicProfile, FieldDescriptor, FieldKind } from "../../shared/types";
 
@@ -50,6 +50,8 @@ export function formatPhone(number: string, placeholder?: string): string {
 }
 
 function keyFor(d: FieldDescriptor): DetKey | null {
+  // A job's or school's own fields: Analog Devices' Workday "Work Experience 1" "Location" got the home address.
+  if (RE_ENTRY_SECTION.test(d.section ?? "")) return null;
   const tokens = (d.autocomplete ?? "").toLowerCase().split(/\s+/).filter(Boolean);
   const ac = AUTOCOMPLETE_MAP[tokens[tokens.length - 1] ?? ""];
   if (ac) return ac === "dateOfBirth" && !/birth/i.test(d.label) ? null : ac;

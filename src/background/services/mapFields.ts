@@ -14,6 +14,7 @@ import {
   HUB_REGIONS,
   HUBS,
   RE_CONSENT,
+  RE_ENTRY_SECTION,
   RE_INTERVIEW_RECORDING,
   regionCode,
   regionCountry,
@@ -1370,7 +1371,8 @@ function ageDecision(f: FieldDescriptor, dob: string): Decision | null {
  */
 function countryDecision(f: FieldDescriptor, home: string): Decision | null {
   const want = canonicalCountry(home);
-  if (!f.options || isMulti(f) || !want || !/^country$/i.test(f.label.trim())) return null;
+  if (!f.options || isMulti(f) || !want || !/^country$/i.test(f.label.trim()) || RE_ENTRY_SECTION.test(f.section ?? ""))
+    return null;
   const hits = f.options.flatMap((o, i) =>
     canonicalCountry(o.replace(/\s*\(?\+[\d\s-]+\)?$/, "")) === want ? [i] : [],
   );
@@ -1391,7 +1393,13 @@ function countryDecision(f: FieldDescriptor, home: string): Decision | null {
  */
 function regionDecision(f: FieldDescriptor, address: Profile["personal"]["address"]): Decision | null {
   const home = canonicalCountry(address.country);
-  if (!f.options || isMulti(f) || !home || !/^(state|province|state\s*(\/|or)\s*province)$/i.test(f.label.trim()))
+  if (
+    !f.options ||
+    isMulti(f) ||
+    !home ||
+    !/^(state|province|state\s*(\/|or)\s*province)$/i.test(f.label.trim()) ||
+    RE_ENTRY_SECTION.test(f.section ?? "")
+  )
     return null;
   const regions = f.options.map(regionCountry).filter(Boolean);
   if (regions.length < 5 || regions.includes(home)) return null;
@@ -1559,7 +1567,7 @@ function citedDateCheck(f: FieldDescriptor, d: Decision, profile: Profile): Deci
  * ("Work Experience 1": "End Date") was left blank for want of a day the profile doesn't hold.
  */
 function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | null {
-  const sec = /^(employment|work experience|experience|education)(?: (\d+))?$/i.exec(f.section ?? "");
+  const sec = RE_ENTRY_SECTION.exec(f.section ?? "");
   const part = /^(start|end|from|to)(?: date)?(?: (month|year))?$/i.exec(f.label.trim());
   if (!sec || !part || isMulti(f)) return null;
   const edu = /education/i.test(sec[1]);
@@ -1592,6 +1600,15 @@ function entryDateDecision(f: FieldDescriptor, profile: Profile): Decision | nul
     (isMonth ? monthOf(o) === month || Number(o.trim()) === month : o.trim() === String(year)) ? [k] : [],
   );
   return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options[hits[0]] } : null;
+}
+
+/** A job's "Location" in its résumé section ("Work Experience 2"), from that entry: not the candidate's home. */
+function entryLocationDecision(f: FieldDescriptor, experience: Profile["experience"]): Decision | null {
+  const sec = RE_ENTRY_SECTION.exec(f.section ?? "");
+  if (!sec || /education/i.test(sec[1]) || !/^location$/i.test(f.label.trim())) return null;
+  const where = experience[(Number(sec[2]) || 1) - 1]?.location;
+  if (!where || (f.kind !== "text" && f.kind !== "textarea")) return null;
+  return { fieldId: f.id, action: "fill", text: where, confidence: "high", sources: ["experience"] };
 }
 
 // "When do you expect to complete your degree program?" asks for the graduation date too.
@@ -1900,6 +1917,7 @@ export async function mapFields(
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile) ??
       entryDateDecision(f, input.profile) ??
+      entryLocationDecision(f, input.profile.experience) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault, input.job?.company) ??
       officeDecision(f, input.profile.preferences) ??

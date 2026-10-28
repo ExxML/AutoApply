@@ -218,6 +218,9 @@ export const AUTOCOMPLETE_MAP: Record<string, DetKey> = {
   bday: "dateOfBirth",
 };
 
+/** A résumé entry's section ("Work Experience 2", Greenhouse's "Employment"): its fields describe that entry. */
+export const RE_ENTRY_SECTION = /^(employment|work experience|experience|education)(?: (\d+))?$/i;
+
 /** Word boundaries were added to state/region/unit/apt so "personal statement" etc. don't match. */
 export const LABEL_RULES: [RegExp, DetKey][] = [
   [/^first\s*name|given name|legal first/i, "firstName"],

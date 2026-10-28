@@ -120,6 +120,9 @@ describe("deterministic matching (§13.2)", () => {
     expect(deterministicValue(f("Location", { kind: "dropdown", options: ["Vancouver"] }), q)).toBeNull();
     expect(deterministicValue(f("Office location", { kind: "typeahead" }), q)).toBeNull();
     expect(deterministicValue(f("School", { kind: "typeahead" }), q)).toBeNull();
+    // A job's own location (Analog Devices' Workday "Work Experience 1") is not the home address.
+    expect(deterministicValue(f("Location", { section: "Work Experience 1" }), q)).toBeNull();
+    expect(deterministicValue(f("City", { section: "Education", autocomplete: "address-level2" }), q)).toBeNull();
   });
   it("returns empty values for recognized fields unset in the profile", () => {
     expect(deterministicValue(f("GitHub"), p)).toEqual({ value: "", path: "personal.links.github" });
