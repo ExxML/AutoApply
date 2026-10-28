@@ -1,7 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { newScanState, scan, type FieldHandle } from "../../src/content/scan/fields";
-import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../../src/content/fill/dropdown";
+import {
+  fillDropdown,
+  harvestOptions,
+  openDropdown,
+  optionElements,
+  searchOptions,
+} from "../../src/content/fill/dropdown";
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
@@ -381,6 +387,18 @@ describe("dates split into Month / Day / Year boxes (Workday)", () => {
       shown: "01/01/2027",
     });
     expect(readValue(start)).toBe("01/01/2027");
+  });
+});
+
+describe("slotted options (SmartRecruiters' spl-select)", () => {
+  it("reads options slotted into a listbox from the light DOM, their role in their own shadow root", () => {
+    setBody(`<x-select><x-option>May 2028</x-option><x-option>May 2029</x-option></x-select>`);
+    const host = document.querySelector("x-select")!;
+    host.attachShadow({ mode: "open" }).innerHTML = `<div role="listbox"><slot></slot></div>`;
+    for (const o of document.querySelectorAll("x-option"))
+      o.attachShadow({ mode: "open" }).innerHTML = `<div role="option"><slot></slot></div>`;
+    const lb = host.shadowRoot!.querySelector<HTMLElement>("[role=listbox]")!;
+    expect(optionElements(lb).map((o) => o.textContent)).toEqual(["May 2028", "May 2029"]);
   });
 });
 
