@@ -334,6 +334,22 @@ describe("typeahead verification", () => {
     expect(r.outcome).toBe("mismatch");
   });
 
+  it("fails instead of marking a cleared selection for review", async () => {
+    setBody(`<div><label for="c">City</label><input id="c" role="combobox"><div id="res"></div></div>`);
+    const input = document.querySelector("input")!;
+    input.addEventListener("input", () => {
+      document.getElementById("res")!.innerHTML = `<div role="option">Langley, BC, Canada</div>`;
+    });
+    document.getElementById("res")!.addEventListener("click", () => {
+      // Some async widgets clear their search box before they commit the selected value.
+      input.value = "";
+      document.getElementById("res")!.replaceChildren();
+    });
+    const h = scan(newScanState()).handles[0];
+    const r = await fillTypeahead(h, "Langley", "Langley, BC, Canada", async () => 0);
+    expect(r).toMatchObject({ outcome: "failed" });
+  });
+
   it("reads the pick shown beside an emptied search box (react-select without classes, Epic Games)", async () => {
     setBody(`<div><label for="c">Country</label><div><div><div class="css-1-placeholder">Select</div><div>
       <input id="c" aria-autocomplete="list"></div></div><div id="menu"></div></div></div>`);

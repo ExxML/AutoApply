@@ -56,6 +56,15 @@ test("typeahead: types a query, waits for suggestions and picks the matching one
   await expect(badge(page, "Location")).toHaveAttribute("data-color", "green");
 });
 
+test("typeahead: a selection cleared by the widget is marked failed, not Check", async ({ page, sw }) => {
+  await seed(sw);
+  await page.goto(BASE + "typeahead-cleared.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#loc")).toHaveValue("");
+  await expect(badge(page, "Location")).toHaveAttribute("data-color", "red");
+});
+
 test("buttons-group: aria-pressed pills and a role=radiogroup are selected", async ({ page, sw }) => {
   await seed(sw);
   await page.goto(BASE + "buttons-group.html");

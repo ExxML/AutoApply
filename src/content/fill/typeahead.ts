@@ -127,7 +127,8 @@ export async function fillTypeahead(
   const v = normalize(input.value || h.el.textContent || shownBeside(input));
   // Our own query left in the box ("Langley" of "Langley, BC") means the pick did not register.
   const picked = v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(typed));
-  return v && picked
+  if (!v) return { outcome: "failed", note: `Expected "${want}", but the selection was cleared` };
+  return picked
     ? { outcome: "ok", shown: want }
     : { outcome: "mismatch", note: `Expected "${want}", shows "${input.value}"` };
 }

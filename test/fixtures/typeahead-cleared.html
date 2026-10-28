@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Typeahead selection failure</title>
+    <script src="common.js"></script>
+  </head>
+  <body>
+    <form onsubmit="return false">
+      <label for="loc">Location</label>
+      <input id="loc" role="combobox" aria-autocomplete="list" aria-controls="sugg" autocomplete="off" />
+      <ul id="sugg" role="listbox" hidden></ul>
+    </form>
+    <script>
+      const input = document.getElementById("loc");
+      const list = document.getElementById("sugg");
+      input.addEventListener("input", () => {
+        list.innerHTML = '<li role="option">Vancouver, BC, Canada</li>';
+        list.hidden = false;
+      });
+      list.addEventListener("click", () => {
+        // Mirrors an async widget that closes before it commits the selected value.
+        input.value = "";
+        list.replaceChildren();
+        list.hidden = true;
+      });
+    </script>
+  </body>
+</html>
