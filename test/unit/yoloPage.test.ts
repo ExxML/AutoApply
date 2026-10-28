@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { captchaShown, pageFacts } from "../../src/content/yolo/classify";
+import { captchaShown, embeddedForm, pageFacts } from "../../src/content/yolo/classify";
 import { confirmation, kindOf } from "../../src/background/yolo/classify";
 
 const classify = (fields: number, hidden = false, requiredFields = 0) =>
@@ -108,6 +108,30 @@ describe("YOLO page kinds", () => {
     setBody(enclave(""));
     big();
     expect(captchaShown()).toBe(true);
+  });
+
+  it("does not mistake SmartRecruiters' support chat for an embedded application", () => {
+    setBody(
+      `<iframe src="https://eu.winstonchat.smartrecruiters.com/v2?parentUrl=https%3A%2F%2Fjobs.smartrecruiters.com%2FWesternDigital%2Fposting"></iframe>`,
+    );
+    const f = document.querySelector("iframe")!;
+    f.getBoundingClientRect = () => ({
+      width: 370,
+      height: 404,
+      top: 0,
+      left: 0,
+      right: 370,
+      bottom: 404,
+      x: 0,
+      y: 0,
+      toJSON() {},
+    });
+    expect(embeddedForm()).toBeNull();
+    expect(pageFacts({ fields: 0, requiredFields: 0 }).embedded).toBe(false);
+    setBody(`<iframe src="https://jobs.smartrecruiters.com/oneclick-ui/company/WesternDigital/publication/id"></iframe>`);
+    const application = document.querySelector("iframe")!;
+    application.getBoundingClientRect = f.getBoundingClientRect;
+    expect(embeddedForm()).toBe("https://jobs.smartrecruiters.com/oneclick-ui/company/WesternDigital/publication/id");
   });
 
   it("sends a Cloudflare check in the hidden frame to a tab, where it often passes by itself", () => {

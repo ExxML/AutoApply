@@ -5,9 +5,28 @@ import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
 import { alertText, applyInfo, findApply, findNext, findSubmit } from "./nav";
 
-/** ATS forms embedded in a company page: the run loads them on their own. */
-const RE_EMBED =
-  /greenhouse\.io\/embed|boards\.greenhouse\.io|jobs\.lever\.co|jobs\.ashbyhq\.com|myworkdayjobs\.com|smartrecruiters\.com|icims\.com|workable\.com/;
+/** ATS forms embedded in a company page: the run loads them on their own. Query text is never a frame's origin. */
+function isEmbeddedFormUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase();
+    return (
+      ((host === "greenhouse.io" || host.endsWith(".greenhouse.io")) &&
+        (host === "boards.greenhouse.io" || /^\/embed(?:\/|$)/i.test(u.pathname))) ||
+      host === "jobs.lever.co" ||
+      host === "jobs.eu.lever.co" ||
+      host === "jobs.ashbyhq.com" ||
+      host.endsWith(".myworkdayjobs.com") ||
+      /^(jobs|careers)\.smartrecruiters\.com$/.test(host) ||
+      host === "icims.com" ||
+      host.endsWith(".icims.com") ||
+      host === "workable.com" ||
+      host.endsWith(".workable.com")
+    );
+  } catch {
+    return false;
+  }
+}
 
 export const pageText = () => (document.body?.innerText ?? "").slice(0, 20000);
 
@@ -51,7 +70,7 @@ export const captchaShown = () => !!challenge();
 export function embeddedForm(): string | null {
   const f = deepQueryAll("iframe").find((f) => {
     const r = f.getBoundingClientRect();
-    return RE_EMBED.test((f as HTMLIFrameElement).src) && r.width > 300 && r.height > 200;
+    return isEmbeddedFormUrl((f as HTMLIFrameElement).src) && r.width > 300 && r.height > 200;
   }) as HTMLIFrameElement | undefined;
   return f?.src ?? null;
 }
