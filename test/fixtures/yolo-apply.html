@@ -15,7 +15,8 @@
           <p><label for="em">Email Address</label> <input id="em" type="email" required></p>
           <p><label for="pw">Password</label> <input id="pw" type="password" required></p>
           <p><label for="pw2">Verify New Password</label> <input id="pw2" type="password" required></p>
-          <p><label><input id="tos" type="checkbox" required> I agree to the Terms of Service</label></p>
+          <p><input id="tos" type="checkbox" data-automation-id="createAccountCheckbox">
+            <label for="tos">Please select the checkbox to indicate your understanding and agreement with the above.</label></p>
           <button type="button" id="go">Create Account</button>`,
         info: `
           <h2>My Information</h2>
@@ -50,6 +51,8 @@
           );
           if (order[i] === "account" && document.getElementById("pw").value !== document.getElementById("pw2").value)
             bad.push(document.getElementById("pw2"));
+          // Workday's acknowledgement is logically required, but is not exposed as a native required control.
+          if (order[i] === "account" && !document.getElementById("tos").checked) bad.push(document.getElementById("tos"));
           app.querySelector("[role=alert]")?.remove();
           if (bad.length) {
             app

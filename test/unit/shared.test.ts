@@ -36,6 +36,8 @@ describe("consent patterns", () => {
     'By selecting "Consent", you consent that EA will process your personal data as described in the Candidate Privacy Notice.',
     "I certify that the information provided is accurate and complete, and understand false statements may disqualify me from this and other positions.",
     "I agree to the Terms of Service",
+    // Workday account creation acknowledgement is required but not marked with native `required`.
+    "Please select the checkbox to indicate your understanding and agreement with the above.",
     // Hugging Face (Workable), YES / NO.
     "Can you confirm that everything in this application is true and your own, including your experience and identity?",
   ];
