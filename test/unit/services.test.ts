@@ -1145,6 +1145,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
   });
 
+  it("searches a custom list's categories for the job board the profile heard from", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.referral.howDidYouHearDefault = "LinkedIn";
+    const options = ["Company Website", "Job Board", "University Co-op / Career Office", "Referral"];
+    const ask = (kind: FieldDescriptor["kind"]) =>
+      field(kind, { label: "How Did You Hear About Us?", kind, options, required: true });
+    const r = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields: [ask("dropdown"), ask("select")], profile, documents: [], job: null },
+    );
+    expect(r.decisions[0]).toMatchObject({ action: "fill", intendedAnswer: "LinkedIn", searchQuery: "LinkedIn" });
+    expect(r.decisions[0].optionIndexes).toBeUndefined();
+    // A native select has no hidden levels: the model decides.
+    expect(r.decisions[1].action).toBe("flag");
+  });
+
   it("answers in-office questions from the profile's work arrangement and relocation", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

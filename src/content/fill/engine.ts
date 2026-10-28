@@ -165,6 +165,11 @@ async function dispatchKind(h: FieldHandle, op: FillOp, deps: EngineDeps): Promi
         if (!options) return flag(`Suggested: ${answerOf(op)}`);
       }
       let texts = textsFor(op, options);
+      // How they heard, under one of the listed categories (Workday's "Job Board" › "LinkedIn"): its search finds it.
+      if (!texts && op.type === "intended" && h.searchInput && RE_HEARD_Q.test(h.desc.label)) {
+        const found = await fillDropdown(h, [answerOf(op)]);
+        if (found.outcome === "ok") return found;
+      }
       if (!texts) {
         const idx = await deps.choose(h, answerOf(op), options);
         texts = idx?.length ? idx.map((i) => options[i]) : null;

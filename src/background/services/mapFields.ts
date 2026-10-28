@@ -167,6 +167,23 @@ function heardDecision(f: FieldDescriptor, heard: string, company = ""): Decisio
     if (!hits.length && !f.required)
       return { fieldId: f.id, action: "skip", confidence: "high", sources: ["referral"] };
   }
+  // A job board under a category of a custom list (Workday's "Job Board" › "LinkedIn"): searched for itself, else
+  // chosen among the options as they read. The model picked categories, which open their own list instead.
+  const board = /\b(linkedin|indeed|glassdoor|handshake|simplify|ziprecruiter|wellfound|angel ?list)\b/i.test(heard);
+  if (
+    !hits.length &&
+    board &&
+    f.kind === "dropdown" &&
+    f.options.some((o) => /\bjob ?(boards?|sites?)\b|\bsocial\b/i.test(o))
+  )
+    return {
+      fieldId: f.id,
+      action: "fill",
+      intendedAnswer: heard,
+      searchQuery: heard,
+      confidence: "high",
+      sources: ["referral"],
+    };
   if (hits.length !== 1) return null;
   return {
     fieldId: f.id,

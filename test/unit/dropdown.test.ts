@@ -145,6 +145,43 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(await fillDropdown(h, ["Computer Science"])).toEqual({ outcome: "ok", shown: "Computer Science" });
   });
 
+  it("searches a Workday prompt for how they heard when its list shows only categories", async () => {
+    setBody(`<div><label for="src">How Did You Hear About Us?</label><div data-automation-id="multiSelectContainer">
+      <div data-automation-id="multiselectInputContainer"><input id="src" placeholder="Search" enterkeyhint="search">
+      </div></div></div>`);
+    const h = scan(newScanState()).handles[0];
+    const input = h.searchInput!;
+    let popup: HTMLElement | null = null;
+    const show = (rows: string[]) => {
+      popup?.remove();
+      popup = document.createElement("div");
+      popup.setAttribute("role", "listbox");
+      popup.innerHTML = rows
+        .map((t) => `<div role="option"><div data-automation-id="promptOption">${t}</div></div>`)
+        .join("");
+      document.body.append(popup);
+    };
+    input.addEventListener("click", () => show(["Company Website", "Job Board"]));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") popup?.remove();
+      if (e.key === "Enter") show(["Glassdoor", "LinkedIn"].filter((t) => t.includes(input.value)));
+    });
+    document.addEventListener("click", (e) => {
+      const label = (e.target as Element).closest?.('[data-automation-id="promptOption"]');
+      if (!label || label.textContent === "Job Board") return;
+      input.insertAdjacentHTML("afterend", `<div>${label.textContent}</div>`);
+      popup?.remove();
+    });
+    const chosen: string[][] = [];
+    const d = { ...deps(), choose: async (_: unknown, __: string, o: string[]) => (chosen.push(o), [1]) };
+    d.harvested.set(h.id, ["Company Website", "Job Board"]);
+    expect(await fill(h, { type: "intended", answer: "LinkedIn", query: "LinkedIn" }, d)).toMatchObject({
+      outcome: "ok",
+      shown: "LinkedIn",
+    });
+    expect(chosen).toEqual([]);
+  });
+
   it("a list too long to harvest is searched from its popup search box", async () => {
     const { h, ul } = select2(`<li role="option">Aalto University</li><li role="option">Loading more results…</li>`);
     ul.insertAdjacentHTML("beforebegin", `<input type="search" aria-controls="res" hidden>`);
