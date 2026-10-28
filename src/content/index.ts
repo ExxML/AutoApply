@@ -339,10 +339,19 @@ async function transitionsEnd(maxMs = 800) {
   if (running.length) await Promise.race([Promise.allSettled(running.map((a) => a.finished)), sleep(maxMs)]);
 }
 
+/** What the page said about fields it rejected, by field: each scan's fresh descriptor gets it again (refill). */
+const rejected = new Map<string, string>();
+
 function rescan(): FieldHandle[] {
   const { handles: hs } = scan(scanState);
   const all = [...hs, ...findDropzones(hs, scanState)];
   for (const h of all) {
+    const said = rejected.get(h.id);
+    if (said !== undefined) {
+      h.desc.required = true;
+      if (said && !h.desc.hint?.includes(said))
+        h.desc.hint = [h.desc.hint, `The form said: "${said}"`].filter(Boolean).join(" ");
+    }
     // Dropzone.js (Teamtailor) swaps in a new hidden input after each upload: it is the same, uploaded field.
     const old =
       h.desc.kind === "file" && !states.has(h.id)
@@ -836,7 +845,10 @@ async function yoloFill(): Promise<FillReport> {
   };
 }
 
-/** Fields the page rejected are answered again, with its message as a hint ("Enter a valid phone number"). */
+/**
+ * Fields the page rejected are answered again, with its message as a hint ("Enter a valid phone number"). The page
+ * requires them, marked or not: a form marking only its optional fields had an unanswerable one left blank again.
+ */
 function refill(errors: HTMLElement[]) {
   for (const h of handles.values()) {
     const box = h.container ?? h.el;
@@ -845,9 +857,7 @@ function refill(errors: HTMLElement[]) {
     if (!e || !s || s.userOwned) continue;
     s.status = "failed";
     applied.delete(h.id);
-    const said = labelOf(e);
-    if (said && !h.desc.hint?.includes(said))
-      h.desc.hint = [h.desc.hint, `The form said: "${said}"`].filter(Boolean).join(" ");
+    rejected.set(h.id, labelOf(e));
   }
 }
 

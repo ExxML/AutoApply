@@ -78,6 +78,14 @@ test("opens a posting beside a required talent community signup", async ({ sw, p
   await outcome(sw).toBe("submitted");
 });
 
+test("answers a field the page rejected though it wasn't marked required", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-optional-marked.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

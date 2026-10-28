@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Apply – Software Engineer Intern</title>
+  </head>
+  <body>
+    <h1>Software Engineer Intern</h1>
+    <!-- Only optional fields are marked; the page still requires the others. -->
+    <form id="f" novalidate onsubmit="return false;">
+      <p><label for="fn">First name</label> <input id="fn" /></p>
+      <p><label for="ln">Last name</label> <input id="ln" /></p>
+      <p><label for="ph">Phone (optional)</label> <input id="ph" /></p>
+      <p>
+        <label for="team">Which team are you most interested in?</label>
+        <select id="team">
+          <option value="">Select</option>
+          <option>Payments</option>
+          <option>Infrastructure</option>
+        </select>
+      </p>
+      <button type="button" id="go">Submit application</button>
+    </form>
+    <script>
+      document.getElementById("go").addEventListener("click", () => {
+        const f = document.getElementById("f");
+        f.querySelectorAll("[role=alert]").forEach((x) => x.remove());
+        const bad = ["fn", "ln", "team"].map((id) => document.getElementById(id)).filter((el) => !el.value);
+        for (const el of bad) {
+          el.setAttribute("aria-invalid", "true");
+          el.insertAdjacentHTML("afterend", '<span role="alert">This field is required</span>');
+        }
+        if (!bad.length) location.href = "yolo-thanks.html";
+      });
+    </script>
+  </body>
+</html>
