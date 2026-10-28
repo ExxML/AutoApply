@@ -16,6 +16,7 @@ import {
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
 import { dropdownText, sameValue } from "./verify";
+import { isVisible } from "../scan/visibility";
 
 /** The pick a combobox shows beside its emptied search box: react-select's single value (Epic Games). */
 function shownBeside(input: HTMLElement): string {
@@ -34,6 +35,8 @@ function shownBeside(input: HTMLElement): string {
   return "";
 }
 
+const plainLists = (h: FieldHandle) => [...h.container.querySelectorAll<HTMLElement>("ul,ol")];
+
 export async function fillTypeahead(
   h: FieldHandle,
   query: string,
@@ -46,12 +49,19 @@ export async function fillTypeahead(
   let typed = query || intended;
   const suggest = async () => {
     const before = snapshot();
+    const shown = new Set(plainLists(h).filter(isVisible));
     focus(input);
     // An input event with nothing to clear already opens some lists (select2 3.x), taking focus before we type.
     if (input.value) setNativeValue(input, "");
     await typeText(input, typed);
     if (h.searchInput) submitSearch(input);
-    let c = await waitFor(() => findOptionsContainer(h, before), 2000);
+    // A plain list beside the box that shows up naming what was typed (legacy Greenhouse's place search).
+    const word = normalize(typed).split(" ")[0];
+    const plain = () =>
+      plainLists(h).find(
+        (l) => !shown.has(l) && isVisible(l) && optionElements(l).some((o) => normalize(optText(o)).includes(word)),
+      ) ?? null;
+    let c = await waitFor(() => findOptionsContainer(h, before) ?? plain(), 2000);
     // A slow suggestion search (Lever's location lookup) shows its spinner meanwhile: wait it out.
     if (!c && busy([h.container])) {
       await waitFor(() => findOptionsContainer(h, before) || !busy([h.container]), PAGE_MAX_MS);

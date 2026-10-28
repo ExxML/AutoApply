@@ -39,13 +39,19 @@ export function isTypeaheadInput(input: HTMLInputElement, label: string): boolea
   );
 }
 
-/** A hidden sibling input stores the picked suggestion (Lever: "location" → "selectedLocation"). */
+/**
+ * A hidden sibling input stores the picked suggestion (Lever: "location" → "selectedLocation"), or the picked place's
+ * coordinates (legacy Greenhouse: latitude, longitude).
+ */
 function keepsPick(input: HTMLInputElement): boolean {
   const name = input.name.toLowerCase();
   return (
     !!name &&
     [...(input.parentElement?.children ?? [])].some(
-      (s) => s instanceof HTMLInputElement && s.type === "hidden" && s.name.toLowerCase().includes(name),
+      (s) =>
+        s instanceof HTMLInputElement &&
+        s.type === "hidden" &&
+        (s.name.toLowerCase().includes(name) || /\b(latitude|longitude)\b|\[(lat|lng)\]/i.test(s.name)),
     )
   );
 }

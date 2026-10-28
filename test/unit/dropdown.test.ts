@@ -670,6 +670,31 @@ describe("place typeaheads", () => {
     expect(input.value).toBe("Vancouver, British Columbia, Canada");
   });
 
+  it("pick a place from a plain list beside the box, which keeps its coordinates (legacy Greenhouse)", async () => {
+    setBody(`<div class="field"><label for="loc">Location (City) *</label>
+      <input id="loc" name="job_application[location]"><input type="hidden" name="job_application[latitude]">
+      <ul class="pelias-results" style="display:none"></ul></div>`);
+    const input = document.querySelector<HTMLInputElement>("#loc")!;
+    const lat = document.querySelector<HTMLInputElement>("[type=hidden]")!;
+    const ul = document.querySelector("ul")!;
+    input.addEventListener("input", () => {
+      ul.innerHTML =
+        input.value.length > 2 ? "<li>Langley, British Columbia, Canada</li><li>Langley, Washington</li>" : "";
+      ul.style.display = ul.innerHTML ? "" : "none";
+      ul.querySelectorAll("li").forEach((li) =>
+        li.addEventListener(
+          "mousedown",
+          () => ((input.value = li.textContent!), (lat.value = "49.1"), (ul.style.display = "none")),
+        ),
+      );
+    });
+    const h = scan(newScanState()).handles[0];
+    expect(h.desc.kind).toBe("typeahead");
+    const r = await fillTypeahead(h, "Langley", "Langley, British Columbia, Canada", async () => null);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Langley, British Columbia, Canada" });
+    expect(lat.value).toBe("49.1");
+  });
+
   it("search by the country when the picker lists only countries (Airwallex)", async () => {
     setBody(`<div><label for="o">Location</label><input id="o" role="combobox"><div id="res"></div></div>`);
     const input = document.querySelector("input")!;
