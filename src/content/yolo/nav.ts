@@ -11,7 +11,7 @@ export const RE_APPLY_OPENING =
   /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
 export type ApplyKind = "none" | "link" | "entry" | "submit";
 export const RE_NEXT =
-  /^(next( step| page)?|continue( to (the )?(next step|review|application))?|save (and|&) (continue|next)|proceed|review( (and|&) submit| (my |your )?application)?|go to review|i accept|i agree|(accept|agree) and continue)$/i;
+  /^(next( step| page)?|continue( to (the )?(next step|review|application))?|save (and|&) (continue|next)|proceed|review( (and|&) submit| (my |your )?application)?|go to review|i accept|i agree|(accept|agree) and continue)(\s*[→›»])?$/i;
 export const RE_SUBMIT =
   /^(submit( (my |your |the )?application)?|send( (my )?application)?|apply|complete( (my )?application)?|finish|submit and finish|confirm (and|&) submit)$/i;
 /** Other ways in (third-party profiles, résumé parsers), and buttons that go back or out. */

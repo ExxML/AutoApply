@@ -215,6 +215,8 @@ describe("YOLO buttons", () => {
     expect(findNext()?.textContent).toBe("I Accept");
     setBody(`<button>Back</button><button>Continue</button>`);
     expect(findNext()?.textContent).toBe("Continue");
+    setBody(`<button>Next →</button>`);
+    expect(findNext()?.textContent).toBe("Next →");
     setBody(`<button>Save as draft</button><button type="submit">Submit application</button>`);
     expect(findSubmit()?.textContent).toBe("Submit application");
     setBody(`<button disabled>Submit</button>`);
