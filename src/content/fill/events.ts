@@ -101,6 +101,27 @@ export function realClick(el: HTMLElement, at?: { x: number; y: number }) {
   pointerClick(el, at);
 }
 
+let pickerInput: HTMLInputElement | null = null;
+// Our clicks never open the OS file picker: upload buttons and dropzones call click() on a hidden file input
+// (Dropzone.js keeps it on <body>, outside the field). Cancelling that click stops the picker.
+addEventListener(
+  "click",
+  (e) => {
+    const t = e.composedPath()[0];
+    if (!fillingNow || !(t instanceof HTMLInputElement) || t.type !== "file") return;
+    e.preventDefault();
+    pickerInput = t;
+  },
+  true,
+);
+
+/** realClick, returning the file input whose picker the click tried to open. */
+export function clickForPicker(el: HTMLElement): HTMLInputElement | null {
+  pickerInput = null;
+  realClick(el);
+  return pickerInput as HTMLInputElement | null; // set by the listener above, which TS can't see
+}
+
 /** A mouse click's full event sequence. Unguarded: only YOLO's navigation (content/yolo/nav.ts) calls it directly. */
 export function pointerClick(el: HTMLElement, at?: { x: number; y: number }) {
   const r = el.getBoundingClientRect();

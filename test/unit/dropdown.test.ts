@@ -5,7 +5,7 @@ import { fillDropdown, harvestOptions, openDropdown, searchOptions } from "../..
 import { fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
-import { fillFile } from "../../src/content/fill/file";
+import { fillFile, findDropzones } from "../../src/content/fill/file";
 import { dropdownText, readValue } from "../../src/content/fill/verify";
 
 beforeAll(() => {
@@ -411,6 +411,17 @@ describe("slotted dropdown values", () => {
 });
 
 describe("file uploads", () => {
+  const meta = {
+    id: "cv",
+    label: "CV",
+    kind: "resume",
+    fileName: "Ada.pdf",
+    mimeType: "application/pdf",
+    size: 1,
+    isPrimaryResume: true,
+    uploadedAt: 0,
+  } as const;
+
   it("count as done when the widget lists the file inside its shadow root (SmartRecruiters)", async () => {
     setBody(`<div><label for="r">Resume</label><x-drop><input type="file" id="r"></x-drop></div>`);
     const drop = document.querySelector("x-drop")!;
@@ -424,17 +435,21 @@ describe("file uploads", () => {
       list.append(Object.assign(document.createElement("span"), { textContent: name }));
     });
     const h = scan(newScanState()).handles[0];
-    const meta = {
-      id: "cv",
-      label: "CV",
-      kind: "resume",
-      fileName: "Ada.pdf",
-      mimeType: "application/pdf",
-      size: 1,
-      isPrimaryResume: true,
-      uploadedAt: 0,
-    } as const;
     expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+  });
+
+  it("set a dropzone's input kept on <body> without opening the file picker (Dropzone.js, Disney)", async () => {
+    setBody(`<div class="upload-area"><button type="button">Upload Resume</button><span>PDF or DOCX</span></div>`);
+    const input = Object.assign(document.createElement("input"), { type: "file" });
+    document.body.append(input);
+    let picker = false;
+    input.addEventListener("click", (e) => (picker = !e.defaultPrevented));
+    document.querySelector("button")!.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => (document.querySelector("span")!.textContent = input.files![0].name));
+    const st = newScanState();
+    const [h] = findDropzones(scan(st).handles, st);
+    expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+    expect(picker).toBe(false);
   });
 });
 

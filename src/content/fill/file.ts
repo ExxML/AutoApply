@@ -5,7 +5,7 @@ import type { DocumentMeta } from "../../shared/types";
 import type { FieldHandle, ScanState } from "../scan/fields";
 import { deepQueryAll, shadowOf } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
-import { dispatching, isForbiddenClick, realClick, waitFor } from "./events";
+import { clickForPicker, dispatching, isForbiddenClick, waitFor } from "./events";
 import type { FillResult } from "./native";
 
 export function accepts(accept: string | undefined, meta: DocumentMeta): boolean {
@@ -62,13 +62,12 @@ export async function fillFile(h: FieldHandle, meta: DocumentMeta, base64: strin
       for (const type of ["dragenter", "dragover", "drop"])
         h.el.dispatchEvent(new DragEvent(type, { bubbles: true, composed: true, cancelable: true, dataTransfer: dt }));
     });
-    // An "Upload"/"Attach" button often reveals the real input.
+    // An "Upload"/"Attach" button reveals the real input, or clicks one kept elsewhere to open its picker.
     const btn = [...h.container.querySelectorAll<HTMLElement>("button,[role=button]")].find(
       (b) => RE_UPLOAD_BUTTON.test(b.textContent ?? "") && !isForbiddenClick(b),
     );
     if (btn && !uploadedIn(h, meta.fileName)) {
-      realClick(btn);
-      input = await waitFor(() => fileInputIn(h.container), 500);
+      input = clickForPicker(btn) ?? (await waitFor(() => fileInputIn(h.container), 500));
       if (input) setInput(input);
     }
   }
