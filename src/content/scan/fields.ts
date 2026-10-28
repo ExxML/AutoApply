@@ -17,7 +17,7 @@ import {
 import { clip, collapse, humanize } from "../../shared/normalize";
 import type { FieldDescriptor } from "../../shared/types";
 import { readValue } from "../fill/verify";
-import { buildUnits, memberText, type Unit } from "./groups";
+import { buildUnits, datePart, memberText, type Unit } from "./groups";
 import {
   controlLabel,
   fallbackLabel,
@@ -45,6 +45,8 @@ export interface FieldHandle {
   searchInput?: HTMLInputElement;
   listbox?: HTMLElement;
   hiddenSelect?: HTMLSelectElement;
+  /** A date's separate Month / Day / Year boxes, in their order. */
+  sections?: HTMLInputElement[];
   container: HTMLElement;
   prefilled: boolean;
   sensitive: boolean;
@@ -184,9 +186,11 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const rawLabel =
       (isGroup
         ? groupLabel(u.groupEl ?? null) || precedingText(container, members![0], memberLabels)
-        : ownLabel(el, u, owner) ||
-          (u.searchInput ? controlLabel(u.searchInput) : "") ||
-          precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
+        : u.sections
+          ? groupLabel(u.groupEl ?? null) || precedingText(container, el, [labelElementFor(el) ?? el])
+          : ownLabel(el, u, owner) ||
+            (u.searchInput ? controlLabel(u.searchInput) : "") ||
+            precedingText(container, el, [...memberLabels, labelElementFor(el) ?? el])) ||
       labelAbove(u, container, owner, collected.order) ||
       fallbackLabel(u.searchInput ?? el);
     const label = finishLabel(rawLabel);
@@ -212,6 +216,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
       buttonStyle: u.buttonStyle,
       searchInput: u.searchInput,
       listbox: u.listbox,
+      sections: u.sections,
       container,
       prefilled: false,
       sensitive: false,
@@ -281,6 +286,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const input = (u.searchInput ?? el) as HTMLInputElement;
     const ph = input.getAttribute?.("placeholder");
     if (ph) d.placeholder = clip(ph, 120);
+    if (u.sections) d.placeholder = u.sections.map((e) => ({ m: "MM", d: "DD", y: "YYYY" })[datePart(e)!]).join("/");
     if (el instanceof HTMLInputElement) d.inputType = el.type;
     const ac = input.getAttribute?.("autocomplete");
     if (ac && ac !== "on" && ac !== "off") d.autocomplete = ac;

@@ -302,6 +302,34 @@ describe("text fills", () => {
   });
 });
 
+describe("dates split into Month / Day / Year boxes (Workday)", () => {
+  const box = (part: string) =>
+    `<div><input type="text" role="spinbutton" aria-label="${part}" inputmode="numeric" value=""></div>`;
+  it("reads them as one date question and types each part into its box", async () => {
+    setBody(`<div><label id="g-label">What is your expected graduation date?</label>
+      <div role="group" aria-labelledby="g-label">${box("Month")}${box("Year")}</div></div>
+      <div><label id="s-label">Earliest start date</label>
+      <div role="group" aria-labelledby="s-label">${box("Month")}${box("Day")}${box("Year")}</div></div>`);
+    const [grad, start] = scan(newScanState()).handles;
+    expect(scan(newScanState()).handles).toHaveLength(2);
+    expect(grad.desc).toMatchObject({
+      kind: "date",
+      label: "What is your expected graduation date?",
+      placeholder: "MM/YYYY",
+    });
+    expect(start.desc.placeholder).toBe("MM/DD/YYYY");
+    expect(await fill(grad, { type: "text", value: "May 2028" }, deps())).toMatchObject({
+      outcome: "ok",
+      shown: "05/2028",
+    });
+    expect(await fill(start, { type: "text", value: "2027-01-01" }, deps())).toMatchObject({
+      outcome: "ok",
+      shown: "01/01/2027",
+    });
+    expect(readValue(start)).toBe("01/01/2027");
+  });
+});
+
 describe("clicks", () => {
   it("land inside a custom element's shadow root, where its listener is (SmartRecruiters)", () => {
     setBody(`<x-option></x-option>`);

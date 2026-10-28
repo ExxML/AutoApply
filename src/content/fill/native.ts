@@ -1,6 +1,7 @@
 // §14.2–14.4 native controls: text-like, date, select, radio, checkbox, contenteditable.
 import { collapse, normalize } from "../../shared/normalize";
 import type { FieldHandle } from "../scan/fields";
+import { datePart } from "../scan/groups";
 import { labelElementFor } from "../scan/labels";
 import { isVisible } from "../scan/visibility";
 import { nativeOptions } from "../scan/widgets";
@@ -29,7 +30,27 @@ export function parseDate(v: string): { y: number; m: number; d?: number } | nul
   if (m) return { y: +m[2], m: +m[1] };
   m = /^([a-z]{3})[a-z]*\.?,? (\d{4})$/.exec(t);
   if (m && MONTHS.includes(m[1])) return { y: +m[2], m: MONTHS.indexOf(m[1]) + 1 };
+  m = /^([a-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})$/.exec(t);
+  if (m && MONTHS.includes(m[1])) return { y: +m[3], m: MONTHS.indexOf(m[1]) + 1, d: +m[2] };
   return null;
+}
+
+/** A date in separate Month / Day / Year boxes (Workday): each part typed into its own box. */
+async function fillDateSections(h: FieldHandle, raw: string): Promise<FillResult> {
+  const p = parseDate(raw);
+  if (!p) return { outcome: "flag", note: `Pick the date manually: ${raw}` };
+  const want = { m: pad(p.m), d: pad(p.d ?? 1), y: String(p.y) };
+  for (const s of h.sections!) {
+    focus(s);
+    setNativeValue(s, "");
+    await typeText(s, want[datePart(s)!], 5);
+    blur(s);
+  }
+  await sleep(0);
+  const shown = readValue(h);
+  return h.sections!.every((s) => Number(s.value) === Number(want[datePart(s)!]))
+    ? ok(shown)
+    : { outcome: "mismatch", note: `Expected "${raw}", shows "${shown}"` };
 }
 
 function sameDate(a: string, b: string): boolean {
@@ -76,6 +97,7 @@ export function fitLength(v: string, max?: number): string {
 
 // ---------- text-like ----------
 export async function fillText(h: FieldHandle, raw: string): Promise<FillResult> {
+  if (h.sections) return fillDateSections(h, raw);
   const el = h.el as HTMLInputElement | HTMLTextAreaElement;
   let value = el instanceof HTMLInputElement ? formatDateFor(el, raw) : raw;
   value = fitLength(value, h.desc.maxLength);

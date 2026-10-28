@@ -42,6 +42,10 @@ export function dropdownText(h: FieldHandle): string {
 
 export function readValue(h: FieldHandle): string {
   const el = h.el;
+  if (h.sections) {
+    const parts = h.sections.map((s) => s.value.trim());
+    return parts.some(Boolean) ? parts.join("/") : "";
+  }
   switch (h.desc.kind) {
     case "select":
     case "multiselect": {
