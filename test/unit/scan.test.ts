@@ -526,6 +526,16 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("reads a popup button a label names as a dropdown, though its list renders elsewhere (BambooHR)", () => {
+    setBody(`<form><div class="fab-FormField"><label id="cLabel" for="c">Country</label><div class="fab-Select">
+      <button type="button" class="fab-SelectToggle" id="c" aria-haspopup="true" aria-expanded="false"
+        aria-labelledby="cLabel cContent"><div id="cContent"><span>–Select–</span></div></button>
+      <input type="hidden" name="country"></div></div>
+      <div><span>Text style</span><button type="button" aria-haspopup="true" aria-expanded="false">Bold</button></div></form>`);
+    const hs = fields();
+    expect(hs.map((h) => [h.desc.kind, h.desc.label])).toEqual([["dropdown", "Country"]]);
+  });
+
   it("labels a select2 by its question, not by the selection it names itself after (iCIMS)", () => {
     setBody(`<form><div><label for="q">Will you now or in the future require sponsorship? <span>*</span></label>
       <select id="q" class="select2-hidden-accessible" aria-hidden="true" tabindex="-1" required>

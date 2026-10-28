@@ -99,6 +99,20 @@ export function isQuestionContainer(parent: Element, first: Element): boolean {
   return false;
 }
 
+/** A <label for> or an aria-labelledby target outside the control names it: a field, not a toolbar button. */
+function labelledFromOutside(b: HTMLElement): boolean {
+  const root = b.getRootNode() as Document | ShadowRoot;
+  const ids = b.getAttribute("aria-labelledby")?.split(/\s+/).filter(Boolean) ?? [];
+  if (
+    ids.some((id) => {
+      const n = root.getElementById?.(id);
+      return !!n && !b.contains(n) && !!textOf(n);
+    })
+  )
+    return true;
+  return !!b.id && !!labelElementFor(b);
+}
+
 /** Popups (listboxes, menus) opened by a dropdown/combobox, found via aria-controls/aria-owns. */
 function dropdownPopups(cands: HTMLElement[]): Element[] {
   const popups: Element[] = [];
@@ -139,12 +153,15 @@ export function buildUnits(c: Collected): Unit[] {
     take({ kind: "dropdown", el: t, searchInput: inner && !inner.readOnly ? inner : undefined });
     cands.filter((x) => t.contains(x)).forEach((x) => taken.add(x));
   }
-  // A button[aria-expanded][aria-controls] under a question label also opens a list (Appendix C.3).
+  // A button[aria-expanded][aria-controls] under a question label also opens a list (Appendix C.3), as does a popup
+  // button a label names (BambooHR's Fabric selects: their list renders elsewhere once opened, no aria-controls).
   for (const b of c.buttons) {
-    if (taken.has(b) || !b.hasAttribute("aria-expanded") || !b.hasAttribute("aria-controls") || !isVisible(b)) continue;
+    if (taken.has(b) || !b.hasAttribute("aria-expanded") || !isVisible(b)) continue;
+    const labelled = /^(true|listbox|menu)$/.test(b.getAttribute("aria-haspopup") ?? "") && labelledFromOutside(b);
+    if (!b.hasAttribute("aria-controls") && !labelled) continue;
     if (RE_NAV_BUTTON.test(textOf(b)) || !b.parentElement) continue;
     // One keeping its pick in a named hidden input is a form's select (Jane Street: "Select your college").
-    if (!isQuestionContainer(b.parentElement, b) && !b.querySelector("input[type=hidden][name]")) continue;
+    if (!labelled && !isQuestionContainer(b.parentElement, b) && !b.querySelector("input[type=hidden][name]")) continue;
     take({ kind: "dropdown", el: b });
   }
 
