@@ -523,6 +523,41 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(one.decisions[0].intendedAnswer).toBe("Winter 2027");
   });
 
+  it("ticks the work term lengths the profile accepts", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const ask = async (options: string[]) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [
+              field("l", {
+                label: "Which work term lengths are you available for? (select all that apply)",
+                kind: "checkbox_group",
+                options,
+                multiple: true,
+              }),
+            ],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(await ask(["4 months", "8 months"])).toBe("flag");
+    profile.coop.acceptableTermLengths = ["All"];
+    expect(await ask(["4 months", "8 months", "12 months"])).toBe("4 months, 8 months, 12 months");
+    expect(await ask(["4 months", "Other"])).toBe("flag");
+    profile.coop.acceptableTermLengths = ["4 months", "8 months"];
+    expect(await ask(["4-month term", "8-month term", "12-month term"])).toBe("4-month term, 8-month term");
+  });
+
   it("keeps an office or term pick from a list the profile accepts all of", async () => {
     const gemini = {
       call: async (s: { system: string; payload: { fields?: FieldDescriptor[]; items?: { fieldId: string }[] } }) => {

@@ -985,6 +985,33 @@ function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
   };
 }
 
+/** An option's length in months: "4 months", "8-month term", "12 months (3 terms)". */
+const monthsIn = (o: string) => Number(o.match(/\b(\d{1,2})[- ]?months?\b/i)?.[1]) || null;
+
+/**
+ * "Which work term lengths are you available for? (select all that apply)": each length among the profile's
+ * acceptable ones ("All" for any). The AI ticked only the posting's own 8 months for a candidate open to all.
+ */
+function termLengthsDecision(f: FieldDescriptor, coop: Profile["coop"]): Decision | null {
+  const lengths = coop.acceptableTermLengths.map((t) => t.trim()).filter(Boolean);
+  if (!isMulti(f) || !f.options || !lengths.length) return null;
+  if (!/\b(lengths?|durations?|how long|months?)\b/i.test(f.label)) return null;
+  const months = f.options.map(monthsIn);
+  if (months.includes(null)) return null;
+  const any = lengths.some((t) => /^(all|any)$/i.test(t));
+  const ok = new Set(lengths.map(monthsIn));
+  const picks = months.flatMap((m, i) => (any || ok.has(m) ? [i] : []));
+  if (!picks.length) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: picks,
+    intendedAnswer: picks.map((i) => f.options![i]).join(", "),
+    confidence: "high",
+    sources: ["coop.acceptableTermLengths"],
+  };
+}
+
 /**
  * "Indicate all locations you would be interested in relocating to" for a candidate willing to relocate anywhere:
  * every one. Notion's got only "San Francisco, CA" of New York and San Francisco. "Preferred office location(s) …
@@ -1838,6 +1865,7 @@ export async function mapFields(
       pronunciationDecision(f) ??
       cohortDecision(f, input.profile.preferences) ??
       termsDecision(f, input.profile) ??
+      termLengthsDecision(f, input.profile.coop) ??
       relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       returnOfferDecision(f, input.profile) ??
