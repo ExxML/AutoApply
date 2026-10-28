@@ -1331,6 +1331,42 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag"]);
   });
 
+  it("matches currently enrolled education to current-attendance checkboxes", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        return {
+          data: { decisions: fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" })) },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.education = [{ ...profile.education[0], currentlyEnrolled: "yes" }];
+    const fields = [
+      field("attend", { label: "I currently attend", kind: "checkbox" }),
+      field("student", { label: "I am a current student", kind: "checkbox" }),
+      field("enrolled", {
+        label: "Are you currently enrolled in school?",
+        kind: "radio_group",
+        options: ["Yes", "No"],
+      }),
+    ];
+    const run = () =>
+      mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+
+    expect((await run()).decisions.map((d) => d.intendedAnswer ?? d.checked)).toEqual([true, true, "Yes"]);
+    profile.education[0].currentlyEnrolled = "no";
+    expect((await run()).decisions.map((d) => d.intendedAnswer ?? d.checked)).toEqual([false, false, "No"]);
+    expect(asked).toEqual([]);
+  });
+
   it("answers remote-work basics and English fluency", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {

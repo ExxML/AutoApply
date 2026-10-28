@@ -1165,6 +1165,26 @@ function gpaDecision(f: FieldDescriptor, education: Profile["education"]): Decis
   };
 }
 
+/** Current-student attestations, including a lone checkbox such as "I currently attend". */
+const RE_CURRENT_STUDENT =
+  /\b(?:currently|presently|now)\b[^?.]{0,40}\b(?:attend(?:ing)?|enrol(?:led|ment)?|stud(?:y|ying)|student)\b|\b(?:attend(?:ing)?|enrol(?:led|ment)?|stud(?:y|ying)|student)\b[^?.]{0,40}\b(?:currently|presently|now)\b|\bcurrent(?:ly)?\s+(?:enrol(?:led|ment)|student)\b|\b(?:currently|presently|now)\b[^?.]{0,40}\bpursu(?:e|ing)\b[^?.]{0,20}\b(?:degree|program|course|education)\b/i;
+const RE_NEGATED_CURRENT_STUDENT =
+  /\b(?:not|no longer|never|do not|don't|does not|doesn't|is not|isn't|are not|aren't)\b[^?.]{0,35}\b(?:attend|enrol|stud|student|pursu)/i;
+
+function currentStudentDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
+  if (!RE_CURRENT_STUDENT.test(f.label) || RE_NEGATED_CURRENT_STUDENT.test(f.label)) return null;
+  const section = RE_ENTRY_SECTION.exec(f.section ?? "");
+  const scoped = section && /education/i.test(section[1]) ? education[(Number(section[2]) || 1) - 1] : undefined;
+  const enrolled = scoped?.currentlyEnrolled ?? (education.some((e) => e.currentlyEnrolled === "yes") ? "yes" : "");
+  const answer = enrolled || (education.length && education.every((e) => e.currentlyEnrolled === "no") ? "no" : "");
+  if (!answer) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["education"] };
+  if (f.kind === "checkbox") return { ...base, checked: answer === "yes" };
+  if (!f.options || isMulti(f)) return null;
+  const i = f.options.findIndex((o) => new RegExp(`^${answer}\\b`, "i").test(o));
+  return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
+}
+
 /**
  * "How soon could you start?" among ranges ("2 weeks or less", "8 - 12 weeks", "more than 12 weeks"), counted from
  * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away. Asked in
@@ -1947,6 +1967,7 @@ export async function mapFields(
       experienceDecision(f, months) ??
       minYearsDecision(f, months) ??
       graduationDecision(f, input.profile) ??
+      currentStudentDecision(f, input.profile.education) ??
       entryDateDecision(f, input.profile) ??
       entryLocationDecision(f, input.profile.experience) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
