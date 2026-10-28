@@ -62,6 +62,14 @@ test("applies to a queued job end to end without opening anything on screen", as
   await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
 });
 
+test("opens a job-detail Apply CTA even when page chrome has several fields", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-job-with-controls.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

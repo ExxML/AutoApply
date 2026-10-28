@@ -873,7 +873,10 @@ async function startYolo() {
   config = await send({ type: "GET_RUNTIME_CONFIG", yolo: true });
   listen();
   await drive({
-    count: () => rescan().length,
+    fieldStats: () => {
+      const fields = rescan();
+      return { fields: fields.length, requiredFields: fields.filter((h) => h.desc.required).length };
+    },
     fill: yoloFill,
     refill,
     guesses: () => [...guesses.values()],

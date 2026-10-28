@@ -36,6 +36,12 @@ export interface PageFacts {
   /** An ATS form in an iframe the run could load on its own. */
   embedded: boolean;
   apply: boolean;
+  /** Whether the Apply candidate navigates, starts an application, or submits an existing form. */
+  applyKind: "none" | "link" | "entry" | "submit";
+  /** The Apply candidate belongs to a native form. */
+  applyInForm: boolean;
+  /** Required fields the scanner sees, distinct from job-page search/newsletter chrome. */
+  requiredFields: number;
   /** A Next / Continue / Submit control. */
   onward: boolean;
 }

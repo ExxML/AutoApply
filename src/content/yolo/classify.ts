@@ -3,7 +3,7 @@ import type { PageFacts } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
-import { alertText, findApply, findNext, findSubmit } from "./nav";
+import { alertText, applyInfo, findApply, findNext, findSubmit } from "./nav";
 
 /** ATS forms embedded in a company page: the run loads them on their own. */
 const RE_EMBED =
@@ -65,8 +65,10 @@ const headings = () =>
   ).slice(0, 300);
 
 /** `fields`: how many fields the fill scan sees on the page. */
-export function pageFacts(fields: number): PageFacts {
+export function pageFacts({ fields, requiredFields }: Pick<PageFacts, "fields" | "requiredFields">): PageFacts {
   const c = challenge();
+  const apply = findApply();
+  const applyDetails = applyInfo(apply);
   return {
     text: pageText().slice(0, 4000),
     title: document.title,
@@ -79,7 +81,10 @@ export function pageFacts(fields: number): PageFacts {
     captcha: !!c,
     cloudflare: !!c && /cloudflare/.test(c.src),
     embedded: !!embeddedForm(),
-    apply: !!findApply(),
+    apply: applyDetails.kind !== "none",
+    applyKind: applyDetails.kind,
+    applyInForm: applyDetails.inForm,
+    requiredFields,
     onward: !!(findNext() || findSubmit()),
   };
 }

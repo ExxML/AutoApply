@@ -6,6 +6,10 @@ import { isVisible } from "../scan/visibility";
 
 export const RE_APPLY =
   /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)?|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
+/** Unlike a bare "Apply", these labels belong to a job detail page rather than a final form submission. */
+export const RE_APPLY_OPENING =
+  /^(apply( now| for (this|the) (job|position|role)| to (this )?(job|position)| here| online| manually)|i'?m interested|start (my |your )?application|apply on (the )?(company|employer)('s)? (site|website))$/i;
+export type ApplyKind = "none" | "link" | "entry" | "submit";
 export const RE_NEXT =
   /^(next( step| page)?|continue( to (the )?(next step|review|application))?|save (and|&) (continue|next)|proceed|review( (and|&) submit| (my |your )?application)?|go to review|i accept|i agree|(accept|agree) and continue)$/i;
 export const RE_SUBMIT =
@@ -29,6 +33,30 @@ export const labelOf = (el: HTMLElement): string => {
   const host = (el.getRootNode() as ShadowRoot).host as HTMLElement | undefined;
   return collapse(own ?? "") || collapse(host ? host.innerText || host.textContent || "" : "");
 };
+
+/**
+ * Distinguishes a real job-page entrance from a final form action. A relative or absolute anchor can only navigate;
+ * native submits must stay in the form path so validation/refills and YOLO dry runs still work.
+ */
+export function applyInfo(el: HTMLElement | null): { kind: ApplyKind; inForm: boolean } {
+  if (!el) return { kind: "none", inForm: false };
+  const inForm = !!el.closest("form");
+  const a = el.closest("a[href]") as HTMLAnchorElement | null;
+  const href = a?.getAttribute("href")?.trim() ?? "";
+  if (href && !/^(#|javascript:|mailto:|tel:)/i.test(href)) return { kind: "link", inForm };
+
+  const control = el.closest("button,input") as HTMLButtonElement | HTMLInputElement | null;
+  const nativeSubmit =
+    control instanceof HTMLInputElement
+      ? control.type === "submit" || control.type === "image"
+      : !!control && control.type === "submit" && !!control.closest("form");
+  if (nativeSubmit) return { kind: "submit", inForm };
+
+  const label = labelOf(el);
+  // A custom button outside a form is commonly a job-detail entry point. A generic Apply in a form is a submit.
+  if (RE_APPLY_OPENING.test(label) || (RE_APPLY.test(label) && !inForm)) return { kind: "entry", inForm };
+  return { kind: "submit", inForm };
+}
 
 const usable = (el: HTMLElement) =>
   isVisible(el) &&

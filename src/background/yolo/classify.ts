@@ -35,8 +35,17 @@ export function kindOf(f: PageFacts, hidden: boolean): StepKind {
   if (f.passwords === 1)
     return RE_SIGNUP.test(f.headings) && !/sign ?in|log ?in/i.test(f.headings) ? "signup" : "signin";
   if (f.fields < 3 && f.embedded) return "embedded";
-  // A posting with a search box or two (Indeed's What / Where) is still a posting.
-  if (f.fields < 3 && f.apply) return "job";
+  // A posting with a search box or two (Indeed's What / Where) is still a posting. More page chrome can produce
+  // several scan-visible controls, so a real navigation link always opens the posting's application. A custom
+  // entry CTA can do the same when there are no required application fields; native submits remain form steps so
+  // validation/refills and the dry-run stop still apply.
+  if (
+    f.applyKind === "link" ||
+    (f.applyKind === "entry" &&
+      !f.requiredFields &&
+      (f.fields < 3 || (!f.applyInForm && !f.onward)))
+  )
+    return "job";
   // A review step has nothing to fill, only the way on.
   if (f.fields > 0 || f.onward) return "form";
   return "unknown";

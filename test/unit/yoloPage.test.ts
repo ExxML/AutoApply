@@ -3,7 +3,8 @@ import { setBody, stubLayout } from "./dom";
 import { captchaShown, pageFacts } from "../../src/content/yolo/classify";
 import { confirmation, kindOf } from "../../src/background/yolo/classify";
 
-const classify = (fields: number, hidden = false) => kindOf(pageFacts(fields), hidden);
+const classify = (fields: number, hidden = false, requiredFields = 0) =>
+  kindOf(pageFacts({ fields, requiredFields }), hidden);
 import { findApply, findNext, findSubmit, validationErrors } from "../../src/content/yolo/nav";
 import { siteKey } from "../../src/content/yolo/auth";
 
@@ -41,7 +42,7 @@ describe("YOLO page kinds", () => {
 
   it("quotes a confirmation page's message, else its headings", () => {
     setBody(`<h1>Application received</h1>`);
-    const f = pageFacts(0);
+    const f = pageFacts({ fields: 0, requiredFields: 0 });
     const text = "Careers\nJobs\nThank you for applying!\n  We'll be   in touch.\n\nOpen roles\nFooter";
     expect(confirmation({ ...f, text })).toBe("Thank you for applying! We'll be in touch. Open roles");
     expect(confirmation({ ...f, text: "Careers\nAll done" })).toBe(f.headings);
@@ -130,10 +131,23 @@ describe("YOLO page kinds", () => {
   it("tells a posting from a form", () => {
     setBody(`<h1>Software Engineer Intern</h1><p>About the role</p><a href="/apply">Apply now</a>`);
     expect(classify(0)).toBe("job");
-    expect(classify(4)).toBe("form");
+    // A real link remains an application entrance even when surrounding job-page chrome has several controls.
+    expect(classify(4)).toBe("job");
     // Indeed's posting has a What / Where search box.
     setBody(`<form><input aria-label="What"><input aria-label="Where"></form><button>Apply on company site</button>`);
     expect(classify(2)).toBe("job");
+    // A job page can have several scan-visible filters/newsletter controls. Its specific CTA must still open the
+    // application; a generic "Apply" at the end of a form does not get this exception.
+    setBody(`<input aria-label="Keywords"><input aria-label="Location"><input aria-label="Email"><select aria-label="Team"><option>All</option></select><button>Apply to this job</button>`);
+    expect(classify(4)).toBe("job");
+    // A form action with the same wording must stay a form: its required fields need the normal fill, validation,
+    // and (in test builds) dry-run path rather than a navigation click.
+    setBody(`<form><input required><input required><input required><button type="submit">Apply to this job</button></form>`);
+    expect(classify(3, false, 3)).toBe("form");
+    setBody(`<input aria-required="true"><input aria-required="true"><input aria-required="true"><button type="button">Apply to this job</button>`);
+    expect(classify(3, false, 3)).toBe("form");
+    setBody(`<form><button type="submit">Apply</button></form>`);
+    expect(classify(0)).toBe("form");
     setBody(`<h2>Review</h2><button>Submit application</button>`);
     expect(classify(0)).toBe("form");
     setBody(`<h1>Careers</h1>`);

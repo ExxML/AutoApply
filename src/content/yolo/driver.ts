@@ -22,8 +22,8 @@ export interface FillReport {
 }
 
 export interface DriverDeps {
-  /** How many fields the fill scan sees on the page now. */
-  count(): number;
+  /** Field facts from the fill scan, including how many actually require an answer. */
+  fieldStats(): { fields: number; requiredFields: number };
   /** Fills the page in YOLO mode, again for fields left over. */
   fill(): Promise<FillReport>;
   /** Fields inside these validation messages' containers are filled again on the next pass. */
@@ -95,7 +95,7 @@ export async function drive(deps: DriverDeps) {
     let refills = 0;
     for (let i = 0; i < 30; i++) {
       await settle();
-      const facts = pageFacts(deps.count());
+      const facts = pageFacts(deps.fieldStats());
       const step = await send({
         type: "YOLO_STEP",
         facts,
