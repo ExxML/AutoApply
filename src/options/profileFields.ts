@@ -131,6 +131,12 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         "Leave empty if none; describe it if you hold one.",
       ),
       t("workAuthorization.over18", "18 or older", "Answers “Are you at least 18 years old?”.", "yn"),
+      t(
+        "workAuthorization.noOtherCitizenship",
+        "I do not have citizenship in other countries",
+        "Only the countries above with status Citizen. Answers “Are you a citizen of Cuba, Iran, …?”.",
+        "yn",
+      ),
     ],
   },
   {

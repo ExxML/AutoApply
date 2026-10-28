@@ -112,6 +112,7 @@ export const ProfileSchema = o({
     entries: arr(WorkAuthEntrySchema),
     securityClearance: s(),
     over18: yn(),
+    noOtherCitizenship: yn(),
   }),
   education: arr(EducationSchema),
   highSchool: o({ name: s(), graduationYear: s() }),

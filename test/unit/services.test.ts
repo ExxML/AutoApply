@@ -1895,7 +1895,16 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     };
     expect(await ask("Can you confirm that you meet the requirements, specifically being a U.S. Citizen?")).toBe("No");
     expect(await ask("Are you a citizen of Canada?")).toBe("Yes");
-    expect(await ask("Are you a citizen of Cuba, Iran, Canada, or Syria?")).toBe("flag");
+    expect(await ask("Are you a citizen of Cuba, Iran, Canada, or Syria?")).toBe("Yes");
+    expect(await ask("Are you a citizen of Cuba, Iran, North Korea, or Syria?")).toBe("flag");
+    profile.workAuthorization.noOtherCitizenship = "yes";
+    expect(await ask("Are you a citizen of Cuba, Iran, North Korea, or Syria?")).toBe("No");
+    expect(await ask("Is your most recent country of citizenship one of the following: Cuba?")).toBe("No");
+    expect(await ask("Do you hold citizenship in Cuba or Syria?")).toBe("No");
+    expect(await ask("Do you hold citizenship in any country other than Canada?")).toBe("No");
+    expect(await ask("Do you hold Legal Permanent Resident Status in a country outside the US?")).toBe("Yes");
+    expect(await ask("Do you hold citizenship in a country other than the US?")).toBe("Yes");
+    expect(await ask("Do you hold permanent resident status in a country outside Canada?")).toBe("flag");
   });
 
   it("picks how soon the candidate can start from the earliest start date", async () => {

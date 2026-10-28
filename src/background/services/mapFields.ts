@@ -194,6 +194,25 @@ function countryIn(text: string): string | undefined {
 
 const US = "united states";
 
+/** Every country the text names, longest name first so "North Korea" isn't also read as "Korea". */
+function countriesIn(text: string): string[] {
+  const out = new Set<string>();
+  if (/\bU\.?S\.?(A\.?)?(?![a-z])|\bUnited States\b/.test(text)) out.add(US);
+  if (/\bUK\b/.test(text)) out.add("united kingdom");
+  const words = normalize(text).split(" ");
+  for (let i = 0; i < words.length; i++)
+    for (let n = 3; n >= 1; n--) {
+      const s = words.slice(i, i + n).join(" ");
+      const c = s.length > 3 ? canonicalCountry(s) : null;
+      if (c) {
+        out.add(c);
+        i += n - 1;
+        break;
+      }
+    }
+  return [...out];
+}
+
 /**
  * "Which office are you applying to?": the one option the job's location names. Sentry's "Vienna" for a Vienna job
  * cited only the job, so it was dropped as a guess. With several, the first for a candidate open to anywhere (Shield
@@ -514,29 +533,41 @@ function nationalityDecision(
 
 /**
  * "Are you a U.S. citizen?" Yes/No from the status the profile gives that country: the audit flagged MongoDB's
- * "meet the special requirements …, specifically being a U.S. Citizen?" → "No" for a Canadian citizen.
+ * "meet the special requirements …, specifically being a U.S. Citizen?" → "No" for a Canadian citizen. A list
+ * ("citizen of Cuba, Iran, North Korea, or Syria?") is "Yes" when it names a country the profile is a citizen of, else
+ * "No" only if the profile holds no other citizenship: such lists were left blank. "Permanent resident status in a
+ * country outside the US?" asks about every other country, and citizenship there counts: it was flagged.
  */
-function citizenDecision(f: FieldDescriptor, entries: Profile["workAuthorization"]["entries"]): Decision | null {
-  const country = countryIn(f.label);
-  // A list ("citizen of Cuba, Iran, North Korea, or Syria?") names more than the one country read.
-  const list = /[;:]|,[^,]*,/.test(f.label);
+function citizenDecision(f: FieldDescriptor, wa: Profile["workAuthorization"]): Decision | null {
+  const pr = /\bpermanent resident|\bgreen card\b/i.test(f.label);
   if (
-    !country ||
-    list ||
     !f.options ||
     isMulti(f) ||
-    !/\bcitizen\b/i.test(f.label) ||
+    !(pr || /\bcitizen(s|ship)?\b|\bnationals? of\b/i.test(f.label)) ||
     /\bnot\b|n['’]t\b/i.test(f.label)
   )
     return null;
   const yes = f.options.findIndex((o) => /^yes\b/i.test(o));
   const no = f.options.findIndex((o) => /^no\b/i.test(o));
   if (yes < 0 || no < 0) return null;
-  const status = entryFor(country, entries)?.status ?? "none";
-  if (!status) return null;
+  const inLabel = countriesIn(f.label);
+  const named = inLabel.length ? inLabel : countriesIn(f.hint ?? "");
   // "U.S. citizen or permanent resident?" also takes a green card.
-  const resident = /permanent resident|green card/i.test(f.label) && /permanent|resident|green card/i.test(status);
-  const i = /citizen/i.test(status) || resident ? yes : no;
+  const holds = (status: string) => /citizen/i.test(status) || (pr && /permanent|resident|green card/i.test(status));
+  let i: number;
+  if (/\b(outside( of)?|other than|besides|except)\b/i.test(f.label)) {
+    if (!named.length) return null;
+    const others = wa.entries.filter((e) => !named.includes(canonicalCountry(e.country) ?? normalize(e.country)));
+    if (others.some((e) => holds(e.status))) i = yes;
+    else if (!pr && wa.noOtherCitizenship === "yes") i = no;
+    else return null;
+  } else if (inLabel.length === 1 && !/[;:]|,[^,]*,/.test(f.label)) {
+    const status = entryFor(inLabel[0], wa.entries)?.status ?? "none";
+    if (!status) return null;
+    i = holds(status) ? yes : no;
+  } else if (named.some((c) => holds(entryFor(c, wa.entries)?.status ?? ""))) i = yes;
+  else if (named.length && wa.noOtherCitizenship === "yes") i = no;
+  else return null;
   return {
     fieldId: f.id,
     action: "fill",
@@ -1940,7 +1971,7 @@ export async function mapFields(
       durationDecision(f, input.profile.preferences) ??
       compensationDecision(f, pay) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
-      citizenDecision(f, input.profile.workAuthorization.entries) ??
+      citizenDecision(f, input.profile.workAuthorization) ??
       roleCountryDecision(f, job) ??
       appliedOfficeDecision(f, input.job?.location, input.profile.preferences) ??
       countryDecision(f, home) ??
