@@ -2311,10 +2311,22 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const item = { fieldId: "b", question: "q", intendedAnswer: "x", options: ["x"], multiple: false };
     await chooseOptions(ctx, [item], profile);
     await draftEssays(ctx, [{ fieldId: "c", question: "Why us?", kind: "essay" }], profile, null);
+    // The cover letter template only with cover letters, drafted apart from other essays.
+    await draftEssays(
+      ctx,
+      [
+        { fieldId: "d", question: "Why us?", kind: "essay" },
+        { fieldId: "e", question: "Cover letter", kind: "cover_letter" },
+      ],
+      profile,
+      null,
+    );
     expect(profiles.map((p) => p.essayGuidance)).toEqual([
       { aboutMe: "bio" },
       { aboutMe: "bio" },
+      { aboutMe: "bio", tone: "warm" },
       { aboutMe: "bio", tone: "warm", coverLetterTemplate: "Dear…" },
+      { aboutMe: "bio", tone: "warm" },
     ]);
   });
 

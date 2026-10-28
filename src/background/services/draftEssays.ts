@@ -19,7 +19,12 @@ export async function draftEssays(
   job: JobContext | null,
 ): Promise<EssayResult[]> {
   const { resumeText, learnedAnswers: _l, ...rest } = profile;
-  const context = { profile: compactProfile(rest) ?? {}, resume: resumeText.slice(0, 12000) };
+  const resume = resumeText.slice(0, 12000);
+  const letterContext = { profile: compactProfile(rest) ?? {}, resume };
+  // The cover letter template goes only with cover letters: beside a "Why us?" question, the model wrote a letter
+  // ("Dear Hiring Team, …") in its words.
+  const { coverLetterTemplate: _t, ...guidance } = rest.essayGuidance;
+  const essayContext = { profile: compactProfile({ ...rest, essayGuidance: guidance }) ?? {}, resume };
   const base = {
     job: compactProfile({
       company: job?.company,
@@ -40,7 +45,7 @@ export async function draftEssays(
       const r = await ctx.ai.call(
         {
           system: ESSAYS_PROMPT,
-          context,
+          context: batch.some((i) => i.kind === "cover_letter") ? letterContext : essayContext,
           payload: { ...base, items: batch.map((i) => ({ ...i, targetWords: target(i) })) },
           schema: ESSAYS_SCHEMA,
           validate: (d) => EssaysZ.parse(d),
@@ -71,6 +76,7 @@ export async function draftEssays(
   }
 
   const batches: EssayItem[][] = [];
-  for (let i = 0; i < items.length; i += 4) batches.push(items.slice(i, i + 4));
+  for (const group of [items.filter((i) => i.kind === "cover_letter"), items.filter((i) => i.kind !== "cover_letter")])
+    for (let i = 0; i < group.length; i += 4) batches.push(group.slice(i, i + 4));
   return (await Promise.all(batches.map(run))).flat();
 }
