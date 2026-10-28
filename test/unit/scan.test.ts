@@ -526,6 +526,19 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(h.desc.options).toEqual(["Aalborg University", "None"]);
   });
 
+  it("labels a select2 by its question, not by the selection it names itself after (iCIMS)", () => {
+    setBody(`<form><div><label for="q">Will you now or in the future require sponsorship? <span>*</span></label>
+      <select id="q" class="select2-hidden-accessible" aria-hidden="true" tabindex="-1" required>
+        <option value="">—Make a Selection—</option><option>Yes</option><option>No</option></select>
+      <span class="select2 select2-container"><span class="selection"><span class="select2-selection select2-selection--single"
+        role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-labelledby="select2-q-container">
+        <span class="select2-selection__rendered" id="select2-q-container">—Make a Selection—</span></span></span></span></div>
+      <div><label for="p">Phone</label><input id="p"></div></form>`);
+    const [h] = fields();
+    expect(h.desc.label).toBe("Will you now or in the future require sponsorship?");
+    expect(h.desc.required).toBe(true);
+  });
+
   it("reads an empty MUI Select, which shows a zero-width space, as empty", () => {
     setBody(`<div><label id="w-label">Where would you like to work from?</label>
       <div role="combobox" tabindex="0" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="w-label"
