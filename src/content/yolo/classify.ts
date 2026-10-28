@@ -28,6 +28,9 @@ function isEmbeddedFormUrl(raw: string): boolean {
   }
 }
 
+/** A job alert or talent community signup beside a posting, by its section's heading: not the application. */
+export const RE_SIGNUP_BOX = /talent (community|network|pool)|job alerts?|newsletter|stay (connected|in touch)/i;
+
 export const pageText = () => (document.body?.innerText ?? "").slice(0, 20000);
 
 export function visiblePasswords(): HTMLInputElement[] {

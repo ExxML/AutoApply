@@ -70,6 +70,14 @@ test("opens a job-detail Apply CTA even when page chrome has several fields", as
   await outcome(sw).toBe("submitted");
 });
 
+test("opens a posting beside a required talent community signup", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-job-with-community.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

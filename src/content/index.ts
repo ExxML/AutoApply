@@ -39,6 +39,7 @@ import { claimFrame, relayClicksToTop } from "./ui/root";
 import { nextMidnightPacific } from "../shared/time";
 import type { Guess } from "../shared/yolo";
 import { isVisible } from "./scan/visibility";
+import { RE_SIGNUP_BOX } from "./yolo/classify";
 import { drive, type FillReport } from "./yolo/driver";
 import { DRIVER_FRAME, endTransitions, IN_HOST, throttled } from "./yolo/frame";
 import { labelOf } from "./yolo/nav";
@@ -874,7 +875,7 @@ async function startYolo() {
   listen();
   await drive({
     fieldStats: () => {
-      const fields = rescan();
+      const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? ""));
       return { fields: fields.length, requiredFields: fields.filter((h) => h.desc.required).length };
     },
     fill: yoloFill,
