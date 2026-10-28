@@ -129,6 +129,16 @@ test("asks for pay from the posting's range after Apply leads to another page", 
   expect(logs.at(-1)?.text).toContain("Desired hourly pay = $42.50");
 });
 
+test("corrects a site's preselected country to the profile's", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  void page;
+  await queue(sw, `${BASE}yolo-default-country.html`);
+  await outcome(sw).toBe("submitted");
+  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
+  expect(logs.at(-1)?.text).toContain("Province = British Columbia");
+});
+
 test("hands a CAPTCHA to the user instead of trying it", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   void page;

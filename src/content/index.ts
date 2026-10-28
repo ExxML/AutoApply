@@ -1,7 +1,14 @@
 // Content script: per-frame bootstrap (§11.1), fill pipeline (§12), learning (§16.3) and status reporting.
 // Fills only when the user triggers it. Never sees API keys; never clicks submit/next. The exception is a YOLO run
 // (./yolo), which the user turned on: it fills and submits in a page the background loaded for it.
-import { RE_APPLIED, RE_CONSENT, RE_COVER_LETTER, RE_OPTIONAL_CONSENT, RE_RESUME_ONLY } from "../shared/constants";
+import {
+  canonicalCountry,
+  RE_APPLIED,
+  RE_CONSENT,
+  RE_COVER_LETTER,
+  RE_OPTIONAL_CONSENT,
+  RE_RESUME_ONLY,
+} from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send, type Message } from "../shared/messages";
 import type {
@@ -419,6 +426,23 @@ async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: str
   else setStatus(h, "needs", r.note);
 }
 
+const RE_COUNTRY_FIELD =
+  /^(country|country\/region|country or region|country\/territory|(country )?phone (country )?code)$/i;
+/**
+ * A site's own default country where the profile names another: Workday tenants preselect theirs ("United States of
+ * America (+1)"), whose states then left a Canadian's province unanswerable. Not someone's answer, so it is filled.
+ */
+function defaultCountry(h: FieldHandle): boolean {
+  if (!RE_COUNTRY_FIELD.test(h.desc.label)) return false;
+  const shown = canonicalCountry(
+    readValue(h)
+      .replace(/\(.*?\)|\+\d+/g, "")
+      .trim(),
+  );
+  const home = canonicalCountry(config.profileSnapshotForDeterministic.personal.address.country);
+  return !!shown && !!home && shown !== home;
+}
+
 /** Required and optional consents follow separate settings; a required field is never optional. */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
@@ -504,8 +528,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       const s = states.get(h.id);
       if (s?.userOwned) return false;
       if (!s || s.status === "pending") return true;
-      // A YOLO pass re-tries only what it couldn't fill: its guesses ("check") stand.
-      return !!opts.rerun && (yolo ? ["needs", "failed"] : ["needs", "failed", "check"]).includes(s.status);
+      // A YOLO pass re-tries only what it couldn't fill: its guesses ("check") stand, unless the page emptied them (a
+      // province guessed from the states listed before the country changed).
+      if (!opts.rerun) return false;
+      if (!yolo) return ["needs", "failed", "check"].includes(s.status);
+      return ["needs", "failed"].includes(s.status) || (s.status === "check" && !readValue(h));
     });
     for (const h of targets) setStatus(h, "pending");
     report();
@@ -524,7 +551,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     const usedLearned: string[] = [];
     const pending: FieldHandle[] = [];
     for (const h of targets) {
-      if (h.prefilled && !config.settings.overwritePrefilled) {
+      if (h.prefilled && !config.settings.overwritePrefilled && !defaultCountry(h)) {
         setStatus(h, "prefilled");
         continue;
       }
