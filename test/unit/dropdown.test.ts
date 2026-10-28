@@ -50,6 +50,12 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(ul.hidden).toBe(true);
   });
 
+  it("does not read react-select's notice in an empty listbox as an option", async () => {
+    const { h, ul } = select2(`<div class="select__menu-notice select__menu-notice--no-options">Start typing...</div>`);
+    expect(await openDropdown(h)).toBeNull();
+    expect(ul.hidden).toBe(true);
+  });
+
   it("a short harvest skips a list that is still loading more pages", async () => {
     const { h } = select2(
       `<li role="option">Albania</li><li role="option">Algeria</li><li role="option">Loading more results…</li>`,

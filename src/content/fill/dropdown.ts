@@ -17,9 +17,18 @@ export const optText = (o: Element) => {
   clone.querySelectorAll("svg").forEach((n) => n.remove());
   return collapse(clone.textContent ?? "");
 };
+// react-select's "No options" / "Loading…" notice sits in its listbox in place of options, worded as the site likes
+// (Greenhouse's school search: "Start typing…").
+const RE_NOTICE_CLASS = /menu-notice|NoOptionsMessage|LoadingMessage/;
 const isRealOption = (o: HTMLElement) => {
   const t = optText(o);
-  return !!t && !RE_NO_OPTIONS.test(t) && !RE_PLACEHOLDER_OPTION.test(t) && o.getAttribute("aria-disabled") !== "true";
+  return (
+    !!t &&
+    !RE_NO_OPTIONS.test(t) &&
+    !RE_PLACEHOLDER_OPTION.test(t) &&
+    !RE_NOTICE_CLASS.test(o.getAttribute("class") ?? "") &&
+    o.getAttribute("aria-disabled") !== "true"
+  );
 };
 
 export function optionElements(c: Element): HTMLElement[] {
