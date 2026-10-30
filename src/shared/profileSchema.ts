@@ -168,6 +168,8 @@ export const ProfileSchema = o({
     governmentTies: s(),
     consentToInterviewRecording: yn(),
     consentToAiReview: yn(),
+    consentToJobOpportunities: yn(),
+    consentToMarketing: yn(),
   }),
   referral: o({ howDidYouHearDefault: s(), referrerName: s() }),
   demographics: o({

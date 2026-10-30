@@ -120,6 +120,46 @@ export const isAiReview = (text: string): boolean =>
   RE_AI_REVIEW.test(text) &&
   /\b(candidat|applica|your (personal )?(data|information|profile|r[eé]sum[eé]|cv|submission|skills))/i.test(text) &&
   !/\b(have|did) you\b[^?.]*\b(use|used|built|developed|implemented)\b/i.test(text);
+/** Asks to be sent, told or signed up for something: what makes a job or marketing topic an opt-in. */
+const RE_OPT_IN =
+  /\b(receiv\w*|send|sent|contact\w*|e-?mail(s|ed|ing)?|texts?|call(s|ed)?|notif\w*|inform(ed)?|updates?|updated|alerts?|news|newsletters?|messages?|communications?|outreach|subscri\w*|opt(ed|ing)?[\s-]?in|sign(ed|ing)? (me )?up|join|keep (me|you|my|your|in touch)|stay|invit\w*|mailing list|reach (out|you|me)|hear (more )?(about|from|of)|consider(ed|ing)? (you |me )?for|shar(e|ed|ing)|talent (community|pool|network|pipeline))\b/i;
+/** Other or future roles than this one; not "this and other positions" in an attestation (no opt-in wording). */
+const RE_JOBS_TOPIC = new RegExp(
+  String.raw`\b(new|future|other|additional|similar|relevant|upcoming|open|matching|suitable|alternative)\b(\s+(?!(this|that|the|your|my)\b)[\w'’-]+){0,3}?\s+(opportunit(y|ies)|openings?|vacanc(y|ies)|roles?|positions?|jobs?|careers?|postings?)\b` +
+    String.raw`|(?<!\b(this|that|the|your)\s)\b(job|career|employment|work)\s+(opportunities|openings|vacancies|postings|listings)\b` +
+    String.raw`|\b(job|career|hiring|recruit\w*)\s+(alerts?|newsletters?|notifications?|recommendations?|matches|news|updates|events?)\b` +
+    String.raw`|talent (community|pool|network|pipeline)|considered for (other|future|additional|similar|alternative|new)` +
+    String.raw`|\b(roles?|positions?|jobs?|opportunit(y|ies)|openings)\s+(that|which)\s+(may\s+)?(match|fit|suit|align)`,
+  "i",
+);
+/** Marketing, advertising or sales outreach; not a marketing or sales job ("marketing roles", "sales experience"). */
+const RE_MARKETING_TOPIC = new RegExp(
+  String.raw`(\b(marketing|advertis\w*|promotion(al|s)?|direct mail)|\bcommercial (e-?mails?|communications?|messages?|offers|purposes)` +
+    String.raw`|\bsales (e-?mails?|communications?|calls?|messages?|outreach|materials?|team|representatives?|purposes)` +
+    String.raw`|(?<!\b(job|career|talent|hiring|recruit\w*)\s)\bnewsletters?|\b(special|exclusive|promotional|partner|personali[sz]ed) offers` +
+    String.raw`|\bproduct (news|updates|announcements|launches)|\bcompany (news|announcements)|mailing list|\b(our|new|latest) (products?|services|offerings|solutions))\b` +
+    String.raw`(?!\s+([\w-]+\s+)?(roles?|positions?|jobs?|opportunit(y|ies)|openings?|vacanc(y|ies)|careers?|experience|background|department|team|manager|skills?|degree)\b)`,
+  "i",
+);
+/** Asks about the candidate ("Have you been contacted about other roles?", "experience in marketing"), not to opt in. */
+const RE_NOT_OPT_IN =
+  /\b(have|has|had|did|were|was) you\b|\bdo you (have|hold|possess)\b|\b(experience|expertise|proficien\w*|familiar\w*) (in|with)\b/i;
+/**
+ * The profile's answer to an opt-in to hear about new job opportunities or marketing: "no" if it declines a topic the
+ * question names, "yes" if it accepts every one, else "" (no such topic, or unset: left to the consent settings).
+ */
+export function optInAnswer(
+  text: string,
+  prefs: { consentToJobOpportunities: "yes" | "no" | ""; consentToMarketing: "yes" | "no" | "" },
+): "yes" | "no" | "" {
+  if (!prefs.consentToJobOpportunities && !prefs.consentToMarketing) return "";
+  if (RE_NOT_OPT_IN.test(text) || !RE_OPT_IN.test(text)) return "";
+  const answers = [
+    RE_JOBS_TOPIC.test(text) && prefs.consentToJobOpportunities,
+    RE_MARKETING_TOPIC.test(text) && prefs.consentToMarketing,
+  ].filter((a) => a !== false);
+  return answers.includes("no") ? "no" : answers.length && answers.every((a) => a === "yes") ? "yes" : "";
+}
 /** Answer choices of a consent question ("Consent" / "Do Not Consent"). */
 export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowledge|accept)/i;
 export const RE_CONSENT_NO = /^(no[\s,:–—-]+)?(i )?(do not|don['’]t|decline|disagree|refuse|withhold)\b/i;

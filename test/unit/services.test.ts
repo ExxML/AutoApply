@@ -1037,6 +1037,47 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(asked).toEqual(["a", "b"]);
   });
 
+  it("answers optional job-opportunity and marketing opt-ins from the profile", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        const decisions = fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    const fields = [
+      field("a", { label: "Receive job alerts for new roles?", kind: "radio_group", options: ["Opt in", "Opt out"] }),
+      field("b", { label: "I agree to receive marketing communications.", kind: "checkbox" }),
+      // Required: left to the consent settings.
+      field("c", { label: "I agree to receive marketing communications.", kind: "checkbox", required: true }),
+      field("d", {
+        label: "Do you have experience in marketing communications?",
+        kind: "radio_group",
+        options: ["Yes", "No"],
+      }),
+    ];
+    const run = () =>
+      mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+    profile.background.consentToJobOpportunities = "yes";
+    profile.background.consentToMarketing = "no";
+    expect((await run()).decisions.slice(0, 2).map((d) => d.intendedAnswer ?? d.checked)).toEqual(["Opt in", false]);
+    expect(asked).toEqual(["c", "d"]);
+    profile.background.consentToJobOpportunities = "no";
+    profile.background.consentToMarketing = "yes";
+    expect((await run()).decisions.slice(0, 2).map((d) => d.intendedAnswer ?? d.checked)).toEqual(["Opt out", true]);
+    asked.length = 0;
+    profile.background.consentToJobOpportunities = "";
+    profile.background.consentToMarketing = "";
+    await run();
+    expect(asked).toEqual(["a", "b", "c", "d"]);
+  });
+
   it("picks the lowest experience bracket when even the total experience is under it", async () => {
     const asked: string[] = [];
     const gemini = {

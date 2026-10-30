@@ -4,6 +4,7 @@
 import {
   canonicalCountry,
   isAiReview,
+  optInAnswer,
   RE_APPLIED,
   RE_CONSENT,
   RE_COVER_LETTER,
@@ -448,14 +449,35 @@ function defaultCountry(h: FieldHandle): boolean {
 const aiReviewAnswered = (d: FieldDescriptor) =>
   !!config.profileSnapshotForDeterministic.aiReviewConsent && isAiReview(`${d.label} ${d.hint ?? ""}`);
 
-/** Required and optional consents follow separate settings; a required field is never optional. */
+/** The profile's answer to an optional job-opportunity or marketing opt-in; "" leaves it to the consent settings. */
+const optInPref = (text: string) => optInAnswer(text, config.profileSnapshotForDeterministic.optInConsents);
+
+/**
+ * An optional opt-in that isn't a consent by its wording ("Would you like job alerts?") but that the profile answers:
+ * decided locally like one. Not long answers stating facts (CI&T's "Yes, I live in Campinas …").
+ */
+const optInAnswered = (d: FieldDescriptor) =>
+  !d.required &&
+  !d.multiple &&
+  (d.kind === "checkbox" ||
+    (!!d.options &&
+      !!(consentPair(d.options) ?? yesNoPair(d.options)) &&
+      d.options.every((o) => o.split(/\s+/).length <= 3))) &&
+  !!optInPref(`${d.label} ${d.hint ?? ""}`);
+
+/**
+ * Required and optional consents follow separate settings; a required field is never optional. Optional job-opportunity
+ * and marketing opt-ins follow the profile when it answers them.
+ */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
   // A required choice can still say "No": Braze requires an answer to "Select 'Yes' to join our Talent Community".
   const choice = h.desc.kind !== "checkbox" && !RE_CONSENT.test(text);
-  const optional = (!h.desc.required || choice) && (d?.checked === false || RE_OPTIONAL_CONSENT.test(text));
+  const pref = h.desc.required ? "" : optInPref(text);
+  const optional = !!pref || ((!h.desc.required || choice) && (d?.checked === false || RE_OPTIONAL_CONSENT.test(text)));
   const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
-  const mode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
+  const settingsMode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
+  const mode = pref ? (pref === "yes" ? "accept" : "decline") : settingsMode;
   const accept = mode === "accept";
   // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
   const options = h.desc.options ?? harvested.get(h.id);
@@ -471,7 +493,10 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
     h.desc.kind === "checkbox_group" &&
     accept &&
     options?.every((o) => RE_CONSENT.test(o) || RE_OPTIONAL_CONSENT.test(o))
-      ? options.filter((o) => optional || optionalConsents === "accept" || !RE_OPTIONAL_CONSENT.test(o))
+      ? options.filter((o) => {
+          const p = optInPref(o);
+          return p ? p === "yes" : optional || optionalConsents === "accept" || !RE_OPTIONAL_CONSENT.test(o);
+        })
       : [];
   const op: FillOp | null =
     h.desc.kind === "checkbox"
@@ -484,7 +509,7 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
             h.desc.kind === "dropdown" && !options
             ? { type: "intended", answer: accept ? "Yes" : "No" }
             : null;
-  const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${optional ? " (optional)" : ""}`;
+  const tooltip = `${accept ? "Auto-accepted" : "Auto-declined"}${pref ? " (Profile)" : optional ? " (optional)" : ""}`;
   if (mode !== "ask" && op) jobs.push(doFill(h, op, "ai", tooltip, ctrl));
   else setStatus(h, "needs", "Needs your confirmation");
 }
@@ -568,7 +593,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
         setStatus(h, yolo && !h.desc.required ? "skipped" : "needs", "Sensitive – fill manually");
         continue;
       }
-      if (h.consent) {
+      if (h.consent || optInAnswered(h.desc)) {
         if (aiReviewAnswered(h.desc)) pending.push(h);
         else handleConsent(h, undefined, ctrl, jobs);
         continue;
@@ -648,7 +673,9 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
             return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
           });
           // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
-          const consents = new Set(fields.filter((f) => isConsent(f) && !aiReviewAnswered(f)).map((f) => f.id));
+          const consents = new Set(
+            fields.filter((f) => (isConsent(f) || optInAnswered(f)) && !aiReviewAnswered(f)).map((f) => f.id),
+          );
           for (const h of chunk) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
           maps.push(
             mapAndApply(

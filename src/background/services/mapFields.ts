@@ -14,6 +14,7 @@ import {
   HUB_REGIONS,
   HUBS,
   isAiReview,
+  optInAnswer,
   RE_CONSENT,
   RE_ENTRY_SECTION,
   RE_INTERVIEW_RECORDING,
@@ -1580,6 +1581,16 @@ const recordingDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Deci
 const aiReviewDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null =>
   consent && isAiReview(`${f.label} ${f.hint ?? ""}`) ? optInDecision(f, consent) : null;
 
+/**
+ * An optional opt-in to hear about new job opportunities or marketing, answered from the profile's preference. Required
+ * ones follow the consent settings. Not long answers stating facts (CI&T's "Yes, I live in Campinas …").
+ */
+function optInConsentDecision(f: FieldDescriptor, bg: Profile["background"]): Decision | null {
+  if (f.required || f.options?.some((o) => o.split(/\s+/).length > 3)) return null;
+  const consent = optInAnswer(`${f.label} ${f.hint ?? ""}`, bg);
+  return consent ? optInDecision(f, consent) : null;
+}
+
 /** An opt-in box ticked per the preference, or the one choice that agrees (or declines) with it. */
 function optInDecision(f: FieldDescriptor, consent: "yes" | "no"): Decision | null {
   const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["background"] };
@@ -1996,6 +2007,7 @@ export async function mapFields(
     const d =
       aiUseDecision(f) ??
       aiReviewDecision(f, input.profile.background.consentToAiReview) ??
+      optInConsentDecision(f, input.profile.background) ??
       schoolEmailDecision(f) ??
       exerciseDecision(f) ??
       clearanceDecision(f, job, input.profile) ??

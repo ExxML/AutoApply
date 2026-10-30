@@ -193,6 +193,8 @@ export interface DeterministicProfile {
   personal: Profile["personal"];
   /** Set: AI-review consents are answered from the profile instead of the consent settings. */
   aiReviewConsent: Profile["background"]["consentToAiReview"];
+  /** Set: optional job-opportunity and marketing opt-ins are answered from the profile instead of the settings. */
+  optInConsents: Pick<Profile["background"], "consentToJobOpportunities" | "consentToMarketing">;
   learnedAnswers: Pick<LearnedAnswer, "id" | "question" | "normalizedQuestion" | "kind" | "options" | "answer">[];
 }
 

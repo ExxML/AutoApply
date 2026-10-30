@@ -4,6 +4,7 @@ import { cleanLabel, humanize, normalize } from "../../src/shared/normalize";
 import {
   canonicalCountry,
   canonicalRegion,
+  optInAnswer,
   RE_CONSENT,
   RE_OPTIONAL_CONSENT,
   regionCode,
@@ -57,6 +58,58 @@ describe("consent patterns", () => {
     for (const t of [...required, ...optional]) expect(RE_CONSENT.test(t) || RE_OPTIONAL_CONSENT.test(t)).toBe(true);
     for (const t of required) expect(RE_OPTIONAL_CONSENT.test(t)).toBe(false);
     for (const t of optional) expect(RE_OPTIONAL_CONSENT.test(t)).toBe(true);
+  });
+});
+
+describe("job-opportunity and marketing opt-ins", () => {
+  const prefs = { consentToJobOpportunities: "yes", consentToMarketing: "no" } as const;
+  const jobs = [
+    "I agree to receive updates about new job opportunities.",
+    "I want EA recruiters to contact me in relation to other relevant job opportunities, including related events.",
+    "Join our talent community",
+    "I'd like to be considered for future openings",
+    "Receive alerts for similar jobs?",
+    "Would you like us to consider you for other roles?",
+    "May we contact you about roles that match your profile?",
+    "Can we keep in touch about upcoming opportunities?",
+    "Keep my resume on file for future opportunities",
+    "Would you like to receive updates on new marketing roles?",
+  ];
+  const marketing = [
+    "I agree to receive marketing communications.",
+    "Send me marketing emails",
+    "Subscribe to our newsletter",
+    "I'd like to receive news, offers and promotions from Acme",
+    "May we share your information with partners for advertising?",
+    "I agree to be contacted by the sales team",
+    "Would you like to be added to our mailing list?",
+    // Names both: declined since marketing is.
+    "Receive marketing emails and updates about new job opportunities",
+  ];
+  const neither = [
+    "I certify that the information provided is accurate and complete, and understand false statements may disqualify me from this and other positions.",
+    "I agree to the Terms of Service",
+    "Can NinjaOne text you about your application?",
+    "Receive SMS updates about this job opportunity",
+    "Have you been contacted by a recruiter about other positions?",
+    "Have you previously joined our talent community?",
+    "How did you hear about this job opportunity?",
+    "Do you have experience in marketing communications?",
+    "Are you interested in joining our marketing team?",
+    "Are you currently looking for new opportunities?",
+    "Would you be willing to relocate for other positions?",
+    "Advertising",
+  ];
+  it("answers each topic from its own preference", () => {
+    for (const t of jobs) expect(optInAnswer(t, prefs), t).toBe("yes");
+    for (const t of marketing) expect(optInAnswer(t, prefs), t).toBe("no");
+    for (const t of neither) expect(optInAnswer(t, prefs), t).toBe("");
+  });
+  it("leaves unset topics to the consent settings", () => {
+    const unset = { consentToJobOpportunities: "", consentToMarketing: "" } as const;
+    for (const t of [...jobs, ...marketing]) expect(optInAnswer(t, unset), t).toBe("");
+    // Both named, one accepted and one unset: not accepted for the unset one.
+    expect(optInAnswer(marketing.at(-1)!, { ...unset, consentToJobOpportunities: "yes" })).toBe("");
   });
 });
 

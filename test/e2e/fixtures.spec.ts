@@ -1,4 +1,4 @@
-import { BASE, badge, expect, fillPage, forbidden, seed, test, waitDone } from "./extension";
+import { BASE, badge, expect, fillPage, forbidden, PROFILE, seed, test, waitDone } from "./extension";
 
 test("react-controlled: React state follows the filled values", async ({ page, sw }) => {
   await seed(sw);
@@ -250,6 +250,36 @@ test("consent: with optional consents on accept, only the optional box is ticked
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
   await expect(page.locator("#r1")).not.toBeChecked();
+});
+
+test("consent: optional job-opportunity and marketing opt-ins follow the profile, required ones the settings", async ({
+  page,
+  sw,
+}) => {
+  const background = { consentToJobOpportunities: "yes", consentToMarketing: "no" };
+  await seed(sw, { profile: { ...PROFILE, background }, settings: { optionalConsents: "accept" } });
+  await page.goto(BASE + "consent.html");
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#c3")).toBeChecked(); // other relevant job opportunities
+  await expect(page.locator("#c5")).toBeChecked(); // new job opportunities
+  await expect(page.locator("#ja")).toHaveValue("Yes"); // job alerts
+  await expect(page.locator("#c4")).not.toBeChecked(); // marketing: the profile's "No" over "accept"
+  await expect(page.locator("#tc")).toHaveValue("Yes"); // required: the settings, as before
+  await expect(page.locator("#c2")).toBeChecked();
+
+  await seed(sw, {
+    profile: { ...PROFILE, background: { consentToJobOpportunities: "no", consentToMarketing: "yes" } },
+    settings: { optionalConsents: "decline" },
+  });
+  await page.reload();
+  await fillPage(page, sw);
+  await waitDone(page);
+  await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator("#c5")).not.toBeChecked();
+  await expect(page.locator("#ja")).toHaveValue("No");
+  await expect(page.locator("#c4")).toBeChecked();
+  await expect(page.locator("#tc")).toHaveValue("No");
 });
 
 test("consent: with optional consents on decline, the optional box is left unticked and not flagged", async ({

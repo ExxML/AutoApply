@@ -384,6 +384,18 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         "Answers whether AI tools may assess your application (“By selecting Yes, you consent to the use of AI tools…”).",
         "yn",
       ),
+      t(
+        "background.consentToJobOpportunities",
+        "New job opportunities",
+        "Answers optional opt-ins to hear about other or future roles (job alerts, talent community). Required ones and Unset follow Behavior's consent settings.",
+        "yn",
+      ),
+      t(
+        "background.consentToMarketing",
+        "Marketing communications",
+        "Answers optional opt-ins to marketing, advertising, sales or newsletter emails. Required ones and Unset follow Behavior's consent settings.",
+        "yn",
+      ),
     ],
   },
   {
