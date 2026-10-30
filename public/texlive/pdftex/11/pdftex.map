@@ -1,0 +1,850 @@
+cmb10    CMB10    <cmb10.pfb
+cmbsy10  CMBSY10  <cmbsy10.pfb
+cmbx5    CMBX5    <cmbx5.pfb
+cmbx6    CMBX6    <cmbx6.pfb
+cmbx7    CMBX7    <cmbx7.pfb
+cmbx8    CMBX8    <cmbx8.pfb
+cmbx9    CMBX9    <cmbx9.pfb
+cmbx10   CMBX10   <cmbx10.pfb
+cmbx12   CMBX12   <cmbx12.pfb
+cmbxsl10 CMBXSL10 <cmbxsl10.pfb
+cmbxti10 CMBXTI10 <cmbxti10.pfb
+cmcsc10  CMCSC10  <cmcsc10.pfb
+cmdunh10 CMDUNH10 <cmdunh10.pfb
+cmex9    CMEX9    <cmex9.pfb
+cmex10   CMEX10   <cmex10.pfb
+cmff10   CMFF10   <cmff10.pfb
+cmfi10   CMFI10   <cmfi10.pfb
+cmfib8   CMFIB8   <cmfib8.pfb
+cminch   CMINCH   <cminch.pfb
+cmitt10  CMITT10  <cmitt10.pfb
+cmmi5    CMMI5    <cmmi5.pfb
+cmmi6    CMMI6    <cmmi6.pfb
+cmmi7    CMMI7    <cmmi7.pfb
+cmmi8    CMMI8    <cmmi8.pfb
+cmmi9    CMMI9    <cmmi9.pfb
+cmmi10   CMMI10   <cmmi10.pfb
+cmmi12   CMMI12   <cmmi12.pfb
+cmmib10  CMMIB10  <cmmib10.pfb
+cmr5     CMR5     <cmr5.pfb
+cmr6     CMR6     <cmr6.pfb
+cmr7     CMR7     <cmr7.pfb
+cmr8     CMR8     <cmr8.pfb
+cmr9     CMR9     <cmr9.pfb
+cmr10    CMR10    <cmr10.pfb
+cmr12    CMR12    <cmr12.pfb
+cmr17    CMR17    <cmr17.pfb
+cmsl8    CMSL8    <cmsl8.pfb
+cmsl9    CMSL9    <cmsl9.pfb
+cmsl10   CMSL10   <cmsl10.pfb
+cmsl12   CMSL12   <cmsl12.pfb
+cmsltt10 CMSLTT10 <cmsltt10.pfb
+cmss8    CMSS8    <cmss8.pfb
+cmss9    CMSS9    <cmss9.pfb
+cmss10   CMSS10   <cmss10.pfb
+cmss12   CMSS12   <cmss12.pfb
+cmss17   CMSS17   <cmss17.pfb
+cmssbx10 CMSSBX10 <cmssbx10.pfb
+cmssdc10 CMSSDC10 <cmssdc10.pfb
+cmssi8   CMSSI8   <cmssi8.pfb
+cmssi9   CMSSI9   <cmssi9.pfb
+cmssi10  CMSSI10  <cmssi10.pfb
+cmssi12  CMSSI12  <cmssi12.pfb
+cmssi17  CMSSI17  <cmssi17.pfb
+cmssq8   CMSSQ8   <cmssq8.pfb
+cmssqi8  CMSSQI8  <cmssqi8.pfb
+cmsy5    CMSY5    <cmsy5.pfb
+cmsy6    CMSY6    <cmsy6.pfb
+cmsy7    CMSY7    <cmsy7.pfb
+cmsy8    CMSY8    <cmsy8.pfb
+cmsy9    CMSY9    <cmsy9.pfb
+cmsy10   CMSY10   <cmsy10.pfb
+cmtcsc10 CMTCSC10 <cmtcsc10.pfb
+cmtex8   CMTEX8   <cmtex8.pfb
+cmtex9   CMTEX9   <cmtex9.pfb
+cmtex10  CMTEX10  <cmtex10.pfb
+cmti7    CMTI7    <cmti7.pfb
+cmti8    CMTI8    <cmti8.pfb
+cmti9    CMTI9    <cmti9.pfb
+cmti10   CMTI10   <cmti10.pfb
+cmti12   CMTI12   <cmti12.pfb
+cmtt8    CMTT8    <cmtt8.pfb
+cmtt9    CMTT9    <cmtt9.pfb
+cmtt10   CMTT10   <cmtt10.pfb
+cmtt12   CMTT12   <cmtt12.pfb
+cmu10    CMU10    <cmu10.pfb
+cmvtt10  CMVTT10  <cmvtt10.pfb
+cmbsy5 CMBSY5 <cmbsy5.pfb
+cmbsy6 CMBSY6 <cmbsy6.pfb
+cmbsy7 CMBSY7 <cmbsy7.pfb
+cmbsy8 CMBSY8 <cmbsy8.pfb
+cmbsy9 CMBSY9 <cmbsy9.pfb
+cmcsc8 CMCSC8 <cmcsc8.pfb
+cmcsc9 CMCSC9 <cmcsc9.pfb
+cmex7  CMEX7  <cmex7.pfb
+cmex8  CMEX8  <cmex8.pfb
+cmmib5 CMMIB5 <cmmib5.pfb
+cmmib6 CMMIB6 <cmmib6.pfb
+cmmib7 CMMIB7 <cmmib7.pfb
+cmmib8 CMMIB8 <cmmib8.pfb
+cmmib9 CMMIB9 <cmmib9.pfb
+msam5  MSAM5  <msam5.pfb
+msam6  MSAM6  <msam6.pfb
+msam7  MSAM7  <msam7.pfb
+msam8  MSAM8  <msam8.pfb
+msam9  MSAM9  <msam9.pfb
+msam10 MSAM10 <msam10.pfb
+msbm5  MSBM5  <msbm5.pfb
+msbm6  MSBM6  <msbm6.pfb
+msbm7  MSBM7  <msbm7.pfb
+msbm8  MSBM8  <msbm8.pfb
+msbm9  MSBM9  <msbm9.pfb
+msbm10 MSBM10 <msbm10.pfb
+lasy5    LASY5    <lasy5.pfb
+lasy6    LASY6    <lasy6.pfb
+lasy7    LASY7    <lasy7.pfb
+lasy8    LASY8    <lasy8.pfb
+lasy9    LASY9    <lasy9.pfb
+lasy10   LASY10   <lasy10.pfb
+lasyb10  LASYB10  <lasyb10.pfb
+lcircle10 LCIRCLE10 <lcircle1.pfb
+lcirclew10 LCIRCLEW10 <lcirclew.pfb
+lcmss8   LCMSS8   <lcmss8.pfb
+lcmssb8  LCMSSB8  <lcmssb8.pfb
+lcmssi8  LCMSSI8  <lcmssi8.pfb
+line10   LINE10   <line10.pfb
+linew10  LINEW10  <linew10.pfb
+cs-lmbx10 LMRoman10-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx10.pfb
+cs-lmbx12 LMRoman12-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx12.pfb
+cs-lmbx5 LMRoman5-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx5.pfb
+cs-lmbx6 LMRoman6-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx6.pfb
+cs-lmbx7 LMRoman7-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx7.pfb
+cs-lmbx8 LMRoman8-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx8.pfb
+cs-lmbx9 LMRoman9-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmbx9.pfb
+cs-lmbxi10 LMRoman10-BoldItalic "enclmcs ReEncodeFont" <lm-cs.enc <lmbxi10.pfb
+cs-lmcsc10 LMRomanCaps10-Regular "enclmcssc ReEncodeFont" <lm-cssc.enc <lmcsc10.pfb
+cs-lmr10 LMRoman10-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr10.pfb
+cs-lmr12 LMRoman12-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr12.pfb
+cs-lmr17 LMRoman17-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr17.pfb
+cs-lmr5 LMRoman5-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr5.pfb
+cs-lmr6 LMRoman6-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr6.pfb
+cs-lmr7 LMRoman7-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr7.pfb
+cs-lmr8 LMRoman8-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr8.pfb
+cs-lmr9 LMRoman9-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmr9.pfb
+cs-lmri10 LMRoman10-Italic "enclmcs ReEncodeFont" <lm-cs.enc <lmri10.pfb
+cs-lmri12 LMRoman12-Italic "enclmcs ReEncodeFont" <lm-cs.enc <lmri12.pfb
+cs-lmri7 LMRoman7-Italic "enclmcs ReEncodeFont" <lm-cs.enc <lmri7.pfb
+cs-lmri8 LMRoman8-Italic "enclmcs ReEncodeFont" <lm-cs.enc <lmri8.pfb
+cs-lmri9 LMRoman9-Italic "enclmcs ReEncodeFont" <lm-cs.enc <lmri9.pfb
+cs-lmro10 LMRomanSlant10-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmro10.pfb
+cs-lmro12 LMRomanSlant12-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmro12.pfb
+cs-lmss10 LMSans10-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmss10.pfb
+cs-lmss12 LMSans12-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmss12.pfb
+cs-lmss17 LMSans17-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmss17.pfb
+cs-lmss8 LMSans8-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmss8.pfb
+cs-lmss9 LMSans9-Regular "enclmcs ReEncodeFont" <lm-cs.enc <lmss9.pfb
+cs-lmssbo10 LMSans10-BoldOblique "enclmcs ReEncodeFont" <lm-cs.enc <lmssbo10.pfb
+cs-lmssbx10 LMSans10-Bold "enclmcs ReEncodeFont" <lm-cs.enc <lmssbx10.pfb
+cs-lmsso10 LMSans10-Oblique "enclmcs ReEncodeFont" <lm-cs.enc <lmsso10.pfb
+cs-lmtt10 LMMono10-Regular "enclmcstt ReEncodeFont" <lm-cstt.enc <lmtt10.pfb
+cs-lmtt12 LMMono12-Regular "enclmcstt ReEncodeFont" <lm-cstt.enc <lmtt12.pfb
+cs-lmtt8 LMMono8-Regular "enclmcstt ReEncodeFont" <lm-cstt.enc <lmtt8.pfb
+cs-lmtt9 LMMono9-Regular "enclmcstt ReEncodeFont" <lm-cstt.enc <lmtt9.pfb
+cs-lmtti10 LMMono10-Italic "enclmcstt ReEncodeFont" <lm-cstt.enc <lmtti10.pfb
+ec-lmbx10 LMRoman10-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx10.pfb
+ec-lmbx12 LMRoman12-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx12.pfb
+ec-lmbx5 LMRoman5-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx5.pfb
+ec-lmbx6 LMRoman6-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx6.pfb
+ec-lmbx7 LMRoman7-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx7.pfb
+ec-lmbx8 LMRoman8-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx8.pfb
+ec-lmbx9 LMRoman9-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmbx9.pfb
+ec-lmbxi10 LMRoman10-BoldItalic "enclmec ReEncodeFont" <lm-ec.enc <lmbxi10.pfb
+ec-lmcsc10 LMRomanCaps10-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmcsc10.pfb
+ec-lmr10 LMRoman10-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr10.pfb
+ec-lmr12 LMRoman12-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr12.pfb
+ec-lmr17 LMRoman17-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr17.pfb
+ec-lmr5 LMRoman5-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr5.pfb
+ec-lmr6 LMRoman6-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr6.pfb
+ec-lmr7 LMRoman7-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr7.pfb
+ec-lmr8 LMRoman8-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr8.pfb
+ec-lmr9 LMRoman9-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmr9.pfb
+ec-lmri10 LMRoman10-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmri10.pfb
+ec-lmri12 LMRoman12-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmri12.pfb
+ec-lmri7 LMRoman7-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmri7.pfb
+ec-lmri8 LMRoman8-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmri8.pfb
+ec-lmri9 LMRoman9-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmri9.pfb
+ec-lmro10 LMRomanSlant10-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmro10.pfb
+ec-lmro12 LMRomanSlant12-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmro12.pfb
+ec-lmss10 LMSans10-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmss10.pfb
+ec-lmss12 LMSans12-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmss12.pfb
+ec-lmss17 LMSans17-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmss17.pfb
+ec-lmss8 LMSans8-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmss8.pfb
+ec-lmss9 LMSans9-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmss9.pfb
+ec-lmssbo10 LMSans10-BoldOblique "enclmec ReEncodeFont" <lm-ec.enc <lmssbo10.pfb
+ec-lmssbx10 LMSans10-Bold "enclmec ReEncodeFont" <lm-ec.enc <lmssbx10.pfb
+ec-lmsso10 LMSans10-Oblique "enclmec ReEncodeFont" <lm-ec.enc <lmsso10.pfb
+ec-lmtt10 LMMono10-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmtt10.pfb
+ec-lmtt12 LMMono12-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmtt12.pfb
+ec-lmtt8 LMMono8-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmtt8.pfb
+ec-lmtt9 LMMono9-Regular "enclmec ReEncodeFont" <lm-ec.enc <lmtt9.pfb
+ec-lmtti10 LMMono10-Italic "enclmec ReEncodeFont" <lm-ec.enc <lmtti10.pfb
+l7x-lmbx10 LMRoman10-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx10.pfb
+l7x-lmbx12 LMRoman12-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx12.pfb
+l7x-lmbx5 LMRoman5-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx5.pfb
+l7x-lmbx6 LMRoman6-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx6.pfb
+l7x-lmbx7 LMRoman7-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx7.pfb
+l7x-lmbx8 LMRoman8-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx8.pfb
+l7x-lmbx9 LMRoman9-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmbx9.pfb
+l7x-lmbxi10 LMRoman10-BoldItalic "enclml7x ReEncodeFont" <lm-l7x.enc <lmbxi10.pfb
+l7x-lmcsc10 LMRomanCaps10-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmcsc10.pfb
+l7x-lmr10 LMRoman10-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr10.pfb
+l7x-lmr12 LMRoman12-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr12.pfb
+l7x-lmr17 LMRoman17-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr17.pfb
+l7x-lmr5 LMRoman5-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr5.pfb
+l7x-lmr6 LMRoman6-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr6.pfb
+l7x-lmr7 LMRoman7-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr7.pfb
+l7x-lmr8 LMRoman8-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr8.pfb
+l7x-lmr9 LMRoman9-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmr9.pfb
+l7x-lmri10 LMRoman10-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmri10.pfb
+l7x-lmri12 LMRoman12-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmri12.pfb
+l7x-lmri7 LMRoman7-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmri7.pfb
+l7x-lmri8 LMRoman8-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmri8.pfb
+l7x-lmri9 LMRoman9-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmri9.pfb
+l7x-lmro10 LMRomanSlant10-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmro10.pfb
+l7x-lmro12 LMRomanSlant12-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmro12.pfb
+l7x-lmss10 LMSans10-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmss10.pfb
+l7x-lmss12 LMSans12-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmss12.pfb
+l7x-lmss17 LMSans17-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmss17.pfb
+l7x-lmss8 LMSans8-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmss8.pfb
+l7x-lmss9 LMSans9-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmss9.pfb
+l7x-lmssbo10 LMSans10-BoldOblique "enclml7x ReEncodeFont" <lm-l7x.enc <lmssbo10.pfb
+l7x-lmssbx10 LMSans10-Bold "enclml7x ReEncodeFont" <lm-l7x.enc <lmssbx10.pfb
+l7x-lmsso10 LMSans10-Oblique "enclml7x ReEncodeFont" <lm-l7x.enc <lmsso10.pfb
+l7x-lmtt10 LMMono10-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmtt10.pfb
+l7x-lmtt12 LMMono12-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmtt12.pfb
+l7x-lmtt8 LMMono8-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmtt8.pfb
+l7x-lmtt9 LMMono9-Regular "enclml7x ReEncodeFont" <lm-l7x.enc <lmtt9.pfb
+l7x-lmtti10 LMMono10-Italic "enclml7x ReEncodeFont" <lm-l7x.enc <lmtti10.pfb
+qx-lmbx10 LMRoman10-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx10.pfb
+qx-lmbx12 LMRoman12-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx12.pfb
+qx-lmbx5 LMRoman5-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx5.pfb
+qx-lmbx6 LMRoman6-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx6.pfb
+qx-lmbx7 LMRoman7-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx7.pfb
+qx-lmbx8 LMRoman8-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx8.pfb
+qx-lmbx9 LMRoman9-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmbx9.pfb
+qx-lmbxi10 LMRoman10-BoldItalic "enclmqx ReEncodeFont" <lm-qx.enc <lmbxi10.pfb
+qx-lmcsc10 LMRomanCaps10-Regular "enclmqxsc ReEncodeFont" <lm-qxsc.enc <lmcsc10.pfb
+qx-lmr10 LMRoman10-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr10.pfb
+qx-lmr12 LMRoman12-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr12.pfb
+qx-lmr17 LMRoman17-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr17.pfb
+qx-lmr5 LMRoman5-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr5.pfb
+qx-lmr6 LMRoman6-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr6.pfb
+qx-lmr7 LMRoman7-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr7.pfb
+qx-lmr8 LMRoman8-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr8.pfb
+qx-lmr9 LMRoman9-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmr9.pfb
+qx-lmri10 LMRoman10-Italic "enclmqx ReEncodeFont" <lm-qx.enc <lmri10.pfb
+qx-lmri12 LMRoman12-Italic "enclmqx ReEncodeFont" <lm-qx.enc <lmri12.pfb
+qx-lmri7 LMRoman7-Italic "enclmqx ReEncodeFont" <lm-qx.enc <lmri7.pfb
+qx-lmri8 LMRoman8-Italic "enclmqx ReEncodeFont" <lm-qx.enc <lmri8.pfb
+qx-lmri9 LMRoman9-Italic "enclmqx ReEncodeFont" <lm-qx.enc <lmri9.pfb
+qx-lmro10 LMRomanSlant10-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmro10.pfb
+qx-lmro12 LMRomanSlant12-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmro12.pfb
+qx-lmss10 LMSans10-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmss10.pfb
+qx-lmss12 LMSans12-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmss12.pfb
+qx-lmss17 LMSans17-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmss17.pfb
+qx-lmss8 LMSans8-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmss8.pfb
+qx-lmss9 LMSans9-Regular "enclmqx ReEncodeFont" <lm-qx.enc <lmss9.pfb
+qx-lmssbo10 LMSans10-BoldOblique "enclmqx ReEncodeFont" <lm-qx.enc <lmssbo10.pfb
+qx-lmssbx10 LMSans10-Bold "enclmqx ReEncodeFont" <lm-qx.enc <lmssbx10.pfb
+qx-lmsso10 LMSans10-Oblique "enclmqx ReEncodeFont" <lm-qx.enc <lmsso10.pfb
+qx-lmtt10 LMMono10-Regular "enclmqxtt ReEncodeFont" <lm-qxtt.enc <lmtt10.pfb
+qx-lmtt12 LMMono12-Regular "enclmqxtt ReEncodeFont" <lm-qxtt.enc <lmtt12.pfb
+qx-lmtt8 LMMono8-Regular "enclmqxtt ReEncodeFont" <lm-qxtt.enc <lmtt8.pfb
+qx-lmtt9 LMMono9-Regular "enclmqxtt ReEncodeFont" <lm-qxtt.enc <lmtt9.pfb
+qx-lmtti10 LMMono10-Italic "enclmqxtt ReEncodeFont" <lm-qxtt.enc <lmtti10.pfb
+rm-lmbx10 LMRoman10-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx10.pfb
+rm-lmbx12 LMRoman12-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx12.pfb
+rm-lmbx5 LMRoman5-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx5.pfb
+rm-lmbx6 LMRoman6-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx6.pfb
+rm-lmbx7 LMRoman7-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx7.pfb
+rm-lmbx8 LMRoman8-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx8.pfb
+rm-lmbx9 LMRoman9-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmbx9.pfb
+rm-lmbxi10 LMRoman10-BoldItalic "enclmrm ReEncodeFont" <lm-rm.enc <lmbxi10.pfb
+rm-lmcsc10 LMRomanCaps10-Regular "enclmrmsc ReEncodeFont" <lm-rmsc.enc <lmcsc10.pfb
+rm-lmr10 LMRoman10-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr10.pfb
+rm-lmr12 LMRoman12-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr12.pfb
+rm-lmr17 LMRoman17-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr17.pfb
+rm-lmr5 LMRoman5-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr5.pfb
+rm-lmr6 LMRoman6-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr6.pfb
+rm-lmr7 LMRoman7-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr7.pfb
+rm-lmr8 LMRoman8-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr8.pfb
+rm-lmr9 LMRoman9-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmr9.pfb
+rm-lmri10 LMRoman10-Italic "enclmrm ReEncodeFont" <lm-rm.enc <lmri10.pfb
+rm-lmri12 LMRoman12-Italic "enclmrm ReEncodeFont" <lm-rm.enc <lmri12.pfb
+rm-lmri7 LMRoman7-Italic "enclmrm ReEncodeFont" <lm-rm.enc <lmri7.pfb
+rm-lmri8 LMRoman8-Italic "enclmrm ReEncodeFont" <lm-rm.enc <lmri8.pfb
+rm-lmri9 LMRoman9-Italic "enclmrm ReEncodeFont" <lm-rm.enc <lmri9.pfb
+rm-lmro10 LMRomanSlant10-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmro10.pfb
+rm-lmro12 LMRomanSlant12-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmro12.pfb
+rm-lmss10 LMSans10-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmss10.pfb
+rm-lmss12 LMSans12-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmss12.pfb
+rm-lmss17 LMSans17-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmss17.pfb
+rm-lmss8 LMSans8-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmss8.pfb
+rm-lmss9 LMSans9-Regular "enclmrm ReEncodeFont" <lm-rm.enc <lmss9.pfb
+rm-lmssbo10 LMSans10-BoldOblique "enclmrm ReEncodeFont" <lm-rm.enc <lmssbo10.pfb
+rm-lmssbx10 LMSans10-Bold "enclmrm ReEncodeFont" <lm-rm.enc <lmssbx10.pfb
+rm-lmsso10 LMSans10-Oblique "enclmrm ReEncodeFont" <lm-rm.enc <lmsso10.pfb
+rm-lmtt10 LMMono10-Regular "enclmrmtt ReEncodeFont" <lm-rmtt.enc <lmtt10.pfb
+rm-lmtt12 LMMono12-Regular "enclmrmtt ReEncodeFont" <lm-rmtt.enc <lmtt12.pfb
+rm-lmtt8 LMMono8-Regular "enclmrmtt ReEncodeFont" <lm-rmtt.enc <lmtt8.pfb
+rm-lmtt9 LMMono9-Regular "enclmrmtt ReEncodeFont" <lm-rmtt.enc <lmtt9.pfb
+rm-lmtti10 LMMono10-Italic "enclmrmtt ReEncodeFont" <lm-rmtt.enc <lmtti10.pfb
+texnansi-lmbx10 LMRoman10-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx10.pfb
+texnansi-lmbx12 LMRoman12-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx12.pfb
+texnansi-lmbx5 LMRoman5-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx5.pfb
+texnansi-lmbx6 LMRoman6-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx6.pfb
+texnansi-lmbx7 LMRoman7-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx7.pfb
+texnansi-lmbx8 LMRoman8-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx8.pfb
+texnansi-lmbx9 LMRoman9-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbx9.pfb
+texnansi-lmbxi10 LMRoman10-BoldItalic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmbxi10.pfb
+texnansi-lmcsc10 LMRomanCaps10-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmcsc10.pfb
+texnansi-lmr10 LMRoman10-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr10.pfb
+texnansi-lmr12 LMRoman12-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr12.pfb
+texnansi-lmr17 LMRoman17-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr17.pfb
+texnansi-lmr5 LMRoman5-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr5.pfb
+texnansi-lmr6 LMRoman6-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr6.pfb
+texnansi-lmr7 LMRoman7-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr7.pfb
+texnansi-lmr8 LMRoman8-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr8.pfb
+texnansi-lmr9 LMRoman9-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmr9.pfb
+texnansi-lmri10 LMRoman10-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmri10.pfb
+texnansi-lmri12 LMRoman12-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmri12.pfb
+texnansi-lmri7 LMRoman7-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmri7.pfb
+texnansi-lmri8 LMRoman8-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmri8.pfb
+texnansi-lmri9 LMRoman9-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmri9.pfb
+texnansi-lmro10 LMRomanSlant10-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmro10.pfb
+texnansi-lmro12 LMRomanSlant12-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmro12.pfb
+texnansi-lmss10 LMSans10-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmss10.pfb
+texnansi-lmss12 LMSans12-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmss12.pfb
+texnansi-lmss17 LMSans17-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmss17.pfb
+texnansi-lmss8 LMSans8-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmss8.pfb
+texnansi-lmss9 LMSans9-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmss9.pfb
+texnansi-lmssbo10 LMSans10-BoldOblique "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmssbo10.pfb
+texnansi-lmssbx10 LMSans10-Bold "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmssbx10.pfb
+texnansi-lmsso10 LMSans10-Oblique "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmsso10.pfb
+texnansi-lmtt10 LMMono10-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmtt10.pfb
+texnansi-lmtt12 LMMono12-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmtt12.pfb
+texnansi-lmtt8 LMMono8-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmtt8.pfb
+texnansi-lmtt9 LMMono9-Regular "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmtt9.pfb
+texnansi-lmtti10 LMMono10-Italic "enclmtexnansi ReEncodeFont" <lm-texnansi.enc <lmtti10.pfb
+t5-lmbx10 LMRoman10-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx10.pfb
+t5-lmbx12 LMRoman12-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx12.pfb
+t5-lmbx5 LMRoman5-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx5.pfb
+t5-lmbx6 LMRoman6-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx6.pfb
+t5-lmbx7 LMRoman7-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx7.pfb
+t5-lmbx8 LMRoman8-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx8.pfb
+t5-lmbx9 LMRoman9-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmbx9.pfb
+t5-lmbxi10 LMRoman10-BoldItalic "enclmt5 ReEncodeFont" <lm-t5.enc <lmbxi10.pfb
+t5-lmcsc10 LMRomanCaps10-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmcsc10.pfb
+t5-lmr10 LMRoman10-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr10.pfb
+t5-lmr12 LMRoman12-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr12.pfb
+t5-lmr17 LMRoman17-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr17.pfb
+t5-lmr5 LMRoman5-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr5.pfb
+t5-lmr6 LMRoman6-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr6.pfb
+t5-lmr7 LMRoman7-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr7.pfb
+t5-lmr8 LMRoman8-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr8.pfb
+t5-lmr9 LMRoman9-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmr9.pfb
+t5-lmri10 LMRoman10-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmri10.pfb
+t5-lmri12 LMRoman12-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmri12.pfb
+t5-lmri7 LMRoman7-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmri7.pfb
+t5-lmri8 LMRoman8-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmri8.pfb
+t5-lmri9 LMRoman9-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmri9.pfb
+t5-lmro10 LMRomanSlant10-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmro10.pfb
+t5-lmro12 LMRomanSlant12-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmro12.pfb
+t5-lmss10 LMSans10-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmss10.pfb
+t5-lmss12 LMSans12-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmss12.pfb
+t5-lmss17 LMSans17-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmss17.pfb
+t5-lmss8 LMSans8-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmss8.pfb
+t5-lmss9 LMSans9-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmss9.pfb
+t5-lmssbo10 LMSans10-BoldOblique "enclmt5 ReEncodeFont" <lm-t5.enc <lmssbo10.pfb
+t5-lmssbx10 LMSans10-Bold "enclmt5 ReEncodeFont" <lm-t5.enc <lmssbx10.pfb
+t5-lmsso10 LMSans10-Oblique "enclmt5 ReEncodeFont" <lm-t5.enc <lmsso10.pfb
+t5-lmtt10 LMMono10-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmtt10.pfb
+t5-lmtt12 LMMono12-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmtt12.pfb
+t5-lmtt8 LMMono8-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmtt8.pfb
+t5-lmtt9 LMMono9-Regular "enclmt5 ReEncodeFont" <lm-t5.enc <lmtt9.pfb
+t5-lmtti10 LMMono10-Italic "enclmt5 ReEncodeFont" <lm-t5.enc <lmtti10.pfb
+ts1-lmbx10 LMRoman10-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx10.pfb
+ts1-lmbx12 LMRoman12-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx12.pfb
+ts1-lmbx5 LMRoman5-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx5.pfb
+ts1-lmbx6 LMRoman6-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx6.pfb
+ts1-lmbx7 LMRoman7-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx7.pfb
+ts1-lmbx8 LMRoman8-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx8.pfb
+ts1-lmbx9 LMRoman9-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbx9.pfb
+ts1-lmbxi10 LMRoman10-BoldItalic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmbxi10.pfb
+ts1-lmcsc10 LMRomanCaps10-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmcsc10.pfb
+ts1-lmr10 LMRoman10-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr10.pfb
+ts1-lmr12 LMRoman12-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr12.pfb
+ts1-lmr17 LMRoman17-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr17.pfb
+ts1-lmr5 LMRoman5-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr5.pfb
+ts1-lmr6 LMRoman6-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr6.pfb
+ts1-lmr7 LMRoman7-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr7.pfb
+ts1-lmr8 LMRoman8-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr8.pfb
+ts1-lmr9 LMRoman9-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmr9.pfb
+ts1-lmri10 LMRoman10-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmri10.pfb
+ts1-lmri12 LMRoman12-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmri12.pfb
+ts1-lmri7 LMRoman7-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmri7.pfb
+ts1-lmri8 LMRoman8-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmri8.pfb
+ts1-lmri9 LMRoman9-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmri9.pfb
+ts1-lmro10 LMRomanSlant10-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmro10.pfb
+ts1-lmro12 LMRomanSlant12-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmro12.pfb
+ts1-lmss10 LMSans10-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmss10.pfb
+ts1-lmss12 LMSans12-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmss12.pfb
+ts1-lmss17 LMSans17-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmss17.pfb
+ts1-lmss8 LMSans8-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmss8.pfb
+ts1-lmss9 LMSans9-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmss9.pfb
+ts1-lmssbo10 LMSans10-BoldOblique "enclmts1 ReEncodeFont" <lm-ts1.enc <lmssbo10.pfb
+ts1-lmssbx10 LMSans10-Bold "enclmts1 ReEncodeFont" <lm-ts1.enc <lmssbx10.pfb
+ts1-lmsso10 LMSans10-Oblique "enclmts1 ReEncodeFont" <lm-ts1.enc <lmsso10.pfb
+ts1-lmtt10 LMMono10-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmtt10.pfb
+ts1-lmtt12 LMMono12-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmtt12.pfb
+ts1-lmtt8 LMMono8-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmtt8.pfb
+ts1-lmtt9 LMMono9-Regular "enclmts1 ReEncodeFont" <lm-ts1.enc <lmtt9.pfb
+ts1-lmtti10 LMMono10-Italic "enclmts1 ReEncodeFont" <lm-ts1.enc <lmtti10.pfb
+lmbsy5   LMMathSymbols5-Bold       "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmbsy5.pfb
+lmbsy7   LMMathSymbols7-Bold       "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmbsy7.pfb
+lmbsy10  LMMathSymbols10-Bold      "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmbsy10.pfb
+lmsy5    LMMathSymbols5-Regular    "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy5.pfb
+lmsy6    LMMathSymbols6-Regular    "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy6.pfb
+lmsy7    LMMathSymbols7-Regular    "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy7.pfb
+lmsy8    LMMathSymbols8-Regular    "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy8.pfb
+lmsy9    LMMathSymbols9-Regular    "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy9.pfb
+lmsy10   LMMathSymbols10-Regular   "enclmmathsy ReEncodeFont"  <lm-mathsy.enc  <lmsy10.pfb
+lmex10   LMMathExtension10-Regular "enclmmathex ReEncodeFont"  <lm-mathex.enc  <lmex10.pfb
+lmmi5    LMMathItalic5-Regular     "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi5.pfb
+lmmi6    LMMathItalic6-Regular     "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi6.pfb
+lmmi7    LMMathItalic7-Regular     "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi7.pfb
+lmmi8    LMMathItalic8-Regular     "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi8.pfb
+lmmi9    LMMathItalic9-Regular     "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi9.pfb
+lmmi10   LMMathItalic10-Regular    "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi10.pfb
+lmmi12   LMMathItalic12-Regular    "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmi12.pfb
+lmmib5   LMMathItalic5-Bold        "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmib5.pfb
+lmmib7   LMMathItalic7-Bold        "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmib7.pfb
+lmmib10  LMMathItalic10-Bold       "enclmmathit ReEncodeFont"  <lm-mathit.enc  <lmmib10.pfb
+ecbi1000 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbx1000 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+eccc1000 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+ecit1000 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecrm1000 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecsi1000 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsl1000 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecso1000 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecss1000 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecsx1000 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecti1000 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ectt1000 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ecxc1000 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+tcbi1000 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbx1000 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcit1000 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcrm1000 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcsi1000 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsl1000 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcso1000 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcss1000 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcsx1000 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcti1000 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tctt1000 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+fa5brands0 FontAwesome5Brands-Regular "fa5brands0 ReEncodeFont" <[fa5brands0.enc <FontAwesome5Brands-Regular.pfb
+fa5brands1 FontAwesome5Brands-Regular "fa5brands1 ReEncodeFont" <[fa5brands1.enc <FontAwesome5Brands-Regular.pfb
+fa5free0regular FontAwesome5Free-Regular "fa5free0 ReEncodeFont" <[fa5free0.enc <FontAwesome5Free-Regular.pfb
+fa5free1regular FontAwesome5Free-Regular "fa5free1 ReEncodeFont" <[fa5free1.enc <FontAwesome5Free-Regular.pfb
+fa5free2regular FontAwesome5Free-Regular "fa5free2 ReEncodeFont" <[fa5free2.enc <FontAwesome5Free-Regular.pfb
+fa5free3regular FontAwesome5Free-Regular "fa5free3 ReEncodeFont" <[fa5free3.enc <FontAwesome5Free-Regular.pfb
+fa5free0solid FontAwesome5Free-Solid "fa5free0 ReEncodeFont" <[fa5free0.enc <FontAwesome5Free-Solid.pfb
+fa5free1solid FontAwesome5Free-Solid "fa5free1 ReEncodeFont" <[fa5free1.enc <FontAwesome5Free-Solid.pfb
+fa5free2solid FontAwesome5Free-Solid "fa5free2 ReEncodeFont" <[fa5free2.enc <FontAwesome5Free-Solid.pfb
+fa5free3solid FontAwesome5Free-Solid "fa5free3 ReEncodeFont" <[fa5free3.enc <FontAwesome5Free-Solid.pfb
+umvs MarVoSym <marvosym.pfb
+bchb8r CharterBT-Bold " TeXBase1Encoding ReEncodeFont " <8r.enc <bchb8a.pfb
+bchbi8r CharterBT-BoldItalic " TeXBase1Encoding ReEncodeFont " <8r.enc <bchbi8a.pfb
+bchbo8r CharterBT-Bold " .167 SlantFont TeXBase1Encoding ReEncodeFont " <8r.enc <bchb8a.pfb
+bchr8r CharterBT-Roman " TeXBase1Encoding ReEncodeFont " <8r.enc <bchr8a.pfb
+bchri8r CharterBT-Italic " TeXBase1Encoding ReEncodeFont " <8r.enc <bchri8a.pfb
+bchro8r CharterBT-Roman " .167 SlantFont TeXBase1Encoding ReEncodeFont " <8r.enc <bchr8a.pfb
+pcrb8g   Courier-Bold        262179 "groffencoding ReEncodeFont" <groff.enc
+pcrbo8g  Courier-BoldOblique 262243 "groffencoding ReEncodeFont" <groff.enc
+pcrr8g   Courier                 99 "groffencoding ReEncodeFont" <groff.enc
+pcrro8g  Courier-Oblique         35 "groffencoding ReEncodeFont" <groff.enc
+pcrb8r  Courier-Bold        262179 "TeXBase1Encoding ReEncodeFont" <8r.enc
+pcrbo8r Courier-BoldOblique 262243 "TeXBase1Encoding ReEncodeFont" <8r.enc
+pcrr8r  Courier                 35 "TeXBase1Encoding ReEncodeFont" <8r.enc
+pcrr8rn NimbusMonL-Regu            ".85 ExtendFont TeXBase1Encoding ReEncodeFont" <8r.enc <ucrr8a.pfb
+pcrro8r Courier-Oblique         99 "TeXBase1Encoding ReEncodeFont" <8r.enc
+pcrb8y  Courier-Bold        262179 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+pcrbo8y Courier-BoldOblique 262243 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+pcrr8y  Courier                 35 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+pcrro8y Courier-Oblique         99 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+pcrb8u  Courier-Bold        262179 "XT2encoding ReEncodeFont" <xt2.enc
+pcrbo8u Courier-BoldOblique 262243 "XT2encoding ReEncodeFont" <xt2.enc
+pcrro8u Courier-Oblique         35 "XT2encoding ReEncodeFont" <xt2.enc
+pcrr8u  Courier                 99 "XT2encoding ReEncodeFont" <xt2.enc
+phvb8g   Helvetica-Bold        262176 "groffencoding ReEncodeFont" <groff.enc
+phvbo8g  Helvetica-BoldOblique 262240 "groffencoding ReEncodeFont" <groff.enc
+phvr8g   Helvetica                 32 "groffencoding ReEncodeFont" <groff.enc
+phvro8g  Helvetica-Oblique         96 "groffencoding ReEncodeFont" <groff.enc
+phvb8r   Helvetica-Bold        262176 "TeXBase1Encoding ReEncodeFont" <8r.enc
+phvbo8r  Helvetica-BoldOblique 262240 "TeXBase1Encoding ReEncodeFont" <8r.enc
+phvr8r   Helvetica                 32 "TeXBase1Encoding ReEncodeFont" <8r.enc
+phvro8r  Helvetica-Oblique         96 "TeXBase1Encoding ReEncodeFont" <8r.enc
+phvb8y   Helvetica-Bold        262176 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+phvbo8y  Helvetica-BoldOblique 262240 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+phvr8y   Helvetica                 32 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+phvro8y  Helvetica-Oblique         96 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+phvb8z   Helvetica-Bold        262176 "XL2encoding ReEncodeFont" <xl2.enc
+phvbo8z  Helvetica-BoldOblique 262240 "XL2encoding ReEncodeFont" <xl2.enc
+phvr8z   Helvetica                 32 "XL2encoding ReEncodeFont" <xl2.enc
+phvro8z  Helvetica-Oblique         96 "XL2encoding ReEncodeFont" <xl2.enc
+phvbn8g  NimbusSanL-BoldCond     "groffencoding ReEncodeFont" <groff.enc <uhvb8ac.pfb
+phvbon8g NimbusSanL-BoldCondItal "groffencoding ReEncodeFont" <groff.enc <uhvbo8ac.pfb
+phvrn8g  NimbusSanL-ReguCond     "groffencoding ReEncodeFont" <groff.enc <uhvr8ac.pfb
+phvron8g NimbusSanL-ReguCondItal "groffencoding ReEncodeFont" <groff.enc <uhvro8ac.pfb
+phvb8rn  NimbusSanL-BoldCond     "TeXBase1Encoding ReEncodeFont" <8r.enc <uhvb8ac.pfb
+phvbo8rn NimbusSanL-BoldCondItal "TeXBase1Encoding ReEncodeFont" <8r.enc <uhvbo8ac.pfb
+phvr8rn  NimbusSanL-ReguCond     "TeXBase1Encoding ReEncodeFont" <8r.enc <uhvr8ac.pfb
+phvro8rn NimbusSanL-ReguCondItal "TeXBase1Encoding ReEncodeFont" <8r.enc <uhvro8ac.pfb
+phvb8yn  NimbusSanL-BoldCond     "TeXnANSIEncoding ReEncodeFont" <texnansi.enc <uhvb8ac.pfb
+phvbo8yn NimbusSanL-BoldCondItal "TeXnANSIEncoding ReEncodeFont" <texnansi.enc <uhvbo8ac.pfb
+phvr8yn  NimbusSanL-ReguCond     "TeXnANSIEncoding ReEncodeFont" <texnansi.enc <uhvr8ac.pfb
+phvro8yn NimbusSanL-ReguCondItal "TeXnANSIEncoding ReEncodeFont" <texnansi.enc <uhvro8ac.pfb
+phvbn8z  NimbusSanL-BoldCond     "XL2encoding ReEncodeFont" <xl2.enc <uhvb8ac.pfb
+phvbon8z NimbusSanL-BoldCondItal "XL2encoding ReEncodeFont" <xl2.enc <uhvbo8ac.pfb
+phvrn8z  NimbusSanL-ReguCond     "XL2encoding ReEncodeFont" <xl2.enc <uhvr8ac.pfb
+phvron8z NimbusSanL-ReguCondItal "XL2encoding ReEncodeFont" <xl2.enc <uhvro8ac.pfb
+psyr   Symbol 4
+psyrgo Symbol 4
+psyro  StandardSymL ".167 SlantFont" <usyr.pfb
+ptmb8g   Times-Bold       262178 "groffencoding ReEncodeFont" <groff.enc
+ptmbi8g  Times-BoldItalic 262242 "groffencoding ReEncodeFont" <groff.enc
+ptmr8g   Times-Roman          34 "groffencoding ReEncodeFont" <groff.enc
+ptmri8g  Times-Italic         98 "groffencoding ReEncodeFont" <groff.enc
+ptmb8r   Times-Bold       262178 "TeXBase1Encoding ReEncodeFont" <8r.enc
+ptmbi8r  Times-BoldItalic 262242 "TeXBase1Encoding ReEncodeFont" <8r.enc
+ptmbo8r  NimbusRomNo9L-Medi      ".167 SlantFont TeXBase1Encoding ReEncodeFont" <8r.enc <utmb8a.pfb
+ptmr8r   Times-Roman          34 "TeXBase1Encoding ReEncodeFont" <8r.enc
+ptmr8rn  NimbusRomNo9L-Regu      ".82 ExtendFont TeXBase1Encoding ReEncodeFont" <8r.enc <utmr8a.pfb
+ptmri8r  Times-Italic         98 "TeXBase1Encoding ReEncodeFont" <8r.enc
+ptmro8r  NimbusRomNo9L-Regu      ".167 SlantFont TeXBase1Encoding ReEncodeFont" <8r.enc <utmr8a.pfb
+ptmrr8re NimbusRomNo9L-Regu      "1.2 ExtendFont TeXBase1Encoding ReEncodeFont" <8r.enc <utmr8a.pfb
+ptmb8y   Times-Bold       262178 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+ptmbi8y  Times-BoldItalic 262242 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+ptmbo8y  NimbusRomNo9L-Medi      ".167 SlantFont TeXnANSIEncoding ReEncodeFont" <texnansi.enc <utmb8a.pfb
+ptmr8y   Times-Roman          34 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+ptmri8y  Times-Italic         98 "TeXnANSIEncoding ReEncodeFont" <texnansi.enc
+ptmro8y  NimbusRomNo9L-Regu      ".167 SlantFont TeXnANSIEncoding ReEncodeFont" <texnansi.enc <utmr8a.pfb
+ptmrr8ye NimbusRomNo9L-Regu      "1.2 ExtendFont TeXnANSIEncoding ReEncodeFont" <texnansi.enc <utmr8a.pfb
+ptmr8yn  NimbusRomNo9L-Regu      ".82 ExtendFont TeXnANSIEncoding ReEncodeFont" <texnansi.enc <utmr8a.pfb
+ptmb8z   Times-Bold       262178 "XL2encoding ReEncodeFont" <xl2.enc
+ptmbi8z  Times-BoldItalic 262242 "XL2encoding ReEncodeFont" <xl2.enc
+ptmr8z   Times-Roman          34 "XL2encoding ReEncodeFont" <xl2.enc
+ptmri8z  Times-Italic         98 "XL2encoding ReEncodeFont" <xl2.enc
+pzdr ZapfDingbats 4
+ecbi0500 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi0600 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi0700 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi0800 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi0900 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi1095 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi1200 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi1440 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi1728 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi2074 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi2488 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi2986 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbi3583 SFBI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbi1000.pfb
+ecbx0500 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx0600 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx0700 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx0800 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx0900 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx1095 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx1200 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx1440 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx1728 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx2074 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx2488 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx2986 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+ecbx3583 SFBX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfbx1000.pfb
+eccc0500 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc0600 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc0700 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc0800 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc0900 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc1095 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc1200 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc1440 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc1728 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc2074 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc2488 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc2986 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+eccc3583 SFCC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfcc1000.pfb
+ecit0800 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit0900 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit1095 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit1200 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit1440 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit1728 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit2074 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit2488 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit2986 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecit3583 SFIT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfit1000.pfb
+ecrm0500 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm0600 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm0700 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm0800 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm0900 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm1095 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm1200 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm1440 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm1728 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm2074 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm2488 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm2986 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecrm3583 SFRM1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfrm1000.pfb
+ecsi0500 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi0600 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi0700 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi0800 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi0900 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi1095 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi1200 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi1440 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi1728 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi2074 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi2488 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi2986 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsi3583 SFSI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsi1000.pfb
+ecsl0500 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl0600 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl0700 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl0800 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl0900 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl1095 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl1200 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl1440 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl1728 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl2074 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl2488 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl2986 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecsl3583 SFSL1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsl1000.pfb
+ecso0500 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso0600 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso0700 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso0800 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso0900 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso1095 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso1200 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso1440 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso1728 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso2074 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso2488 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso2986 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecso3583 SFSO1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfso1000.pfb
+ecss0500 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss0600 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss0700 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss0800 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss0900 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss1095 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss1200 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss1440 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss1728 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss2074 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss2488 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss2986 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecss3583 SFSS1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfss1000.pfb
+ecsx0500 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx0600 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx0700 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx0800 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx0900 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx1095 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx1200 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx1440 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx1728 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx2074 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx2488 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx2986 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecsx3583 SFSX1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfsx1000.pfb
+ecti0500 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti0600 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti0700 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti0800 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti0900 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti1095 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti1200 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti1440 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti1728 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti2074 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti2488 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti2986 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ecti3583 SFTI1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfti1000.pfb
+ectt0800 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt0900 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt1095 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt1200 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt1440 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt1728 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt2074 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt2488 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt2986 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ectt3583 SFTT1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sftt1000.pfb
+ecxc0500 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc0600 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc0700 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc0800 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc0900 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc1095 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc1200 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc1440 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc1728 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc2074 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc2488 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc2986 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+ecxc3583 SFXC1000 "T1Encoding ReEncodeFont" <cm-super-t1.enc <sfxc1000.pfb
+tcbi0500 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi0600 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi0700 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi0800 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi0900 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi1095 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi1200 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi1440 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi1728 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi2074 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi2488 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi2986 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbi3583 SFBI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbi1000.pfb
+tcbx0500 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx0600 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx0700 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx0800 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx0900 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx1095 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx1200 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx1440 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx1728 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx2074 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx2488 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx2986 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcbx3583 SFBX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfbx1000.pfb
+tcit0800 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit0900 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit1095 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit1200 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit1440 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit1728 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit2074 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit2488 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit2986 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcit3583 SFIT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfit1000.pfb
+tcrm0500 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm0600 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm0700 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm0800 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm0900 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm1095 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm1200 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm1440 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm1728 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm2074 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm2488 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm2986 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcrm3583 SFRM1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfrm1000.pfb
+tcsi0500 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi0600 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi0700 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi0800 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi0900 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi1095 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi1200 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi1440 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi1728 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi2074 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi2488 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi2986 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsi3583 SFSI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsi1000.pfb
+tcsl0500 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl0600 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl0700 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl0800 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl0900 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl1095 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl1200 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl1440 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl1728 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl2074 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl2488 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl2986 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcsl3583 SFSL1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsl1000.pfb
+tcso0500 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso0600 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso0700 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso0800 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso0900 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso1095 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso1200 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso1440 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso1728 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso2074 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso2488 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso2986 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcso3583 SFSO1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfso1000.pfb
+tcss0500 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss0600 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss0700 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss0800 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss0900 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss1095 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss1200 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss1440 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss1728 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss2074 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss2488 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss2986 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcss3583 SFSS1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfss1000.pfb
+tcsx0500 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx0600 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx0700 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx0800 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx0900 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx1095 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx1200 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx1440 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx1728 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx2074 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx2488 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx2986 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcsx3583 SFSX1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfsx1000.pfb
+tcti0500 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti0600 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti0700 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti0800 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti0900 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti1095 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti1200 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti1440 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti1728 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti2074 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti2488 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti2986 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tcti3583 SFTI1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sfti1000.pfb
+tctt0800 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt0900 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt1095 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt1200 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt1440 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt1728 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt2074 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt2488 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt2986 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb
+tctt3583 SFTT1000 "TS1Encoding ReEncodeFont" <cm-super-ts1.enc <sftt1000.pfb

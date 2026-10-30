@@ -2,6 +2,7 @@
 // alarm exists, so none of this runs.
 import type { Message, Responses, YoloResult } from "../../shared/messages";
 import { RE_APPLIED } from "../../shared/constants";
+import { resumeProblem } from "../../shared/resumeMode";
 import { createStorage, session } from "../../shared/storage";
 import type { AiTask } from "../../shared/settings";
 import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
@@ -161,6 +162,12 @@ async function relevance(items: Listing[]): Promise<Set<number>> {
   return r ? new Set(r.data.keep) : all;
 }
 
+/** Why YOLO can't upload résumés in its mode (Variant select with none, AI tailor without a .tex); "" when it can. */
+async function resumeBlocker(): Promise<string> {
+  const s = await store.getMany(["documentsIndex", "tailorResume"]);
+  return resumeProblem(yolo.resumeUpload, s.documentsIndex, !!s.tailorResume, "YOLO");
+}
+
 // ---------- queue ----------
 let pumping = false;
 /** Starts the next queued job when nothing runs, the day's cap allows it, and the AI is usable. */
@@ -178,6 +185,8 @@ async function pump() {
     }
     const ctx = await deps.serviceCtx();
     if ("error" in ctx) return void (await setState({ pauseReason: ctx.error.message }));
+    const blocked = await resumeBlocker();
+    if (blocked) return void (await setState({ pauseReason: blocked }));
     const [item, ...rest] = inQueueOrder(queue, yolo);
     await store.set({ yoloQueue: rest });
     await setState({ pauseReason: "" });
@@ -225,6 +234,7 @@ async function finish(run: Run, r: YoloResult) {
     status: r.status === "blocked" || r.status === "scraped" ? "failed" : r.status,
     reason: "reason" in r ? r.reason : "",
     guesses: mergeGuesses(run.guesses, "guesses" in r ? r.guesses : []),
+    notes: run.notes ?? [],
     at: Date.now(),
   };
   await record(a);
@@ -309,6 +319,7 @@ export async function yoloOverrides(sender: chrome.runtime.MessageSender): Promi
       draftEssays: true,
       autoAcceptAcknowledgements: true,
       coverLetterPdfs: yolo.optionalCoverLetters,
+      resumeUpload: yolo.resumeUpload,
       ...(run.host === "visible" ? {} : { showBadges: false }),
     },
     email: await accountEmail(),
@@ -324,6 +335,13 @@ export async function yoloApplied(url: string): Promise<{ at: number; url: strin
     (x) => x.mode === "yolo" && x.status === "submitted" && x.key === key,
   );
   return a && { at: a.at, url: a.doneUrl || a.url };
+}
+
+/** Adds a note to the run's application record, when `sender` is a YOLO run's page. */
+export async function yoloNote(sender: chrome.runtime.MessageSender, note: string) {
+  const run = await getRun();
+  if (!fromRun(run, sender) || run.mode !== "apply" || run.notes?.includes(note)) return;
+  await saveRun({ ...run, notes: [...(run.notes ?? []), note] });
 }
 
 export const isYoloDoc = (id: string) => id.startsWith("yolo-");
@@ -353,6 +371,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   },
 
   async YOLO_SET({ enabled }) {
+    const blocked = enabled ? await resumeBlocker() : "";
+    if (blocked) return { error: { kind: "other", message: blocked } };
     yolo = { ...yolo, enabled };
     await store.set({ yolo });
     await schedule();
@@ -544,6 +564,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
         status: "submitted",
         reason: "",
         guesses: [],
+        notes: [],
         at: Date.now(),
       });
     if (doneUrl) {

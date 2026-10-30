@@ -125,6 +125,14 @@ export const LOCAL_SCHEMAS = {
   feedCache: rec(z.object({ etag: z.string().catch(""), modified: z.string().catch("") })),
   /** Site accounts YOLO created, passwords encrypted with a device key (yolo/vault.ts). Never exported. */
   vault: rec(VaultEntrySchema),
+  /**
+   * The LaTeX résumé for AI tailoring: its source in doc:tailor-tex and its untailored PDF (the fallback) in
+   * doc:tailor-pdf. Not a document: never a variant, never offered for other uploads. null: none uploaded.
+   */
+  tailorResume: z
+    .object({ fileName: z.string(), size: z.number(), uploadedAt: z.number(), pages: z.number().catch(1) })
+    .nullable()
+    .catch(null),
   /** Résumé document id → its extracted text, for matching résumé variants to jobs (options keeps it in sync). */
   resumeTexts: rec(z.string()),
 };

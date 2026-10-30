@@ -140,3 +140,42 @@ export const RELEVANCE_SCHEMA = {
   required: ["keep"],
 };
 export const RelevanceZ = z.object({ keep: z.array(z.number()) });
+
+// Résumé tailoring: edit operations on the LaTeX body's numbered units (shared/latex.ts).
+export const TAILOR_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    edits: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { id: { type: "STRING" }, text: { type: "STRING" } },
+        required: ["id", "text"],
+      },
+    },
+    add: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { after: { type: "STRING" }, text: { type: "STRING" } },
+        required: ["after", "text"],
+      },
+    },
+    remove: { type: "ARRAY", items: { type: "STRING" } },
+    order: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { group: { type: "STRING" }, items: { type: "ARRAY", items: { type: "STRING" } } },
+        required: ["group", "items"],
+      },
+    },
+  },
+  required: ["edits", "add", "remove", "order"],
+};
+export const TailorZ = z.object({
+  edits: z.array(z.object({ id: z.string(), text: z.string() })).catch([]),
+  add: z.array(z.object({ after: z.string(), text: z.string() })).catch([]),
+  remove: z.array(z.string()).catch([]),
+  order: z.array(z.object({ group: z.string(), items: z.array(z.string()) })).catch([]),
+});

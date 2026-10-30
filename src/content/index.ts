@@ -12,7 +12,8 @@ import {
   RE_RESUME_ONLY,
 } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
-import { isErr, send, type Message } from "../shared/messages";
+import { isErr, send, type Message, type Responses } from "../shared/messages";
+import { resumeProblem, TAILOR_PLACEHOLDER } from "../shared/resumeMode";
 import type {
   ApiError,
   Decision,
@@ -111,6 +112,10 @@ let timings: [string, number][] = [];
 let usedModel: string | null = null;
 /** This fill's résumé variant for the job, when Documents has several résumés. */
 let resumeId: string | null = null;
+/** AI tailor: the résumé being tailored for this job, asked for once per fill (the background caches it per job). */
+let tailoring: Promise<Responses["TAILOR_RESUME"]> | null = null;
+/** Shown in the overlay when the untailored résumé had to be uploaded instead. */
+let resumeNotice = "";
 let overlay: Overlay | null = null;
 /** Top frame: a triggered fill found no fields here, and no child frame reported any either. */
 let noForm = false;
@@ -207,9 +212,14 @@ function renderOverlay() {
     error,
     model: usedModel ?? config?.selectedModel ?? null,
     debug: config?.settings.debugLogging ? timings.map(([k, v]) => `${k.padEnd(10)} ${v} ms`).join("\n") : "",
-    notice: config?.appliedBefore
-      ? `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`
-      : undefined,
+    notice:
+      [
+        config?.appliedBefore &&
+          `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`,
+        resumeNotice,
+      ]
+        .filter(Boolean)
+        .join(" · ") || undefined,
   });
 }
 
@@ -263,6 +273,12 @@ function stop() {
   void send({ type: "ABORT", groupId: current.groupId });
   for (const [id, s] of states) if (s.status === "working") setStatus(handles.get(id)!, "needs", "Stopped");
 }
+
+/** A résumé/CV upload (not a cover letter's), the fields Upload résumés decides. */
+const isResumeUpload = (h: FieldHandle) => {
+  const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
+  return h.desc.kind === "file" && !RE_COVER_LETTER.test(text) && RE_RESUME_ONLY.test(text);
+};
 
 function primaryDocFor(h: FieldHandle): string | null | undefined {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
@@ -546,6 +562,18 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
   try {
     config = await send({ type: "GET_RUNTIME_CONFIG", yolo });
     if (!config.excluded && !config.settings.excludedHosts.includes(HOST)) listen();
+    // No résumé for the chosen upload mode: nothing is filled, rather than an application without the right résumé.
+    const noResume = resumeProblem(
+      config.settings.resumeUpload,
+      config.documentsIndex,
+      config.tailorReady,
+      yolo ? "YOLO" : "Autofill",
+    );
+    if (noResume) {
+      lastError = { kind: "other", message: noResume };
+      if (yolo) yoloFatal = noResume;
+      return;
+    }
     document.dispatchEvent(new Event("autoapply-fill-start")); // see pageTimers.ts
     setBadgesVisible(config.settings.showBadges);
     report(); // running: the top frame waits for us while we reveal
@@ -570,10 +598,14 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
     if (TOP || jc.text) await send({ type: "SET_JOB_CONTEXT", ctx: jc });
+    const mode = config.settings.resumeUpload;
     resumeId =
-      config.documentsIndex.filter((d) => d.kind === "resume").length > 1
+      mode === "variants" && config.documentsIndex.filter((d) => d.kind === "resume").length > 1
         ? (await send({ type: "PICK_RESUME" })).id
         : null;
+    // AI tailor starts now, alongside the rest of the fill, and only for a page asking for the résumé (YOLO: any
+    // page of the application it committed to), so no tokens go to forms that never upload one.
+    tailoring = mode === "tailor" && (yolo || targets.some(isResumeUpload)) ? requestTailoring(groupId) : null;
     sendPay(false);
 
     // PHASE A: deterministic and learned answers — no network to Gemini.
@@ -596,6 +628,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       if (h.consent || optInAnswered(h.desc)) {
         if (aiReviewAnswered(h.desc)) pending.push(h);
         else handleConsent(h, undefined, ctrl, jobs);
+        continue;
+      }
+      if (isResumeUpload(h) && mode !== "variants") {
+        if (mode === "tailor") jobs.push(tailoredUpload(h, groupId, ctrl));
+        else setStatus(h, "needs", "Upload your résumé (Flag for me)");
         continue;
       }
       if (h.desc.kind === "file") {
@@ -701,7 +738,9 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
           const h = handles.get(d.fieldId);
           if (!h || states.get(h.id)?.userOwned) continue;
           const suggestion = d.suggestion ? `Suggested: ${d.suggestion}` : undefined;
-          if (d.action === "fill") {
+          if (d.action === "fill" && h.desc.kind === "file" && d.documentId === TAILOR_PLACEHOLDER)
+            jobs.push(tailoredUpload(h, groupId, ctrl));
+          else if (d.action === "fill") {
             const op = opFromDecision(h, d);
             if (op) jobs.push(doFill(h, op, "ai", (d.sources ?? []).join(", ") || "AI", ctrl));
             else setStatus(h, "needs", d.note ?? "No usable AI answer", suggestion);
@@ -754,6 +793,25 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number } = {}) {
       void runPipeline(q);
     }
   }
+}
+
+const requestTailoring = (groupId: string): Promise<Responses["TAILOR_RESUME"]> =>
+  send({ type: "TAILOR_RESUME", groupId }).catch((e: Error) => ({ error: { kind: "other", message: e.message } }));
+
+/**
+ * AI tailor: the résumé tailored for this job, uploaded once it is ready, so other fields fill meanwhile and this one
+ * comes last. Any tailoring failure has the background answer with the untailored résumé instead.
+ */
+async function tailoredUpload(h: FieldHandle, groupId: string, ctrl: AbortController) {
+  setStatus(h, "working", "Tailoring your résumé…");
+  const r = await (tailoring ??= requestTailoring(groupId));
+  if (ctrl.signal.aborted || states.get(h.id)?.userOwned) return;
+  if (isErr(r)) return setStatus(h, "needs", r.error.message);
+  if (!config.documentsIndex.some((d) => d.id === r.meta.id))
+    config.documentsIndex = [...config.documentsIndex, r.meta];
+  resumeNotice = r.tailored ? "" : `Untailored résumé used: ${r.note}`;
+  const tooltip = r.tailored ? `AI-tailored résumé (${r.note})` : `Untailored résumé (${r.note})`;
+  await doFill(h, { type: "file", documentId: r.meta.id }, "filled", tooltip, ctrl);
 }
 
 /** A cover-letter upload with none in Documents gets one written for this job (always for YOLO's required ones). */

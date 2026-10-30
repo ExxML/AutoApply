@@ -3,6 +3,7 @@ import { toBase64 } from "../../shared/base64";
 import type { DocumentMeta } from "../../shared/types";
 import { TextInput } from "../components/controls";
 import { Prefill } from "../components/Prefill";
+import { ResumeModes, TailorPrompt, TailorUpload } from "../components/ResumeTailoring";
 import { pdfText } from "../pdf";
 import { markSaved, save, store, useProfile, useStored } from "../store";
 
@@ -140,8 +141,10 @@ export function Documents() {
     <section>
       <h1>Documents</h1>
       <p class="intro">
-        Your primary résumé is attached automatically to résumé/CV upload fields, and its text is used as AI context.
+        With Variant select, your primary résumé is attached automatically to résumé/CV upload fields. Its text is used
+        as AI context either way.
       </p>
+      <ResumeModes />
       <p class="intro">
         <strong>Résumé variants:</strong> upload each tailored résumé (e.g. JavaScript, Systems) with kind Résumé. Each
         application gets the variant whose contents and label best match the job’s title and description, judged by what
@@ -215,6 +218,8 @@ export function Documents() {
           </tbody>
         </table>
       )}
+      <TailorUpload />
+      <TailorPrompt />
       {profile && (
         <div class="panel-box">
           <h2>Résumé text</h2>

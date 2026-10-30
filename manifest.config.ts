@@ -28,7 +28,8 @@ export default defineManifest({
       world: "MAIN" as const,
     },
   ],
-  // YOLO mode: alarms (its timer), offscreen + declarativeNetRequest (the hidden page it applies in), tabGroups (its
+  // YOLO mode: alarms (its timer), offscreen + declarativeNetRequest (the hidden page it applies in; offscreen also
+  // compiles tailored résumés), tabGroups (its
   // background-tab fallback), notifications ("needs you"), identity (Gmail, for verification emails).
   permissions: [
     "storage",
@@ -45,6 +46,8 @@ export default defineManifest({
   // Claude through the user's own Claude Code (background/claude/bridge.ts); asked for only when chosen.
   optional_permissions: ["nativeMessaging"],
   host_permissions: ["<all_urls>"],
+  // The bundled pdfLaTeX (public/latex) is WebAssembly, for AI résumé tailoring. Only the extension's own code runs.
+  content_security_policy: { extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" },
   commands: {
     _execute_action: { suggested_key: { default: "Alt+Shift+A" } },
     "fill-page": {

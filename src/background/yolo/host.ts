@@ -1,5 +1,6 @@
 // Where YOLO loads job pages: an iframe in an offscreen document (nothing on screen), else a background tab.
-const OFFSCREEN = "src/offscreen/index.html";
+import { compiling, releaseOffscreen, useOffscreen } from "../offscreen";
+
 const RULE = 9001;
 
 /**
@@ -23,20 +24,16 @@ const unframeRule = (): chrome.declarativeNetRequest.Rule => ({
 });
 
 export async function openFrame(url: string) {
-  if (!(await chrome.offscreen.hasDocument())) {
-    await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE], addRules: [unframeRule()] });
-    await chrome.offscreen.createDocument({
-      url: OFFSCREEN,
-      reasons: ["IFRAME_SCRIPTING" as chrome.offscreen.Reason],
-      justification: "Applies to jobs in a hidden frame while YOLO mode is on.",
-    });
-  }
+  // Also when the document is already open: a résumé compile may have opened it, without the rule.
+  await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE], addRules: [unframeRule()] });
+  await useOffscreen("yolo");
   await chrome.runtime.sendMessage({ type: "YOLO_HOST_NAVIGATE", url });
 }
 
-/** Frees the hidden page's renderer once the queue is empty. */
+/** Frees the hidden page's renderer once the queue is empty (a compile in progress keeps the document, not the page). */
 export async function closeFrame() {
-  if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
+  if (compiling()) await chrome.runtime.sendMessage({ type: "YOLO_HOST_CLEAR" }).catch(() => undefined);
+  await releaseOffscreen("yolo");
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE] });
 }
 

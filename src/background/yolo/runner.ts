@@ -27,6 +27,8 @@ export interface Run {
   answers?: Record<string, Guess>;
   /** What the confirmation page said. */
   confirmation?: string;
+  /** For the application's record (Application.notes). */
+  notes?: string[];
 }
 
 const KEY = "yoloRun";

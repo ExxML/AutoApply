@@ -16,6 +16,23 @@ const claudeTask = z
   .catch({ model: "", effort: "" });
 const claudeTasks = z.object({ fill: claudeTask, write: claudeTask, resume: claudeTask });
 
+/** What the AI is told about tailoring a LaTeX résumé (Documents → AI tailoring prompt). The user may edit it. */
+export const DEFAULT_TAILOR_PROMPT = `Tailor this résumé to the job. It should read as the same résumé sharpened for this role, not a rewrite: make the few changes that matter most.
+
+You may:
+- Reword bullets to use the job's own terms for skills and tools the résumé already shows. Keep each bullet's meaning, tense and voice, and its length within about 15%.
+- Reorder bullets within an entry, and sections, so the most relevant come first. Reorder entries only in sections not ordered by date (such as projects).
+- Drop up to 2 bullets that matter least for this job, but never an entire entry and never an entry's only bullet.
+- Add up to 2 bullets to existing experiences or projects that expand on details the résumé already states about them.
+- Add a skill to the skills section only if the job asks for it and it is in the candidate's Profile skills.
+- Lightly reword a summary or objective to fit the role.
+
+You must not:
+- Invent or exaggerate anything: no employers, titles, dates, projects, degrees, awards, metrics, numbers, tools or skills that the résumé (or, for skills, the Profile) doesn't have.
+- Change names, contact details, dates, company or school names, job titles, degrees or grades.
+- Make the résumé longer: balance any added text with shorter or dropped bullets so it keeps its number of pages.
+- Change its spelling conventions (US or UK English), capitalization or punctuation style.`;
+
 const base = z.object({
   /** Gemini with API keys, or Claude through the user's own Claude Code and plan (background/claude). */
   aiProvider: z.enum(["gemini", "claude"]).catch("gemini"),
@@ -29,6 +46,13 @@ const base = z.object({
   coverLetterDefaultWords: n(300, 10, 2000),
   /** If no cover letter is uploaded in Documents, generate a tailored cover letter. YOLO sets its own. */
   coverLetterPdfs: b(false),
+  /**
+   * Résumé upload fields: the résumé variant that best fits the job (Documents), the LaTeX résumé tailored to it by
+   * the AI, or left for the user. YOLO sets its own.
+   */
+  resumeUpload: z.enum(["variants", "tailor", "flag"]).catch("variants"),
+  /** The AI tailor's instructions; one for autofill and YOLO. */
+  tailorPrompt: z.string().catch(DEFAULT_TAILOR_PROMPT),
   showBadges: b(true),
   learnPrompts: b(false),
   excludedHosts: z.array(z.string()).catch([]),

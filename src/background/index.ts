@@ -26,7 +26,19 @@ import { chooseOptions } from "./services/chooseOptions";
 import { draftEssays } from "./services/draftEssays";
 import { parseResume } from "./services/parseResume";
 import { pickResume } from "./services/pickResume";
-import { initYolo, isYoloDoc, runTab, yoloApplied, yoloDoc, yoloHandlers, yoloJob, yoloOverrides } from "./yolo";
+import { tailoredDoc, tailoredResume } from "./services/tailorResume";
+import { isTailoredDoc, TAILOR_PLACEHOLDER } from "../shared/resumeMode";
+import {
+  initYolo,
+  isYoloDoc,
+  runTab,
+  yoloApplied,
+  yoloDoc,
+  yoloHandlers,
+  yoloJob,
+  yoloNote,
+  yoloOverrides,
+} from "./yolo";
 
 const store = createStorage("background");
 
@@ -93,6 +105,18 @@ const ready = (async () => {
 })();
 
 // ---------- helpers ----------
+/** What the AI is offered in AI tailor mode, for a file field it decides wants the résumé. */
+const TAILORED_PLACEHOLDER_META = {
+  id: TAILOR_PLACEHOLDER,
+  label: "Résumé (tailored for this job)",
+  kind: "resume" as const,
+  fileName: "resume.pdf",
+  mimeType: "application/pdf",
+  size: 0,
+  isPrimaryResume: true,
+  uploadedAt: 0,
+};
+
 const groups = new Map<string, AbortController>();
 function groupSignal(sender: chrome.runtime.MessageSender, groupId: string): AbortSignal {
   const k = `${sender.tab?.id}:${sender.frameId}:${groupId}`;
@@ -235,7 +259,7 @@ type Handlers = { [T in Message["type"]]?: Handler<T> };
 
 const handlers: Handlers = {
   async GET_RUNTIME_CONFIG({ yolo }, sender) {
-    const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos"]);
+    const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos", "tailorResume"]);
     const host = hostOf(sender.tab?.url ?? sender.url);
     const y = yolo ? await yoloOverrides(sender) : null;
     const excluded = !y && isExcluded(host);
@@ -259,6 +283,7 @@ const handlers: Handlers = {
       },
       entryCounts: entryCounts(s.profile),
       documentsIndex: s.documentsIndex,
+      tailorReady: !!s.tailorResume,
       excluded,
       selectedModel: settings.aiProvider === "claude" ? claudeLabel(settings.claude.fill) : s.selectedModel,
       hasKeys: pool.keys.length > 0,
@@ -269,6 +294,7 @@ const handlers: Handlers = {
 
   async GET_DOCUMENT({ id }) {
     if (isYoloDoc(id)) return yoloDoc(id);
+    if (isTailoredDoc(id)) return tailoredDoc(store, id);
     const meta = (await store.get("documentsIndex")).find((d) => d.id === id);
     const base64 = meta ? await store.getDoc(id) : null;
     return meta && base64 ? { meta, base64 } : null;
@@ -310,7 +336,26 @@ const handlers: Handlers = {
     const pays = tab ? await getJobPay(tab) : [];
     const y = yolo ? await yoloOverrides(sender) : null;
     const profile = y ? { ...s.profile, personal: { ...s.profile.personal, email: y.email } } : s.profile;
-    return mapFields(ctx, { fields, profile, documents: s.documentsIndex, job, pays, yolo: !!y });
+    // Résumé variants are offered only in Variant select; AI tailor offers its tailored résumé in their place.
+    const mode = y?.settings.resumeUpload ?? settings.resumeUpload;
+    const documents =
+      mode === "variants"
+        ? s.documentsIndex
+        : [
+            ...s.documentsIndex.filter((d) => d.kind !== "resume"),
+            ...(mode === "tailor" ? [{ ...TAILORED_PLACEHOLDER_META }] : []),
+          ];
+    return mapFields(ctx, { fields, profile, documents, job, pays, yolo: !!y });
+  },
+
+  async TAILOR_RESUME({ groupId }, sender) {
+    const tab = await runTab(sender);
+    const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
+    const signal = groupSignal(sender, groupId);
+    const r = await tailoredResume(store, job, () => serviceCtx(signal, "write"));
+    if ("error" in r) return { error: { kind: "other", message: r.error } };
+    await yoloNote(sender, r.tailored ? `Résumé tailored: ${r.note}` : `Untailored résumé uploaded: ${r.note}`);
+    return { meta: r.meta, tailored: r.tailored, note: r.note };
   },
 
   async CHOOSE_OPTIONS({ items, groupId }, sender) {

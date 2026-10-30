@@ -4,6 +4,7 @@ import type { EssayItem, JobContext, Profile } from "../../shared/types";
 import { BadOutputError, BlockedError } from "../gemini/errors";
 import { ESSAYS_PROMPT } from "../gemini/prompts";
 import { ESSAYS_SCHEMA, EssaysZ } from "../gemini/schemas";
+import { jobBrief } from "./jobBrief";
 import { compactProfile, type ServiceCtx } from "./mapFields";
 
 export interface EssayResult {
@@ -25,14 +26,7 @@ export async function draftEssays(
   // ("Dear Hiring Team, …") in its words.
   const { coverLetterTemplate: _t, ...guidance } = rest.essayGuidance;
   const essayContext = { profile: compactProfile({ ...rest, essayGuidance: guidance }) ?? {}, resume };
-  const base = {
-    job: compactProfile({
-      company: job?.company,
-      title: job?.jobTitle,
-      url: job?.url,
-      description: job?.text.slice(0, 8000) || job?.header,
-    }),
-  };
+  const base = { job: jobBrief(job) };
   const target = (i: EssayItem) =>
     i.maxWords || i.maxChars
       ? undefined

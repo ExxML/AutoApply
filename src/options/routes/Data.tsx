@@ -19,6 +19,11 @@ const ExportSchema = z.object({
   // their key can't leave this browser.
   yolo: z.unknown().optional(),
   applications: z.unknown().optional(),
+  /** The LaTeX résumé for AI tailoring: its source and untailored PDF (base64), with the documents. */
+  tailorResume: z
+    .object({ info: LOCAL_SCHEMAS.tailorResume.unwrap(), tex: z.string(), pdf: z.string() })
+    .nullable()
+    .optional(),
 });
 type Export = z.infer<typeof ExportSchema>;
 
@@ -44,6 +49,12 @@ export function Data() {
     const documents = [];
     if (withDocs)
       for (const meta of documentsIndex) documents.push({ meta, base64: (await store.getDoc(meta.id)) ?? "" });
+    const info = withDocs ? await store.get("tailorResume") : null;
+    const tailorResume = info && {
+      info,
+      tex: (await store.getDoc("tailor-tex")) ?? "",
+      pdf: (await store.getDoc("tailor-pdf")) ?? "",
+    };
     const data: Export = {
       app: "autoapply",
       version: 1,
@@ -53,7 +64,7 @@ export function Data() {
       fallbackModel,
       yolo,
       applications,
-      ...(withDocs ? { documents } : {}),
+      ...(withDocs ? { documents, tailorResume } : {}),
       ...(withKeys ? { apiKeys } : {}),
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -95,6 +106,16 @@ export function Data() {
       const old = await store.get("documentsIndex");
       for (const d of old) await store.removeDoc(d.id);
       for (const d of data.documents) await store.setDoc(d.meta.id, d.base64);
+    }
+    // Exports from before AI tailoring have no tailorResume: the current one stays.
+    if (data.tailorResume !== undefined) {
+      await store.removeDoc("tailor-tex");
+      await store.removeDoc("tailor-pdf");
+      if (data.tailorResume) {
+        await store.setDoc("tailor-tex", data.tailorResume.tex);
+        await store.setDoc("tailor-pdf", data.tailorResume.pdf);
+      }
+      await store.set({ tailorResume: data.tailorResume?.info ?? null });
     }
     await store.set({ profile: ProfileSchema.parse(data.profile) });
     await save({

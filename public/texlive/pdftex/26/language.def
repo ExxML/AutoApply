@@ -1,0 +1,5 @@
+%% e-TeX V2.0;2
+\addlanguage {USenglish}{hyphen}{}{2}{3} %%% This MUST be the first non-comment line of the file
+\addlanguage {ukenglish}{loadhyph-en-gb.tex}{}{2}{3}
+\addlanguage {dumylang}{dumyhyph.tex}{}{2}{3}
+\addlanguage {nohyphenation}{zerohyph.tex}{}{2}{3}

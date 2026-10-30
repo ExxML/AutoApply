@@ -113,6 +113,9 @@ export function Applications() {
                       </ul>
                     </details>
                   )}
+                  {a.notes?.map((n) => (
+                    <div class="muted">{n}</div>
+                  ))}
                 </td>
                 <td>
                   {STATUS[a.status]}

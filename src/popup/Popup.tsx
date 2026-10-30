@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { ensureContentScript, send, type TabStatusResponse } from "../shared/messages";
+import { ensureContentScript, isErr, send, type TabStatusResponse } from "../shared/messages";
 import { formatTime } from "../shared/time";
 import type { StatusCounts } from "../shared/types";
 import type { YoloStatus } from "../shared/yolo";
@@ -58,7 +58,9 @@ export function Popup() {
   }, []);
 
   const setYoloOn = async (enabled: boolean) => {
-    await send({ type: "YOLO_SET", enabled });
+    const r = await send({ type: "YOLO_SET", enabled });
+    // Turning it on with no résumé for its upload mode is refused.
+    setMsg(isErr(r) ? r.error.message : "");
     setYolo(await send({ type: "YOLO_STATUS" }));
   };
 

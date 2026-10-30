@@ -270,3 +270,43 @@ test("logs the user's own submission after a fill, and warns on jobs YOLO applie
   await waitDone(page);
   await expect(page.locator("autoapply-root .panel .notice")).toHaveText(/YOLO already applied to this job on/);
 });
+
+test("AI tailor: uploads the résumé tailored for the job, notes it on the application, and frees the hidden page", async ({
+  sw,
+  page,
+  mock,
+}) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  const id = new URL(sw.url()).host;
+  await page.goto(`chrome-extension://${id}/src/options/index.html#/documents`);
+  await page.getByLabel("Résumé for AI tailoring (.tex)").setInputFiles("test/fixtures/latex/jake.tex");
+  await expect.poll(() => storage(sw, "tailorResume"), { timeout: 30_000 }).toBeTruthy();
+  await queue(sw, `${BASE}yolo-job.html`, { resumeUpload: "tailor" });
+  await outcome(sw).toBe("submitted");
+  const [a] = await storage<Application[]>(sw, "applications");
+  expect(a.notes).toEqual([expect.stringMatching(/^Résumé tailored: \d+ changes? for this job$/)]);
+  expect(mock.calls_("tailor")).toHaveLength(1);
+  await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
+});
+
+test("AI tailor without a LaTeX résumé: YOLO refuses to turn on, and a queued job waits", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  await sw.evaluate(async () => {
+    const { yolo } = await chrome.storage.local.get("yolo");
+    await chrome.storage.local.set({ yolo: { ...(yolo as object), queries: ["x"], resumeUpload: "tailor" } });
+  });
+  const id = new URL(sw.url()).host;
+  await page.goto(`chrome-extension://${id}/src/options/index.html#/yolo`);
+  const r = await page.evaluate(() => chrome.runtime.sendMessage({ type: "YOLO_SET", enabled: true }));
+  expect(r.error.message).toMatch(/AI tailor is selected for YOLO, but no LaTeX résumé/);
+  expect((await storage<{ enabled?: boolean }>(sw, "yolo")).enabled).toBeFalsy();
+
+  await queue(sw, `${BASE}yolo-job.html`, { resumeUpload: "tailor" });
+  await expect
+    .poll(async () => (await storage<{ pauseReason?: string } | undefined>(sw, "yoloState"))?.pauseReason, {
+      timeout: 30_000,
+    })
+    .toMatch(/AI tailor is selected for YOLO, but no LaTeX résumé/);
+  expect(await storage<Application[] | undefined>(sw, "applications")).toBeFalsy();
+});

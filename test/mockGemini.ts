@@ -4,7 +4,8 @@ import { canonicalCountry, canonicalRegion } from "../src/shared/constants";
 import { normalize } from "../src/shared/normalize";
 
 type Json = Record<string, unknown>;
-export type CallKind = "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume" | "guess" | "relevance";
+export type CallKind =
+  "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume" | "guess" | "relevance" | "tailor";
 export interface Call {
   kind: CallKind;
   key: string;
@@ -140,6 +141,8 @@ export class MockGemini {
   /** Persistent failure for (model, key) pairs, e.g. every call to the primary model. */
   always: ((key: string, model: string, kind: CallKind) => Failure | null) | null = null;
   delayMs = 0;
+  /** The résumé tailor's edit operations; by default, the first bullet group reversed and its first bullet reworded. */
+  tailorOps: ((payload: Json) => Json) | null = null;
 
   fail(key: string, ...f: Failure[]) {
     (this.failures[key] ??= []).push(...f);
@@ -191,7 +194,9 @@ export class MockGemini {
                 ? "guess"
                 : system.startsWith("You screen job postings")
                   ? "relevance"
-                  : "resume";
+                  : system.startsWith("You tailor")
+                    ? "tailor"
+                    : "resume";
     const payload = kind === "resume" ? { text } : (JSON.parse(text) as Json);
     const call = { kind, key, model, payload };
     const gc = body.generationConfig as Json;
@@ -236,6 +241,19 @@ export class MockGemini {
             : { text: "N/A" }),
       }));
       return send(200, reply({ decisions }), call);
+    }
+    if (kind === "tailor") {
+      const groups = payload.groups as { group: string; items: string[] }[];
+      const bullets = groups.find((g) => /\.R\d+$/.test(g.group));
+      const ops = this.tailorOps?.(payload) ?? {
+        edits: bullets
+          ? [{ id: bullets.items[0], text: "\\resumeItem{Built TypeScript services for robot fleets}" }]
+          : [],
+        add: [],
+        remove: [],
+        order: bullets ? [{ group: bullets.group, items: [...bullets.items].reverse() }] : [],
+      };
+      return send(200, reply(ops), call);
     }
     if (kind === "relevance")
       return send(200, reply({ keep: (payload.jobs as { i: number }[]).map((j) => j.i) }), call);

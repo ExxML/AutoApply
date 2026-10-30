@@ -1,7 +1,18 @@
-// Offscreen document: holds the one frame YOLO applies in. The content script inside drives the page itself.
+// Offscreen document: holds the one frame YOLO applies in (the content script inside drives the page itself), and
+// compiles LaTeX résumés in a worker started per compile (src/latex/engine.ts).
+import { compileTex } from "../latex/engine";
 import type { Message } from "../shared/messages";
 
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
+  if (msg.type === "LATEX_COMPILE") {
+    void compileTex(msg.tex, msg.timeoutMs).then(sendResponse);
+    return true;
+  }
+  if (msg.type === "YOLO_HOST_CLEAR") {
+    document.querySelector("iframe")?.remove();
+    sendResponse({ ok: true });
+    return false;
+  }
   if (msg.type !== "YOLO_HOST_NAVIGATE") return false;
   let f = document.querySelector("iframe");
   if (!f) {

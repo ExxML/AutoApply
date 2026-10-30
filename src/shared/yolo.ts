@@ -48,6 +48,8 @@ const base = z.object({
   tabFallback: b(true),
   /** Required cover-letter uploads always get one written; this extends it to optional ones. */
   optionalCoverLetters: b(false),
+  /** Résumé upload fields: the best-fitting résumé variant, or the LaTeX résumé tailored by the AI. Never left blank. */
+  resumeUpload: z.enum(["variants", "tailor"]).catch("variants"),
 });
 export const YoloSchema = base.catch(() => base.parse({}));
 export type Yolo = z.infer<typeof YoloSchema>;
@@ -88,6 +90,8 @@ export const ApplicationSchema = QueueItemSchema.omit({ listing: true, postedAt:
   reason: z.string().catch(""),
   /** Answers YOLO made up where the profile had none, for the user to review. */
   guesses: z.array(z.object({ q: z.string(), a: z.string() })).catch([]),
+  /** What else the run did worth knowing: the résumé tailored, or why it wasn't. */
+  notes: z.array(z.string()).catch([]).optional(),
   at: z.number().catch(0),
 });
 export type Application = z.infer<typeof ApplicationSchema>;

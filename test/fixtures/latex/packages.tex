@@ -1,0 +1,25 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.6in]{geometry}
+\usepackage{titlesec,enumitem,tabularx,fancyhdr,multicol,array,ragged2e,setspace,url,ifthen,calc,xparse,textcomp,amsmath,amssymb,graphicx,microtype}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fontawesome5}
+\usepackage{latexsym,marvosym}
+\usepackage[english]{babel}
+\usepackage[hidelinks]{hyperref}
+\input{glyphtounicode}
+\pdfgentounicode=1
+\pagestyle{fancy}\fancyhf{}
+\titleformat{\section}{\large\bfseries\color{NavyBlue}}{}{0em}{}[\titlerule]
+\begin{document}
+\begin{center}{\huge\textbf{Jane Doe}}\\ \faPhone\ 555 \quad \faEnvelope\ \href{mailto:j@d.com}{j@d.com} \quad \faGithub\ \faLinkedin\ \Letter\ \Mobilefone\ $\diamond$ \end{center}
+\section{Experience}
+\begin{tabularx}{\textwidth}{X r}\textbf{Engineer} -- \textit{Acme} & 2020--2024\end{tabularx}
+\begin{itemize}[leftmargin=*,noitemsep]
+\item Built things in \texttt{C++} and \textsc{Rust} with 30\% speedup—“quotes” é ü ñ
+\item \emph{Emphasis} \underline{underline} \textsf{sans} \textsl{slanted} {\small small} {\footnotesize fn} {\Large large}
+\end{itemize}
+\begin{multicols}{2}\noindent one \columnbreak two\end{multicols}
+\end{document}

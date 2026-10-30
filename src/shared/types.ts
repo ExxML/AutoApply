@@ -209,6 +209,8 @@ export interface RuntimeConfig {
   profileSnapshotForDeterministic: DeterministicProfile;
   entryCounts: EntryCounts;
   documentsIndex: DocumentMeta[];
+  /** A LaTeX résumé for AI tailoring is uploaded (and compiled). */
+  tailorReady: boolean;
   /** The tab's host is in settings.excludedHosts. */
   excluded: boolean;
   selectedModel: string | null;

@@ -95,9 +95,14 @@ export type Message =
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
   | { type: "COVER_LETTER_PDF"; question: string }
+  /** The résumé to upload for the tab's job in AI tailor mode: tailored, else the untailored fallback. */
+  | { type: "TAILOR_RESUME"; groupId: string }
   // B → C (a YOLO run in a tab), B → offscreen host
   | { type: "YOLO_ATTACH" }
   | { type: "YOLO_HOST_NAVIGATE"; url: string }
+  /** YOLO is done with its frame while a compile keeps the document open. */
+  | { type: "YOLO_HOST_CLEAR" }
+  | { type: "LATEX_COMPILE"; tex: string; timeoutMs: number }
   // popup / O → B
   | { type: "YOLO_STATUS" }
   | { type: "YOLO_SET"; enabled: boolean }
@@ -191,10 +196,14 @@ export interface Responses {
   YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
   YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;
   COVER_LETTER_PDF: { meta: DocumentMeta } | Err;
+  /** `note`: why the untailored résumé was used (or a short summary of the tailoring). */
+  TAILOR_RESUME: { meta: DocumentMeta; tailored: boolean; note: string } | Err;
+  YOLO_HOST_CLEAR: Ok;
+  LATEX_COMPILE: { pdf: string; log: string; pages: number };
   YOLO_ATTACH: Ok;
   YOLO_HOST_NAVIGATE: Ok;
   YOLO_STATUS: YoloStatus;
-  YOLO_SET: Ok;
+  YOLO_SET: Ok | Err;
   YOLO_CHECK_NOW: Ok;
   YOLO_RESUME: Ok | Err;
   YOLO_FORGET: Ok;

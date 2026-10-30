@@ -94,6 +94,19 @@ export function Behavior() {
                 onChange={(v) => set({ optionalConsents: v as Settings["optionalConsents"] })}
               />
             )}
+            {k === "coverLetterPdfs" && (
+              <SelectInput
+                label="Upload résumés"
+                help="Variant select: the résumé PDF in Documents that best fits the job (fast, no AI). AI tailor: your LaTeX résumé, tailored to the job by the AI (slower, uses tokens). Flag for me: résumé uploads are left for you. YOLO has its own setting."
+                value={s.resumeUpload}
+                options={[
+                  ["variants", "Variant select"],
+                  ["tailor", "AI tailor"],
+                  ["flag", "Flag for me"],
+                ]}
+                onChange={(v) => set({ resumeUpload: v as Settings["resumeUpload"] })}
+              />
+            )}
           </>
         ))}
         {NUMBERS.map(([k, label, help, min, max]) => (

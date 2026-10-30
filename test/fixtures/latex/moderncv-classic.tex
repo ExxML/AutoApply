@@ -1,0 +1,31 @@
+\documentclass[11pt,a4paper,sans]{moderncv}
+\moderncvstyle{classic}
+\moderncvcolor{blue}
+\usepackage[scale=0.75]{geometry}
+\name{John}{Doe}
+\title{Resume title}
+\address{street and number}{postcode city}{country}
+\phone[mobile]{+1~(234)~567~890}
+\email{john@doe.org}
+\homepage{www.johndoe.com}
+\social[linkedin]{john.doe}
+\social[github]{jdoe}
+\begin{document}
+\makecvtitle
+\section{Education}
+\cventry{2015--2019}{Degree}{Institution}{City}{\textit{Grade}}{Description}
+\section{Experience}
+\subsection{Vocational}
+\cventry{2019--Today}{Job title}{Employer}{City}{}{General description no longer than 1--2 lines.\newline{}%
+Detailed achievements:%
+\begin{itemize}%
+\item Achievement 1;
+\item Achievement 2, with sub-achievements:
+\end{itemize}}
+\section{Languages}
+\cvitemwithcomment{Language 1}{Skill level}{Comment}
+\section{Computer skills}
+\cvdoubleitem{category 1}{XXX, YYY, ZZZ}{category 4}{XXX, YYY, ZZZ}
+\cvlistitem{Item 1}
+\cvlistdoubleitem{Item 2}{Item 3}
+\end{document}
