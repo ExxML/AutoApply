@@ -70,6 +70,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
   const layer = uiLayer();
   let bottom = initialBottom ?? 16;
   let expanded = false;
+  let running = false;
   let pinnedUntil = 0;
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -144,6 +145,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
     render();
   };
   const collapse = () => {
+    if (running) return; // stays open for the whole fill
     pinnedUntil = 0;
     expand(false);
   };
@@ -175,10 +177,10 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
   drag(head);
   render();
 
-  let wasRunning = false;
   return {
     update(v: OverlayView) {
       const c = v.counts;
+      close.style.display = v.running ? "none" : "";
       status.textContent = statusLine(c, v.running, v.reviewing);
       model.textContent = v.model ? `Model: ${v.model}` : "";
       notice.textContent = v.notice ?? "";
@@ -234,7 +236,7 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
         panel.classList.remove("done");
         pinnedUntil = Infinity;
         expand(true);
-      } else if (wasRunning) {
+      } else if (running) {
         panel.classList.add("done"); // plays the finish animation (styles.css)
         pinnedUntil = Date.now() + DONE_PIN_MS;
         clearTimeout(collapseTimer);
@@ -242,13 +244,10 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
           if (Date.now() >= pinnedUntil) expand(false);
         }, DONE_PIN_MS);
       }
-      wasRunning = v.running;
+      running = v.running;
     },
     expand,
-    toggle() {
-      pinnedUntil = 0;
-      expand(!expanded);
-    },
+    toggle: () => (expanded ? collapse() : expand(true)),
   };
 }
 
