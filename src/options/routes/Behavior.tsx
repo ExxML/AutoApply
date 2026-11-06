@@ -2,7 +2,6 @@ import { NumberInput, SelectInput, TagInput, Toggle } from "../components/contro
 import { save, useStored } from "../store";
 import type { Settings } from "../../shared/types";
 import { MAX_BATCH_APPLICATIONS } from "../../shared/yolo";
-import { ONE_PAGE_WORDS } from "../../shared/constants";
 
 type Bool = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 type Num = { [K in keyof Settings]: Settings[K] extends number ? K : never }[keyof Settings];
@@ -23,6 +22,11 @@ const TOGGLES: [Bool, string, string][] = [
     "coverLetterPdfs",
     "Write cover letters",
     "If no cover letter is uploaded in Documents, generate a tailored cover letter for the job from your cover letter template. Off: the field is flagged for you. YOLO has its own setting.",
+  ],
+  [
+    "reviewFills",
+    "Review manual fills with AI",
+    "After a manual fill, AI checks answers against your profile, corrects mistakes and fills missed fields. Adds time and AI usage; choose the review model under AI. Off: the usual autofill without a second review.",
   ],
   ["showBadges", "Show field badges", "Colored outlines and tags on each field. The overlay list works either way."],
   [
@@ -46,8 +50,6 @@ const NUMBERS: [Num, string, string, number, number][] = [
     1,
     MAX_BATCH_APPLICATIONS,
   ],
-  ["essayDefaultWords", "Essay length (words)", "Target length when a question gives no limit.", 10, 2000],
-  ["coverLetterDefaultWords", "Cover letter length (words)", "Target length for cover-letter text boxes.", 10, 2000],
   [
     "maxFieldsPerRequest",
     "Fields per AI request",
@@ -111,17 +113,7 @@ export function Behavior() {
           </>
         ))}
         {NUMBERS.map(([k, label, help, min, max]) => (
-          <>
-            <NumberInput label={label} help={help} value={s[k]} min={min} max={max} onChange={(v) => set({ [k]: v })} />
-            {k === "coverLetterDefaultWords" && (
-              <Toggle
-                label="Keep generated cover letters to one page"
-                help={`Cover letter PDFs written for autofill and YOLO. Their length target is at most ${ONE_PAGE_WORDS} words, and a letter that still runs past one page is written again shorter, once; if it still doesn't fit, the upload is left for you. Off: any length.`}
-                checked={s.coverLetterOnePage}
-                onChange={(coverLetterOnePage) => set({ coverLetterOnePage })}
-              />
-            )}
-          </>
+          <NumberInput label={label} help={help} value={s[k]} min={min} max={max} onChange={(v) => set({ [k]: v })} />
         ))}
         <TagInput
           label="Excluded sites"

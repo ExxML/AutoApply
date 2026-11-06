@@ -41,27 +41,50 @@ const outcome = (sw: Worker) =>
     intervals: [500],
   });
 
-test("applies to a queued job end to end without opening anything on screen", async ({ context, sw, page, mock }) => {
-  test.setTimeout(120_000);
-  await seed(sw, { caps: true });
-  const pages = context.pages().length;
-  await queue(sw, `${BASE}yolo-job.html`);
-  await outcome(sw).toBe("submitted");
-  const [a] = await storage<Application[]>(sw, "applications");
-  expect(a).toMatchObject({ mode: "yolo", company: "Acme", reason: "" });
-  expect(a.doneUrl).toContain("yolo-thanks.html");
-  // Made-up answers are logged for review; profile answers are not.
-  expect(a.guesses).toEqual([{ q: "Do you have any offer deadlines?", a: "No" }]);
-  expect(mock.calls_("guess")).toHaveLength(1);
-  // An account was made for the site, its password kept encrypted.
-  const vault = await storage<Record<string, { email: string; ct: string }>>(sw, "vault");
-  expect(Object.keys(vault)).toEqual(["localhost"]);
-  expect(vault.localhost.email).toBe("ada@example.com");
-  expect(context.pages().length).toBe(pages);
-  void page;
-  // Done: the hidden page's renderer is let go.
-  await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
+test("with review and navigation off, waits through multiple rendering stages as main does", async ({ sw, mock }) => {
+  test.setTimeout(60_000);
+  await seed(sw, { caps: true, settings: { reviewFills: false } });
+  await queue(sw, `${BASE}yolo-delayed-form.html`, { reviewFills: false, aiNavigation: false, tabFallback: false });
+  await expect
+    .poll(async () => (await storage<Application[] | undefined>(sw, "applications"))?.[0], { timeout: 30_000 })
+    .toBeTruthy();
+  const [application] = await storage<Application[]>(sw, "applications");
+  expect(application, JSON.stringify(application)).toMatchObject({ status: "submitted" });
+  expect(mock.calls_("review")).toHaveLength(0);
+  expect(mock.calls_("navigate")).toHaveLength(0);
 });
+
+for (const reviewFills of [false, true]) {
+  test(`applies to a queued job with YOLO review ${reviewFills ? "on" : "off"} and manual review ${reviewFills ? "off" : "on"}`, async ({
+    context,
+    sw,
+    page,
+    mock,
+  }) => {
+    test.setTimeout(120_000);
+    await seed(sw, { caps: true, settings: { reviewFills: !reviewFills } });
+    const pages = context.pages().length;
+    await queue(sw, `${BASE}yolo-job.html`, { reviewFills, aiNavigation: !reviewFills });
+    await outcome(sw).toBe("submitted");
+    const [a] = await storage<Application[]>(sw, "applications");
+    expect(a).toMatchObject({ mode: "yolo", company: "Acme", reason: "" });
+    expect(a.doneUrl).toContain("yolo-thanks.html");
+    // Made-up answers are logged for review; profile answers are not.
+    expect(a.guesses).toEqual([{ q: "Do you have any offer deadlines?", a: "No" }]);
+    expect(mock.calls_("guess")).toHaveLength(1);
+    expect(mock.calls_("essay").length).toBeGreaterThan(0);
+    expect(mock.calls_("review").length > 0).toBe(reviewFills);
+    expect(mock.calls_("navigate")).toHaveLength(0);
+    // An account was made for the site, its password kept encrypted.
+    const vault = await storage<Record<string, { email: string; ct: string }>>(sw, "vault");
+    expect(Object.keys(vault)).toEqual(["localhost"]);
+    expect(vault.localhost.email).toBe("ada@example.com");
+    expect(context.pages().length).toBe(pages);
+    void page;
+    // Done: the hidden page's renderer is let go.
+    await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
+  });
+}
 
 test("opens a job-detail Apply CTA even when page chrome has several fields", async ({ sw, page }) => {
   test.setTimeout(120_000);
@@ -578,3 +601,33 @@ test("warns under a source's toggle in settings as soon as it's turned on, YOLO 
   ]);
   expect((await storage<{ enabled?: boolean }>(sw, "yolo")).enabled).toBeFalsy();
 });
+
+for (const reviewFills of [false, true]) {
+  test(`AI navigation on finds an unfamiliar Apply and submits with YOLO review ${reviewFills ? "on" : "off"}`, async ({
+    sw,
+    mock,
+  }) => {
+    test.setTimeout(120_000);
+    await seed(sw, { caps: true, settings: { reviewFills: false } });
+    await queue(sw, `${BASE}yolo-job-odd-apply.html`, { reviewFills, aiNavigation: true });
+    await outcome(sw).toBe("submitted");
+    const [a] = await storage<Application[]>(sw, "applications");
+    expect(a.doneUrl).toContain("yolo-thanks.html");
+    expect(mock.calls_("navigate").length).toBeGreaterThanOrEqual(1);
+    expect(mock.calls_("review").length > 0).toBe(reviewFills);
+  });
+
+  test(`AI navigation off leaves an unfamiliar page to standard navigation with YOLO review ${reviewFills ? "on" : "off"}`, async ({
+    sw,
+    mock,
+  }) => {
+    test.setTimeout(120_000);
+    await seed(sw, { caps: true, settings: { reviewFills: true } });
+    await queue(sw, `${BASE}yolo-job-odd-apply.html`, { reviewFills, aiNavigation: false, tabFallback: false });
+    await outcome(sw).toBe("failed");
+    const [a] = await storage<Application[]>(sw, "applications");
+    expect(a.reason).toBe("Unrecognized page");
+    expect(mock.calls_("navigate")).toHaveLength(0);
+    expect(mock.calls_("review")).toHaveLength(0);
+  });
+}

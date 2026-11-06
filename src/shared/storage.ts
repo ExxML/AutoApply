@@ -2,13 +2,21 @@ import { z } from "zod";
 import { ProfileSchema } from "./profileSchema";
 import { SettingsSchema } from "./settings";
 import type { ClaudeModel, DocumentMeta, JobContext, Pay, TabStatus } from "./types";
-import { ApplicationSchema, QueueItemSchema, VaultEntrySchema, YoloSchema, YoloStateSchema } from "./yolo";
+import {
+  ApplicationSchema,
+  migrateYoloReview,
+  QueueItemSchema,
+  SourceCheckSchema,
+  VaultEntrySchema,
+  YoloSchema,
+  YoloStateSchema,
+} from "./yolo";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 4;
 
 const ThinkingSchema = z.union([
-  z.object({ kind: z.literal("level"), value: z.enum(["minimal", "low"]) }),
-  z.object({ kind: z.literal("budget"), value: z.literal(0) }),
+  z.object({ kind: z.literal("level"), value: z.enum(["minimal", "low", "high"]) }),
+  z.object({ kind: z.literal("budget"), value: z.union([z.literal(0), z.literal(-1)]) }),
   z.object({ kind: z.literal("none") }),
 ]);
 
@@ -87,6 +95,7 @@ export const ModelCapsSchema = z.object({
   schema: z.enum(["responseSchema", "promptOnly"]),
   verifiedAt: z.number(),
   essayThinking: ThinkingSchema.optional(),
+  reviewThinking: ThinkingSchema.optional(),
 });
 
 /** Every chrome.storage.local key and its schema. All reads are validated. */
@@ -101,6 +110,8 @@ export const LOCAL_SCHEMAS = {
   modelListFetchedAt: z.number().catch(0),
   selectedModel: z.string().nullable().catch(null),
   fallbackModel: z.string().nullable().catch(null),
+  /** The model the AI review and YOLO's navigator use (Gemini); null: the selected model. */
+  reviewModel: z.string().nullable().catch(null),
   modelCapabilities: rec(ModelCapsSchema),
   /** Claude Code answered a Test connection and hasn't failed setup since (background/claude). */
   claudeReady: z.boolean().catch(false),
@@ -128,8 +139,10 @@ export const LOCAL_SCHEMAS = {
         .optional(),
     }),
   ),
-  /** Job keys already looked at → when first seen. */
-  yoloSeen: rec(z.number()),
+  /** The latest discovery's per-source report (yolo/sourceCheck.ts), shown whatever Debug logging is set to. */
+  yoloSourceCheck: SourceCheckSchema.nullable().catch(null),
+  /** Job keys the AI fit check judged not a fit → when (yolo/discover.ts). */
+  yoloRejected: rec(z.number()),
   /** Hosts whose bot checks stopped YOLO's hidden frame, latest last: their jobs start in a background tab. */
   yoloTabHosts: list(z.string()),
   /** Company → its ATS board ("greenhouse:lyft"), "" when none was found (yolo/careers.ts). */
@@ -244,13 +257,17 @@ export function createStorage(ctx: StorageContext) {
 
 /** Runs once at service-worker start: stamps schemaVersion and rewrites values into validated shape. */
 export async function migrate(): Promise<void> {
-  const raw = await chrome.storage.local.get(["schemaVersion", "settings", "profile"]);
+  const raw = await chrome.storage.local.get(["schemaVersion", "settings", "profile", "yolo"]);
   if (raw.schemaVersion === SCHEMA_VERSION) return;
+  const settings = LOCAL_SCHEMAS.settings.parse(raw.settings);
   await chrome.storage.local.set({
     schemaVersion: SCHEMA_VERSION,
-    settings: LOCAL_SCHEMAS.settings.parse(raw.settings),
+    settings,
     profile: LOCAL_SCHEMAS.profile.parse(raw.profile),
+    yolo: migrateYoloReview(raw.yolo, settings.reviewFills),
   });
+  // v4: every job not in Applications can be queued; the old every-job-looked-at memory would still block them.
+  await chrome.storage.local.remove("yoloSeen");
 }
 
 // ---------- chrome.storage.session (background only) ----------

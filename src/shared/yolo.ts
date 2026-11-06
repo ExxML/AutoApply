@@ -24,6 +24,36 @@ export const MAX_BATCH_APPLICATIONS = 500;
 
 export const REAL_INPUT = ["off", "clicks", "typing", "both"] as const;
 
+const reviewBase = z.object({
+  mode: z.enum(["off", "all", "matching"]).catch("off"),
+  sources: z.array(z.enum(SOURCE_GROUPS)).catch([]),
+  fortune: z.enum(["off", "500", "1000"]).catch("off"),
+  companies: strs(),
+  guessedAnswers: b(false),
+  maxPending: n(10, 1, 50),
+});
+export const SubmissionReviewSchema = reviewBase.catch(() => reviewBase.parse({}));
+export type SubmissionReview = z.infer<typeof SubmissionReviewSchema>;
+
+/** Legacy source labels include the ATS used to read a company career site. */
+export function sourceGroup(source: string): SourceGroup {
+  if ((SOURCE_GROUPS as readonly string[]).includes(source)) return source as SourceGroup;
+  return ["greenhouse", "lever", "ashby", "smartrecruiters", "workday"].includes(source) ? "careers" : "feeds";
+}
+
+export const SOURCE_NAMES: Record<SourceGroup, string> = {
+  careers: "Company career sites",
+  feeds: "GitHub job lists",
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  glassdoor: "Glassdoor",
+  jobright: "Jobright",
+};
+
+export function hasReviewRules(r: SubmissionReview): boolean {
+  return r.sources.length > 0 || r.fortune !== "off" || r.companies.some((c) => c.trim()) || r.guessedAnswers;
+}
+
 const base = z.object({
   enabled: b(false),
   /** Minutes between batches: each finds new jobs, then applies to up to `batchSize` of the queue. */
@@ -37,6 +67,8 @@ const base = z.object({
   excludeTitleWords: strs(["senior", "sr", "staff", "principal", "lead", "manager", "director", "ii", "iii", "phd"]),
   skipCompanies: strs(),
   aiRelevanceCheck: b(true),
+  /** Days a job the AI judged not a fit is skipped without asking again (yolo/discover.ts). */
+  aiRejectDays: n(90, 1, 365),
   boards: z.array(z.enum(BOARDS)).catch(["linkedin", "indeed", "glassdoor"]),
   feeds: strs([SIMPLIFY_FEED]),
   /** Non-empty = read the signed-in user's Jobright recommendations. Its values are unused (once Jobright's GitHub lists). */
@@ -70,10 +102,22 @@ const base = z.object({
   optionalCoverLetters: b(false),
   /** Résumé upload fields: the best-fitting résumé variant, or the LaTeX résumé tailored by the AI. Never left blank. */
   resumeUpload: z.enum(["variants", "tailor"]).catch("variants"),
+  /** Check filled pages against the profile and correct missed or wrong answers. */
+  reviewFills: b(true),
+  /** Use AI to find the next step when the usual navigation gets stuck. */
+  aiNavigation: b(true),
+  /** Human review before the final application submission, independently of AI form review. */
+  submissionReview: SubmissionReviewSchema,
 });
 export const YoloSchema = base.catch(() => base.parse({}));
 export type Yolo = z.infer<typeof YoloSchema>;
 export const defaultYolo = (): Yolo => YoloSchema.parse({});
+
+/** Split legacy review preferences without changing which AI features are enabled. */
+export const migrateYoloReview = (value: unknown, reviewFills: boolean): Yolo => {
+  const previous = { reviewFills, ...(value && typeof value === "object" ? value : {}) };
+  return YoloSchema.parse({ aiNavigation: previous.reviewFills, ...previous });
+};
 
 /** A posting found by a source. */
 export interface Listing {
@@ -83,6 +127,7 @@ export interface Listing {
   location: string;
   postedAt?: number;
   source: string;
+  sourceGroups?: SourceGroup[];
   /** Applied to on the board itself (LinkedIn Easy Apply, Indeed Apply): not supported yet, so never queued. */
   easyApply?: boolean;
 }
@@ -97,10 +142,13 @@ export const QueueItemSchema = z.object({
   title: z.string().catch(""),
   location: z.string().catch(""),
   source: z.string().catch(""),
+  sourceGroups: z.array(z.enum(SOURCE_GROUPS)).optional().catch(undefined),
   postedAt: z.number().catch(0),
   addedAt: z.number().catch(0),
   /** Times the job was restarted after the computer slept or the browser restarted mid-application. */
   retries: z.number().optional().catch(undefined),
+  /** In-flight only: past Submit, so a browser restart records it rather than applying again. */
+  submitted: z.boolean().optional().catch(undefined),
 });
 export type QueueItem = z.infer<typeof QueueItemSchema>;
 
@@ -109,11 +157,21 @@ export const ApplicationSchema = QueueItemSchema.omit({
   postedAt: true,
   addedAt: true,
   retries: true,
+  submitted: true,
 }).extend({
   /** The confirmation page a submission ended on. */
   doneUrl: z.string().catch(""),
   mode: z.enum(["yolo", "manual"]).catch("yolo"),
-  status: z.enum(["submitted", "needs", "failed", "skipped"]).catch("failed"),
+  status: z.enum(["submitted", "needs", "failed", "skipped", "review"]).catch("failed"),
+  review: z
+    .object({
+      reasons: strs(),
+      /** First successful preparation: remains unchanged after refill or manual submission. */
+      preparedAt: z.number().catch(0),
+    })
+    .optional()
+    .catch(undefined),
+  submittedBy: z.enum(["user", "auto"]).optional().catch(undefined),
   reason: z.string().catch(""),
   /** Answers YOLO made up where the profile had none, for the user to review. */
   guesses: z.array(z.object({ q: z.string(), a: z.string() })).catch([]),
@@ -124,6 +182,48 @@ export const ApplicationSchema = QueueItemSchema.omit({
 export type Application = z.infer<typeof ApplicationSchema>;
 export type Guess = Application["guesses"][number];
 
+/** How a source fared in a check, worst last. */
+export const SOURCE_LEVELS = ["ok", "info", "warn", "error"] as const;
+export type SourceLevel = (typeof SOURCE_LEVELS)[number];
+const level = z.enum(SOURCE_LEVELS).catch("ok");
+const SourceRowSchema = z.object({
+  /** One feed, career site, or "query · location" search. */
+  label: z.string().catch(""),
+  found: z.number().catch(0),
+  problem: z.string().catch(""),
+  level,
+});
+const SourceGroupCheckSchema = z.object({
+  group: z.enum(SOURCE_GROUPS),
+  /** Read; the counts past `found` are filled in when the check finishes. */
+  done: b(false),
+  found: z.number().catch(0),
+  /** Passed the user's filters. */
+  matched: z.number().catch(0),
+  /** Of those, not already queued or judged not a fit by the AI. */
+  fresh: z.number().catch(0),
+  queued: z.number().catch(0),
+  /** Why found postings weren't queued → how many. */
+  drops: z.record(z.string(), z.number()).catch({}),
+  rows: z.array(SourceRowSchema).catch([]),
+  problem: z.string().catch(""),
+  level,
+});
+/** The latest discovery's report, per enabled source: what each read and why it queued what it did. */
+export const SourceCheckSchema = z.object({
+  at: z.number().catch(0),
+  /** A mid-batch top-up rather than a batch's start. */
+  topUp: b(false),
+  /** 0 while sources are being read. */
+  doneAt: z.number().catch(0),
+  /** Why discovery stopped early, if it did. */
+  error: z.string().catch(""),
+  groups: z.array(SourceGroupCheckSchema).catch([]),
+});
+export type SourceCheck = z.infer<typeof SourceCheckSchema>;
+export type SourceGroupCheck = SourceCheck["groups"][number];
+export type SourceRow = SourceGroupCheck["rows"][number];
+
 export const VaultEntrySchema = z.object({
   email: z.string(),
   iv: z.string(),
@@ -132,6 +232,7 @@ export const VaultEntrySchema = z.object({
 });
 
 export const YoloStateSchema = z.object({
+  reviewUpdatedAt: z.number().catch(0),
   lastCheckAt: z.number().catch(0),
   /** When the current batch started: its submissions are the ones since. */
   batchAt: z.number().catch(0),
@@ -157,9 +258,13 @@ export interface YoloStatus {
   batchSize: number;
   queued: number;
   needsYou: number;
+  pendingReviews?: number;
+  preparedBatch?: number;
   nextCheckAt: number | null;
   running: string | null;
   paused: string;
   /** Sources YOLO is on for but can't read right now, for the user to tend to (empty while YOLO is off). */
   warnings: string[];
+  /** Sources that had problems in the latest finished source check (0 while YOLO is off). */
+  sourceProblems?: number;
 }

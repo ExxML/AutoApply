@@ -186,3 +186,141 @@ export const TailorZ = z.object({
   order: z.array(z.object({ group: z.string(), items: z.array(z.string()) })).catch([]),
   cut: z.array(z.string()).catch([]),
 });
+
+// The AI review of a filled page (services/reviewForm.ts).
+const KINDS = [
+  "text",
+  "textarea",
+  "email",
+  "tel",
+  "url",
+  "number",
+  "date",
+  "month",
+  "select",
+  "multiselect",
+  "radio_group",
+  "checkbox_group",
+  "checkbox",
+  "dropdown",
+  "typeahead",
+  "file",
+  "contenteditable",
+] as const;
+export const VERDICTS = ["ok", "wrong", "fill", "relabel", "leave_blank", "needs_user"] as const;
+const REVIEW_FIELD_PROPS = {
+  fieldId: { type: "STRING" },
+  verdict: { type: "STRING", enum: [...VERDICTS] },
+  reason: nullableStr,
+  question: nullableStr,
+  answer: nullableStr,
+  sources: { type: "ARRAY", items: { type: "STRING" } },
+};
+const MISSED_PROPS = {
+  refs: { type: "ARRAY", items: { type: "STRING" } },
+  question: { type: "STRING" },
+  kind: { type: "STRING", enum: [...KINDS] },
+  required: { type: "BOOLEAN" },
+};
+export const REVIEW_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    fields: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: REVIEW_FIELD_PROPS,
+        propertyOrdering: Object.keys(REVIEW_FIELD_PROPS),
+        required: ["fieldId", "verdict"],
+      },
+    },
+    missed: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: MISSED_PROPS,
+        propertyOrdering: Object.keys(MISSED_PROPS),
+        required: ["refs", "question", "kind", "required"],
+      },
+    },
+    reveal: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  propertyOrdering: ["fields", "missed", "reveal"],
+  required: ["fields", "missed", "reveal"],
+};
+const str = z
+  .string()
+  .nullish()
+  .transform((v) => v ?? undefined);
+export const ReviewZ = z.object({
+  fields: z
+    .array(
+      z.object({
+        fieldId: z.string(),
+        verdict: z.enum(VERDICTS),
+        reason: str,
+        question: str,
+        answer: z
+          .string()
+          .nullish()
+          .transform((v) => (v === undefined ? undefined : v)),
+        sources: z.array(z.string()).catch([]),
+      }),
+    )
+    .catch([]),
+  missed: z
+    .array(
+      z.object({
+        refs: z.array(z.string()),
+        question: z.string(),
+        kind: z.enum(KINDS).catch("text"),
+        required: z.boolean().catch(false),
+      }),
+    )
+    .catch([]),
+  reveal: z.array(z.string()).catch([]),
+});
+export type ReviewReply = z.infer<typeof ReviewZ>;
+
+// YOLO's navigator (services/navigate.ts).
+export const NAV_STATES = [
+  "posting",
+  "form",
+  "review",
+  "account",
+  "verify",
+  "success",
+  "closed",
+  "blocked",
+  "error",
+  "other",
+] as const;
+export const NAV_ACTIONS = ["click", "fill", "wait", "done", "stop"] as const;
+export const NAV_PURPOSES = ["open_application", "next_step", "final_submit", "dismiss", "other"] as const;
+const NAVIGATE_PROPS = {
+  state: { type: "STRING", enum: [...NAV_STATES] },
+  reason: { type: "STRING" },
+  action: { type: "STRING", enum: [...NAV_ACTIONS] },
+  ref: nullableStr,
+  purpose: { type: "STRING", enum: [...NAV_PURPOSES], nullable: true },
+};
+export const NAVIGATE_SCHEMA = {
+  type: "OBJECT",
+  properties: NAVIGATE_PROPS,
+  propertyOrdering: Object.keys(NAVIGATE_PROPS),
+  required: ["state", "reason", "action"],
+};
+export const NavigateZ = z.object({
+  state: z.enum(NAV_STATES).catch("other"),
+  reason: z.string().catch(""),
+  action: z.enum(NAV_ACTIONS),
+  ref: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? undefined),
+  purpose: z
+    .enum(NAV_PURPOSES)
+    .nullish()
+    .transform((v) => v ?? undefined),
+});
+export type NavReply = z.infer<typeof NavigateZ>;

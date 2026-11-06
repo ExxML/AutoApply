@@ -10,10 +10,11 @@ import {
   regionCode,
 } from "../../src/shared/constants";
 import { nextMidnightPacific } from "../../src/shared/time";
-import { createStorage } from "../../src/shared/storage";
+import { createStorage, migrate, SCHEMA_VERSION } from "../../src/shared/storage";
 import type { JobContext } from "../../src/shared/types";
 import { ProfileSchema } from "../../src/shared/profileSchema";
 import { defaultSettings } from "../../src/shared/settings";
+import { migrateYoloReview } from "../../src/shared/yolo";
 import { ensureContentScript } from "../../src/shared/messages";
 
 describe("normalize", () => {
@@ -169,6 +170,64 @@ describe("nextMidnightPacific", () => {
 
 describe("storage", () => {
   beforeEach(() => installChromeMock());
+
+  it.each([false, true])(
+    "migrates the shared review preference (%s) once, preserving other settings",
+    async (reviewFills) => {
+      await chrome.storage.local.set({
+        schemaVersion: 1,
+        settings: { reviewFills, draftEssays: false },
+        yolo: { enabled: true, email: "yolo@example.com" },
+        profile: { personal: { firstName: "Ada" } },
+      });
+      await migrate();
+      const store = createStorage("background");
+      expect(await store.get("schemaVersion")).toBe(SCHEMA_VERSION);
+      expect(await store.get("settings")).toMatchObject({ reviewFills, draftEssays: false });
+      expect(await store.get("yolo")).toMatchObject({
+        reviewFills,
+        aiNavigation: reviewFills,
+        enabled: true,
+        email: "yolo@example.com",
+      });
+      expect((await store.get("profile")).personal.firstName).toBe("Ada");
+      await chrome.storage.local.set({ settings: { reviewFills: !reviewFills } });
+      await migrate();
+      expect((await store.get("yolo")).reviewFills).toBe(reviewFills);
+    },
+  );
+
+  it.each([false, true])(
+    "preserves independent YOLO AI settings (review %s) in migrations and imports",
+    async (reviewFills) => {
+      const yolo = { reviewFills, aiNavigation: !reviewFills, email: "yolo@example.com" };
+      expect(migrateYoloReview(yolo, !reviewFills)).toMatchObject(yolo);
+      expect(migrateYoloReview({ email: yolo.email }, reviewFills)).toMatchObject({
+        reviewFills,
+        aiNavigation: reviewFills,
+        email: yolo.email,
+      });
+      await chrome.storage.local.set({ schemaVersion: 2, settings: { reviewFills: !reviewFills }, yolo });
+      await migrate();
+      expect(await createStorage("background").get("yolo")).toMatchObject(yolo);
+    },
+  );
+
+  it.each([false, true])(
+    "initializes navigation from YOLO review (%s), independently of manual review",
+    async (reviewFills) => {
+      const yolo = { reviewFills, email: "yolo@example.com" };
+      await chrome.storage.local.set({ schemaVersion: 2, settings: { reviewFills: !reviewFills }, yolo });
+      await migrate();
+      const store = createStorage("background");
+      expect(await store.get("yolo")).toMatchObject({ ...yolo, aiNavigation: reviewFills });
+      expect((await store.get("settings")).reviewFills).toBe(!reviewFills);
+      expect(migrateYoloReview(yolo, !reviewFills)).toMatchObject({ ...yolo, aiNavigation: reviewFills });
+      await store.set({ yolo: { ...(await store.get("yolo")), reviewFills: !reviewFills } });
+      await migrate();
+      expect(await store.get("yolo")).toMatchObject({ reviewFills: !reviewFills, aiNavigation: reviewFills });
+    },
+  );
 
   it("falls back to defaults on missing or invalid data, keeping valid leaves", async () => {
     const store = createStorage("background");

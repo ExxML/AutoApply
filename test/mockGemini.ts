@@ -5,7 +5,18 @@ import { normalize } from "../src/shared/normalize";
 
 type Json = Record<string, unknown>;
 export type CallKind =
-  "list" | "validate" | "map" | "audit" | "choose" | "essay" | "resume" | "guess" | "relevance" | "tailor";
+  | "list"
+  | "validate"
+  | "map"
+  | "audit"
+  | "choose"
+  | "essay"
+  | "resume"
+  | "guess"
+  | "relevance"
+  | "tailor"
+  | "review"
+  | "navigate";
 export interface Call {
   kind: CallKind;
   key: string;
@@ -178,6 +189,41 @@ export class MockGemini {
   delayMs = 0;
   /** The résumé tailor's edit operations; by default, the first bullet group reversed and its first bullet reworded. */
   tailorOps: ((payload: Json) => Json) | null = null;
+  navigation: ((payload: Json) => Json) | null = null;
+
+  /**
+   * The AI review: every field "ok", except the profile's names and email shown wrong ("wrong" with the profile's),
+   * and Yes/No pills or boxes the scan missed ("missed"). Their answers come from the normal fill pipeline.
+   */
+  review(payload: Json): Json {
+    const want: [RegExp, string][] = [
+      [/^first name/i, "Ada"],
+      [/^last name/i, "Lovelace"],
+      [/^e-?mail/i, "ada@example.com"],
+    ];
+    const fields = (payload.fields as { id: string; question: string; shown: string; locked?: boolean }[]).map((f) => {
+      const w = !f.locked && want.find(([re]) => re.test(f.question));
+      return w && f.shown !== w[1]
+        ? { fieldId: f.id, verdict: f.shown ? "wrong" : "fill", answer: w[1], reason: "Profile", sources: ["personal"] }
+        : { fieldId: f.id, verdict: "ok", sources: [] };
+    });
+    const missed: Json[] = [];
+    const lines = String(payload.page).split("\n");
+    lines.forEach((line, i) => {
+      const pills = [...line.matchAll(/\[(c\d+) clickable "(Yes|No)"\]/g)];
+      const boxes = [...line.matchAll(/\[(c\d+) [a-z]+ unscanned[^\]]*\]/g)];
+      const question = (line.replace(/\[[^\]]*\]/g, "").trim() || lines[i - 1] || "").replace(/^#\s*/, "");
+      if (pills.length >= 2) {
+        missed.push({
+          refs: pills.map((p) => p[1]),
+          question,
+          kind: "radio_group",
+          required: true,
+        });
+      } else for (const b of boxes) missed.push({ refs: [b[1]], question, kind: "text", required: false });
+    });
+    return { fields, missed, reveal: [] };
+  }
 
   fail(key: string, ...f: Failure[]) {
     (this.failures[key] ??= []).push(...f);
@@ -231,7 +277,11 @@ export class MockGemini {
                   ? "relevance"
                   : system.startsWith("You tailor")
                     ? "tailor"
-                    : "resume";
+                    : system.startsWith("You review")
+                      ? "review"
+                      : system.startsWith("You navigate")
+                        ? "navigate"
+                        : "resume";
     const payload = kind === "resume" ? { text } : (JSON.parse(text) as Json);
     const call = { kind, key, model, payload };
     const gc = body.generationConfig as Json;
@@ -289,6 +339,27 @@ export class MockGemini {
         order: bullets ? [{ group: bullets.group, items: [...bullets.items].reverse() }] : [],
       };
       return send(200, reply(ops), call);
+    }
+    if (kind === "review") return send(200, reply(this.review(payload)), call);
+    // The navigator: the way in a posting words oddly ("Begin your journey"), else no way on.
+    if (kind === "navigate") {
+      if (this.navigation) return send(200, reply(this.navigation(payload)), call);
+      const ref = /\[(c\d+) link "Begin your journey[^"]*"/.exec(String(payload.page))?.[1];
+      return send(
+        200,
+        reply(
+          ref
+            ? {
+                state: "posting",
+                action: "click",
+                ref,
+                purpose: "open_application",
+                reason: "The way into the application",
+              }
+            : { state: "other", action: "stop", reason: "No way on" },
+        ),
+        call,
+      );
     }
     if (kind === "relevance")
       return send(200, reply({ keep: (payload.jobs as { i: number }[]).map((j) => j.i) }), call);

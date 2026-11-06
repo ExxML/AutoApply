@@ -4,7 +4,7 @@
 import { CAPTCHA_WAIT_MS, EMAIL_WAIT_MS } from "../../shared/constants";
 import type { YoloResult } from "../../shared/messages";
 import { createStorage, session } from "../../shared/storage";
-import type { Guess, QueueItem } from "../../shared/yolo";
+import type { Guess, QueueItem, SubmissionReview } from "../../shared/yolo";
 import { closeTab, openFrame, openTab } from "./host";
 import { applyUrl } from "./jobKey";
 import type { Link } from "./sources";
@@ -37,6 +37,11 @@ export interface Run {
   linkSites?: string[];
   /** When the computer last woke from sleeping during the run. */
   wokeAt?: number;
+  reviewPolicy?: SubmissionReview;
+  reviewKey?: string;
+  hasGuessedAnswers?: boolean;
+  reviewTab?: boolean;
+  documentId?: string;
 }
 
 const KEY = "yoloRun";
@@ -46,6 +51,8 @@ export const WATCHDOG = "yolo-watchdog";
 const HELLO_MS = 45_000;
 const STEP_MS = 180_000;
 const RUN_MS = 12 * 60_000;
+/** With AI review or navigation, an application can take several times as long. */
+export const REVIEW_RUN_MS = 45 * 60_000;
 
 export const getRun = () => session.get<Run>(KEY);
 export const saveRun = (r: Run) => session.set(KEY, r);
@@ -58,7 +65,16 @@ export function fromRun(run: Run | null, s: chrome.runtime.MessageSender): run i
 
 const scrapes = new Map<string, (links: Link[] | null) => void>();
 
-export async function start(item: QueueItem, mode: Run["mode"], host: Run["host"]): Promise<Run> {
+export async function start(
+  item: QueueItem,
+  mode: Run["mode"],
+  host: Run["host"],
+  review?: {
+    policy: SubmissionReview;
+    key?: string;
+    tab: boolean;
+  },
+): Promise<Run> {
   const now = Date.now();
   const run: Run = {
     id: crypto.randomUUID(),
@@ -70,6 +86,7 @@ export async function start(item: QueueItem, mode: Run["mode"], host: Run["host"
     helloAt: 0,
     steps: [],
     guesses: [],
+    ...(review ? { reviewPolicy: review.policy, reviewKey: review.key, reviewTab: review.tab } : {}),
   };
   const url = mode === "apply" ? applyUrl(item.url) : item.url;
   // Saved before the page loads: its driver says hello as soon as it starts.
@@ -79,6 +96,7 @@ export async function start(item: QueueItem, mode: Run["mode"], host: Run["host"
   if (host === "frame") await openFrame(url);
   else {
     run.tabId = await openTab(url, host === "visible");
+    if (review?.tab) await chrome.tabs.update(run.tabId, { autoDiscardable: false });
     await saveRun(run);
     watchTab(run);
   }
@@ -100,7 +118,7 @@ export async function scrape(url: string, timeoutMs = 40_000): Promise<Link[] | 
 }
 
 /** Clears the run if it is still `id`; returns it, so its result is handled once. */
-export async function end(id: string): Promise<Run | null> {
+export async function end(id: string, keepTab = false): Promise<Run | null> {
   const run = await getRun();
   if (run?.id !== id) return null;
   // Before the run: a worker dying in between leaves no marker to requeue a finished job by.
@@ -108,7 +126,8 @@ export async function end(id: string): Promise<Run | null> {
   await session.remove(KEY);
   unwatchTab();
   await chrome.alarms.clear(WATCHDOG);
-  if (run.host === "tab" && run.tabId !== undefined) await closeTab(run.tabId);
+  if (!keepTab && (run.host === "tab" || (run.reviewKey && run.reviewTab)) && run.tabId !== undefined)
+    await closeTab(run.tabId);
   return run;
 }
 
@@ -119,7 +138,7 @@ export function resolveScrape(run: Run, r: YoloResult) {
 }
 
 /** The run's failure when it is overdue; null while it is on time. */
-export function overdue(run: Run, now = Date.now()): YoloResult | null {
+export function overdue(run: Run, now = Date.now(), limitMs = RUN_MS): YoloResult | null {
   const blocked = run.host === "frame" ? "blocked" : "failed";
   if (!run.helloAt && now - run.startedAt > HELLO_MS) return { status: blocked, reason: "The page didn't load" };
   // A visible tab waits on the user: a CAPTCHA step gets the driver's whole wait, and the run no time limit.
@@ -129,7 +148,8 @@ export function overdue(run: Run, now = Date.now()): YoloResult | null {
   const wait = captcha ? CAPTCHA_WAIT_MS : run.steps.at(-1)?.startsWith("verify|") ? EMAIL_WAIT_MS : 0;
   if (now - run.stepAt > wait + STEP_MS)
     return { status: "failed", reason: captcha ? "The CAPTCHA wasn't solved" : "No progress for 3 minutes" };
-  if (!visible && now - run.startedAt > RUN_MS) return { status: "failed", reason: "Took over 12 minutes" };
+  if (!visible && now - run.startedAt > limitMs)
+    return { status: "failed", reason: `Took over ${Math.round(limitMs / 60_000)} minutes` };
   return null;
 }
 

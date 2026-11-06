@@ -842,3 +842,59 @@ describe("typeText", () => {
     expect([cur.value, popup.value]).toEqual(["U", "BC"]);
   });
 });
+
+describe("showsWord", () => {
+  it("reads a short answer as picked only when the box shows it as a word", async () => {
+    const { showsWord } = await import("../../src/content/fill/dropdown");
+    expect(showsWord("No", "No")).toBe(true);
+    expect(showsWord("No ×", "No")).toBe(true);
+    expect(showsWord("NoRemove", "No")).toBe(true);
+    expect(showsWord("Not applicable", "No")).toBe(false);
+    expect(showsWord("None", "No")).toBe(false);
+    expect(showsWord("Yes, I am", "Yes")).toBe(true);
+    expect(showsWord("Canada (+1)", "+1")).toBe(true);
+  });
+});
+
+describe("fillCheckboxGroup exact", () => {
+  it("unticks boxes the page ticked only when the answer is the whole set", async () => {
+    const { fillCheckboxGroup } = await import("../../src/content/fill/native");
+    setBody(`<fieldset><legend>Contact methods</legend>
+      <label><input type="checkbox" name="m" value="e"> Email</label>
+      <label><input type="checkbox" name="m" value="s" checked> SMS</label></fieldset>`);
+    const h = scan(newScanState()).handles[0];
+    await fillCheckboxGroup(h, ["Email"], new Set());
+    expect((h.members as HTMLInputElement[]).map((m) => m.checked)).toEqual([true, true]);
+    await fillCheckboxGroup(h, ["Email"], new Set(), true);
+    expect((h.members as HTMLInputElement[]).map((m) => m.checked)).toEqual([true, false]);
+  });
+});
+
+describe("ARIA menu selects", () => {
+  it("picks from a button's role=menu items (BambooHR's fab-Select), once adopted by the review", async () => {
+    const { fillDropdown } = await import("../../src/content/fill/dropdown");
+    setBody(`<label for="sel">Province *</label>
+      <div class="fab-Select"><button type="button" aria-haspopup="true" aria-expanded="false" aria-label="Province –Select–"><span>–Select–</span></button>
+      <select id="sel" aria-hidden="true" hidden><option value=""></option><option>Alberta</option><option>British Columbia</option></select></div>
+      <div role="menu" id="menu" hidden></div>`);
+    const b = document.querySelector("button")!;
+    const menu = document.getElementById("menu")!;
+    b.addEventListener("click", () => {
+      b.setAttribute("aria-expanded", "true");
+      menu.hidden = false;
+      menu.innerHTML = `<div role="menuitem">Alberta</div><div role="menuitem">British Columbia</div>`;
+      for (const o of menu.children)
+        o.addEventListener("click", () => {
+          b.querySelector("span")!.textContent = o.textContent;
+          menu.hidden = true;
+          b.setAttribute("aria-expanded", "false");
+        });
+    });
+    const state = newScanState();
+    state.adopted.set(b, { kind: "dropdown", label: "Province", required: true });
+    const h = scan(state).handles.find((x) => x.el === b)!;
+    expect(h.desc.label).toBe("Province");
+    expect(await fillDropdown(h, ["British Columbia"])).toMatchObject({ outcome: "ok" });
+    expect(b.textContent).toContain("British Columbia");
+  });
+});

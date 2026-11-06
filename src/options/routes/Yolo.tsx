@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { Field, NumberInput, SelectInput, TagInput, TextInput, Toggle } from "../components/controls";
 import { save, useStored } from "../store";
 import { isErr, send, type Responses } from "../../shared/messages";
+import { SubmissionReview } from "../components/SubmissionReview";
 import { formatDateTime } from "../../shared/time";
 import {
   BOARDS,
@@ -277,8 +278,9 @@ export function Yolo() {
       <p class="intro">
         While on, AutoApply runs a batch on a timer: it checks your searches and applies to new matching jobs by itself:
         it creates site accounts when needed, fills every field (with its best guess where your profile has no answer),
-        and submits. It works in a hidden page, so nothing opens on screen. Everything it does is listed under
-        Applications, with the answers it guessed. Turn it on or off from the toolbar popup.
+        and submits unless your review rules hold the final step for you. Automatic submissions use a hidden page;
+        applications that may need your review use inactive tabs. Everything it does is listed under Applications, with
+        the answers it guessed. Turn it on or off from the toolbar popup.
       </p>
       <h2>Schedule</h2>
       <div class="form">
@@ -291,7 +293,7 @@ export function Yolo() {
         />
         <NumberInput
           label="Applications per batch"
-          help={`Each batch submits up to this many, in your queue order. With this schedule, at most ${Math.floor(1440 / y.intervalMin) * y.batchSize} a day. Higher numbers mean more AI usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 finds jobs without applying.`}
+          help={`Each batch prepares for review or submits up to this many, in your queue order. With this schedule, at most ${Math.floor(1440 / y.intervalMin) * y.batchSize} a day. Higher numbers mean more AI usage, a bigger chance a job site flags or bans your account, and more bad submissions before you notice a mistake. 0 finds jobs without applying.`}
           value={y.batchSize}
           min={0}
           max={MAX_BATCH_APPLICATIONS}
@@ -328,9 +330,17 @@ export function Yolo() {
         <TagInput label="Skip companies" value={y.skipCompanies} onChange={(skipCompanies) => set({ skipCompanies })} />
         <Toggle
           label="Check matches with AI"
-          help="One AI call per check drops jobs whose level or requirements rule you out (PhD-only, citizens only)."
+          help="After the filters above, one AI call per check (up to 60 jobs) screens each job's title, company and location against your queries, education, work authorization, country and relocation preference. It drops a job at a different level than your queries (e.g. a full-time role on an intern search), or one that rules you out: a degree you aren't pursuing (PhD- or MBA-only), a class year or graduation window you don't fit, or a citizenship or clearance requirement you don't meet. It doesn't read job descriptions, so it only catches what those fields show. When unsure, or if the AI call fails, it keeps the job. A dropped job is skipped without asking the AI again for the days set below. Turning this off stops new checks, but jobs already dropped stay skipped until those days pass."
           checked={y.aiRelevanceCheck}
           onChange={(aiRelevanceCheck) => set({ aiRelevanceCheck })}
+        />
+        <NumberInput
+          label="Remember AI rejections (days)"
+          help="How long a job the AI dropped is skipped before the AI is asked about it again (if it's still posted). Fewer days give a dropped job another chance sooner, at the cost of more AI usage. Changes apply from the next check, to jobs already dropped too."
+          value={y.aiRejectDays}
+          min={1}
+          max={365}
+          onChange={(aiRejectDays) => set({ aiRejectDays })}
         />
       </div>
       <h2>Sources</h2>
@@ -388,6 +398,7 @@ export function Yolo() {
         />
         <QueueOrder y={y} set={set} />
       </div>
+      <SubmissionReview y={y} set={set} />
       <h2>Applying</h2>
       <div class="form">
         <TextInput
@@ -423,16 +434,30 @@ export function Yolo() {
           checked={y.optionalCoverLetters}
           onChange={(optionalCoverLetters) => set({ optionalCoverLetters })}
         />
-        <SelectInput
-          label="Upload résumés"
-          help="YOLO always uploads a résumé. Variant select: the résumé PDF in Documents that best fits the job (fast, no AI). AI tailor: your LaTeX résumé, tailored to the job by the AI (slower, uses tokens); if tailoring fails, the untailored version is uploaded."
-          value={y.resumeUpload}
-          options={[
-            ["variants", "Variant select"],
-            ["tailor", "AI tailor"],
-          ]}
-          onChange={(v) => set({ resumeUpload: v as YoloConfig["resumeUpload"] })}
-        />
+        <div class="form ai-controls">
+          <SelectInput
+            label="Upload résumés"
+            help="YOLO always uploads a résumé. Variant select: the résumé PDF in Documents that best fits the job (fast, no AI). AI tailor: your LaTeX résumé, tailored to the job by the AI (slower, uses tokens); if tailoring fails, the untailored version is uploaded."
+            value={y.resumeUpload}
+            options={[
+              ["variants", "Variant select"],
+              ["tailor", "AI tailor"],
+            ]}
+            onChange={(v) => set({ resumeUpload: v as YoloConfig["resumeUpload"] })}
+          />
+          <Toggle
+            label="Review YOLO fills with AI"
+            help="Checks each filled page and corrects mistakes before continuing. Adds time and AI usage; choose the review model under AI. Off: skips the review after filling."
+            checked={y.reviewFills}
+            onChange={(reviewFills) => set({ reviewFills })}
+          />
+          <Toggle
+            label="Use AI navigation when stuck"
+            help="Uses AI to find the next step when standard navigation gets stuck, such as an unfamiliar Apply or Next button. Adds time and AI usage; uses the review model under AI. Off: uses standard navigation only."
+            checked={y.aiNavigation}
+            onChange={(aiNavigation) => set({ aiNavigation })}
+          />
+        </div>
       </div>
       <h2>Already applied</h2>
       <div class="form">
