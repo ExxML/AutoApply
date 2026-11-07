@@ -593,7 +593,7 @@ const handlers: Handlers = {
       status,
       provider: "gemini",
       ready: pool.keys.length > 0 && !!selectedModel,
-      model: selectedModel,
+      model: await modelName(selectedModel),
       keysTotal: pool.keys.length,
       keysHealthy: pool.healthyCount(selectedModel),
     };
