@@ -358,7 +358,7 @@ export function Applications() {
                       {!(a.review && ["review", "needs", "failed"].includes(a.status)) && (
                         <button
                           type="button"
-                          class="btn small danger"
+                          class="btn small danger forget"
                           title="Remove from the log, so YOLO may apply to it again"
                           onClick={() => void send({ type: "YOLO_FORGET", key: a.key })}
                         >

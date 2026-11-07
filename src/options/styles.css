@@ -573,6 +573,9 @@ main:has(.applications-table-scroll) {
   color: var(--action-accent);
   font-weight: 500;
 }
+.application-actions .btn.forget {
+  color: var(--action-danger);
+}
 .application-actions .btn:not(:disabled):hover {
   color: var(--fg);
   background: color-mix(in srgb, var(--fg) 6%, var(--panel));
