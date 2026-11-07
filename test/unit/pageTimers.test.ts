@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 
 test("page timers are fired early only during a fill in a hidden tab", async () => {
   const native = window.setTimeout;
+  const alert = (window.alert = vi.fn());
   await import("../../src/content/pageTimers");
   expect(window.setTimeout).toBe(native); // patched only during a fill: bot checks look for patched built-ins
   const asked: string[] = [];
@@ -14,6 +15,8 @@ test("page timers are fired early only during a fill in a hidden tab", async () 
   expect(asked).toEqual([]); // no fill running
 
   document.dispatchEvent(new Event("autoapply-fill-start"));
+  window.alert("You have Uploaded Resume Successfully."); // skipped: it would block the page until OK
+  expect(alert).not.toHaveBeenCalled();
   const ran = vi.fn();
   const id = setTimeout(ran, 300, "arg");
   expect(asked).toEqual([`${id}:300`]);
@@ -30,6 +33,7 @@ test("page timers are fired early only during a fill in a hidden tab", async () 
 
   document.dispatchEvent(new Event("autoapply-fill-end"));
   expect(window.setTimeout).toBe(native);
+  expect(window.alert).toBe(alert);
   await new Promise((r) => setTimeout(r, 350));
   expect(ran).toHaveBeenCalledOnce(); // the page's own fallback timer was cancelled
   expect(cleared).not.toHaveBeenCalled();

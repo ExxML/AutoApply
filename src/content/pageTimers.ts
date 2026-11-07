@@ -67,6 +67,9 @@ if (/(^|\.)ashbyhq\.com$/.test(location.hostname)) {
     });
   });
 }
+// A page's alert() ("You have Uploaded Resume Successfully." on RBC's) blocks the page until someone presses OK, and
+// the hidden host's would pop up over whatever the user has open. OK is its only answer, so it is skipped.
+patch("alert", () => undefined);
 if (inHost) swap(true);
 
 // The host renders no frames, so Chrome never has idle time to give: a page hydrating from an idle callback (Remix:
