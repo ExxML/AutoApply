@@ -5,11 +5,13 @@ import type { Listing } from "../../shared/yolo";
 /**
  * A link read from a page rendered in the hidden host; `card` is the text of the result card around it. A scrape gives
  * null instead when the page was a bot check (Cloudflare's "Just a moment…") rather than the page asked for.
+ * `frame` marks an iframe's address rather than a link: an ATS board embedded in the page.
  */
 export interface Link {
   href: string;
   text: string;
   card?: string;
+  frame?: boolean;
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };

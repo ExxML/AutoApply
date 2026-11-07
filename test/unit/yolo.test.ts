@@ -12,7 +12,14 @@ import {
   parseJobrightFeed,
   parseLinkedIn,
 } from "../../src/background/yolo/sources";
-import { boardOf, findOnEmployerBoard, jobLinks, sameTitle, workdayPosted } from "../../src/background/yolo/careers";
+import {
+  boardOf,
+  careerSite,
+  findOnEmployerBoard,
+  jobLinks,
+  sameTitle,
+  workdayPosted,
+} from "../../src/background/yolo/careers";
 import { locationMatches, rejectReason, titleMatches } from "../../src/background/yolo/filter";
 import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { connectGmail, extract, feedTexts, GmailAuthError, gmailToken, siteOf } from "../../src/background/yolo/gmail";
@@ -321,6 +328,38 @@ describe("employer boards", () => {
     expect(boardOf("https://job-boards.greenhouse.io/amperesand")).toEqual({ ats: "greenhouse", slug: "amperesand" });
     expect(boardOf("https://jobs.lever.co/upscale-ai")).toEqual({ ats: "lever", slug: "upscale-ai" });
     expect(boardOf("https://jobs.sap.com/search/?q=intern")).toBeNull();
+    // Greenhouse's embed, as its script frames it on a company's careers page.
+    expect(boardOf("https://job-boards.greenhouse.io/embed/job_board?for=onbe&b=https%3A%2F%2Fwww.onbe.com")).toEqual({
+      ats: "greenhouse",
+      slug: "onbe",
+    });
+    expect(boardOf("https://boards.greenhouse.io/embed/job_board")).toBeNull();
+  });
+
+  it("reads a careers page's embedded ATS board from its API when the page itself lists no jobs", async () => {
+    const f = async (url: string) =>
+      url === "https://boards-api.greenhouse.io/v1/boards/onbe/jobs"
+        ? new Response(JSON.stringify({ jobs: [{ absolute_url: "https://gh/onbe/1", title: "Software Intern" }] }))
+        : new Response("", { status: 404 });
+    const frame = { href: "https://job-boards.greenhouse.io/embed/job_board?for=onbe", text: "", frame: true };
+    const problems: string[] = [];
+    const site = (links: { href: string; text: string; frame?: boolean }[]) =>
+      careerSite(
+        f,
+        async () => links,
+        "https://www.onbe.com/careers",
+        "",
+        (p) => problems.push(p),
+      ).then((jobs) => jobs.map((j) => j.title));
+    expect(await site([{ href: "https://www.onbe.com/about", text: "About us" }, frame])).toEqual(["Software Intern"]);
+    // The page's own job links still win.
+    expect(await site([{ href: "https://www.onbe.com/jobs/7", text: "Data Analyst" }, frame])).toEqual([
+      "Data Analyst",
+    ]);
+    expect(problems).toEqual([]);
+    // Any other frame is no board, and no link either.
+    expect(await site([{ ...frame, href: "https://www.youtube.com/embed/x1" }])).toEqual([]);
+    expect(problems).toEqual(["The page didn't load in the hidden page, or had no links"]);
   });
 
   it("dates Workday postings and compares titles loosely", () => {

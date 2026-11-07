@@ -110,7 +110,11 @@ export function boardOf(raw: string): Board | null {
     const site = seg.find((s) => !/^[a-z]{2}-[A-Z]{2}$/.test(s));
     return site ? { ats: "workday", slug: host.split(".")[0], site, host } : null;
   }
-  if (/(^|\.)greenhouse\.io$/.test(host) && seg[0] && seg[0] !== "embed") return { ats: "greenhouse", slug: seg[0] };
+  if (/(^|\.)greenhouse\.io$/.test(host)) {
+    // An embedded board (the iframe on a company's own careers page) names its board in ?for=.
+    const slug = seg[0] === "embed" ? u.searchParams.get("for") : seg[0];
+    return slug ? { ats: "greenhouse", slug } : null;
+  }
   if (/^jobs(\.eu)?\.lever\.co$/.test(host) && seg[0]) return { ats: "lever", slug: seg[0] };
   if (host === "jobs.ashbyhq.com" && seg[0]) return { ats: "ashby", slug: seg[0] };
   if (/^(jobs|careers)\.smartrecruiters\.com$/.test(host) && seg[0]) return { ats: "smartrecruiters", slug: seg[0] };
@@ -150,8 +154,13 @@ export async function careerSite(
     return jobs ?? [];
   }
   const host = new URL(url).hostname;
-  const links = await scrape(url);
+  const read = await scrape(url);
+  const links = read && read.filter((l) => !l.frame);
   const jobs = jobLinks(links ?? [], companyOf(host), url);
+  // No job links, but an ATS board in an iframe (Greenhouse's embed): its API lists what the frame shows.
+  const embed = jobs.length ? null : read?.map((l) => (l.frame ? boardOf(l.href) : null)).find(Boolean);
+  const embedded = embed && (await boardJobs(f, embed, embed.slug, query));
+  if (embedded) return embedded;
   if (!links) onProblem?.("A bot check stood in for the page");
   else if (!links.length) onProblem?.("The page didn't load in the hidden page, or had no links");
   else if (!jobs.length)

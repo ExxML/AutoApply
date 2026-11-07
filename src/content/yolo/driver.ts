@@ -112,10 +112,15 @@ export function cardText(a: HTMLElement): string {
 }
 
 function scrapeLinks() {
-  return (deepQueryAll("a[href]") as HTMLAnchorElement[])
+  const links = (deepQueryAll("a[href]") as HTMLAnchorElement[])
     .filter((a) => /^https?:/.test(a.href) && isVisibleAnyOpacity(a))
     .slice(0, 800)
     .map((a) => ({ href: a.href, text: collapse(a.innerText || a.textContent || ""), card: cardText(a) }));
+  // Frames too: a board embedded from its ATS (Greenhouse's iframe) lists its jobs where these links can't reach.
+  const frames = (deepQueryAll("iframe[src]") as HTMLIFrameElement[])
+    .filter((f) => /^https?:/.test(f.src))
+    .map((f) => ({ href: f.src, text: "", frame: true }));
+  return [...links, ...frames];
 }
 
 let driving = false;
