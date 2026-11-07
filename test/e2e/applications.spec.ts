@@ -31,6 +31,57 @@ async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45)
   return yoloQueue;
 }
 
+test("application totals separate outcomes, ignore filters, and refresh at local midnight", async ({ sw, page }) => {
+  const day = new Date(2026, 10, 7).getTime();
+  const tomorrow = new Date(2026, 10, 8).getTime();
+  await page.clock.install({ time: new Date(day + 12 * 60 * 60_000) });
+  await applicationsPage(sw, page, 0, 0);
+  const applications = [
+    { key: "submitted", status: "submitted", at: day },
+    { key: "manual", status: "submitted", at: day + 1, mode: "manual" },
+    { key: "failed", status: "failed", at: day + 2 },
+    { key: "review", status: "review", at: day + 3 },
+    { key: "needs", status: "needs", at: day + 4 },
+    { key: "skipped", status: "skipped", at: day + 5 },
+    { key: "yesterday-submitted", status: "submitted", at: day - 1 },
+    { key: "yesterday-failed", status: "failed", at: day - 2 },
+    { key: "yesterday-skipped", status: "skipped", at: day - 3 },
+  ].map((app) => ApplicationSchema.parse({ ...app, url: `https://example.com/${app.key}`, company: app.key }));
+  await sw.evaluate((applications) => chrome.storage.local.set({ applications }), applications);
+  const summary = page.getByRole("definition").locator("..");
+  const today = summary.filter({ has: page.getByText("Today", { exact: true }) }).first();
+  const allTime = summary.filter({ has: page.getByText("All time", { exact: true }) }).first();
+  await expect(today).toContainText("2 submitted / 5 attempted");
+  await expect(today).toContainText("1 failed · 2 pending");
+  await expect(allTime).toContainText("3 submitted / 7 attempted");
+  await expect(allTime).toContainText("2 failed · 2 pending");
+
+  await page.getByRole("searchbox", { name: "Search applications", exact: true }).fill("no match");
+  await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("submitted");
+  await expect(page.getByText("No matches.", { exact: true })).toBeVisible();
+  await expect(today).toContainText("2 submitted / 5 attempted");
+  await expect(allTime).toContainText("3 submitted / 7 attempted");
+
+  await page.clock.fastForward(tomorrow - (day + 12 * 60 * 60_000));
+  await expect(today).toContainText("0 submitted / 0 attempted");
+  await expect(today).toContainText("0 failed");
+  await expect(today).not.toContainText("pending");
+  await expect(allTime).toContainText("3 submitted / 7 attempted");
+
+  const updated = applications.map((app) =>
+    app.key === "review" ? { ...app, status: "submitted" as const, at: tomorrow } : app,
+  );
+  await sw.evaluate((applications) => chrome.storage.local.set({ applications }), updated);
+  await expect(today).toContainText("1 submitted / 1 attempted");
+  await expect(allTime).toContainText("4 submitted / 7 attempted");
+  await expect(allTime).toContainText("2 failed · 1 pending");
+
+  await sw.evaluate(() => chrome.storage.local.set({ applications: [] }));
+  await expect(today).toContainText("0 submitted / 0 attempted");
+  await expect(allTime).toContainText("0 submitted / 0 attempted");
+  await expect(allTime).toContainText("0 failed");
+});
+
 test("queue access stays visible through a long history and preserves the user's place", async ({ sw, page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await applicationsPage(sw, page);

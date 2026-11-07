@@ -509,6 +509,32 @@ label.inline {
 .applications-heading h1 {
   margin: 0;
 }
+.application-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px 32px;
+  margin: 0 0 20px;
+  padding: 14px 0;
+  border-block: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.application-summary dt,
+.application-summary-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+.application-summary dt {
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.application-summary dd {
+  margin: 0;
+}
+.application-summary-result strong {
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 600;
+}
 .queue-trigger {
   display: inline-flex;
   align-items: center;

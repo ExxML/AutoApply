@@ -6,6 +6,7 @@ import type { Application } from "../../shared/yolo";
 import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
 import { SourceCheck } from "../components/SourceCheck";
+import { ApplicationSummary } from "../components/ApplicationSummary";
 
 const STATUS: Record<Application["status"], string> = {
   submitted: "Submitted",
@@ -74,7 +75,6 @@ export function Applications() {
         (!status || a.status === status) &&
         (!nq || normalize(`${a.company} ${a.title} ${a.reason} ${a.source}`).includes(nq)),
     );
-  const today = apps.filter((a) => a.status === "submitted" && a.at >= new Date().setHours(0, 0, 0, 0)).length;
   const pending = apps.filter((a) => a.review && ["review", "needs", "failed"].includes(a.status)).length;
   return (
     <section>
@@ -84,8 +84,9 @@ export function Applications() {
       </div>
       <p class="intro">
         Every application YOLO made, and the ones you submitted yourself after a fill: none of these are applied to
-        again. {today} submitted today.
+        again.
       </p>
+      <ApplicationSummary applications={apps} />
       {pending > 0 && (
         <p class="review-summary">
           {pending} application{pending === 1 ? " is" : "s are"} waiting for your review. Open the filled tab, check
