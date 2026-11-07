@@ -146,6 +146,17 @@ function valueOf(el: HTMLElement, role: string): string {
   return "";
 }
 
+function patternCompiles(el: HTMLElement): boolean {
+  const p = el instanceof HTMLInputElement ? el.getAttribute("pattern") : null;
+  if (p === null) return true;
+  try {
+    new RegExp(`^(?:${p})$`, "v");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function stateOf(el: HTMLElement): string[] {
   const out: string[] = [];
   const on =
@@ -160,7 +171,9 @@ function stateOf(el: HTMLElement): string[] {
   if ((el as HTMLInputElement).disabled || el.getAttribute("aria-disabled") === "true") out.push("disabled");
   if ((el as HTMLInputElement).required || el.getAttribute("aria-required") === "true") out.push("required");
   if (el.getAttribute("aria-invalid") === "true") out.push("invalid");
-  const v = (el as HTMLInputElement).validity;
+  // Chrome logs a console error (blamed on us) whenever validity is read on a box whose
+  // `pattern` won't compile as it compiles it (`v` flag); it ignores that pattern anyway.
+  const v = patternCompiles(el) ? (el as HTMLInputElement).validity : undefined;
   // A box the page refused beyond being empty (a format it wants): its own message says how.
   if (v && !v.valid && !v.valueMissing && (el as HTMLInputElement).validationMessage)
     out.push(`invalid=${q((el as HTMLInputElement).validationMessage)}`);

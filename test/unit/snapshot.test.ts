@@ -42,6 +42,22 @@ describe("page snapshot", () => {
     expect(s.fieldRefs.get(fn.id)).toHaveLength(1);
   });
 
+  it("never reads validity on a box whose pattern Chrome can't compile (it logs an error on us)", () => {
+    // Lever's email pattern: unescaped {|} in a class is illegal under the `v` flag Chrome uses.
+    const bad = String.raw`[a-zA-Z0-9.#$%&'*+\/=?^_\`{|}~][a-zA-Z0-9.!#$%&'*+\/=?^_\`{|}~-]*@[a-zA-Z0-9]`;
+    setBody(`<form><label for="e">Email</label><input id="e" value="a@b.co">
+      <label for="z">Zip</label><input id="z" pattern="\\d{5}" value="1"></form>`);
+    document.getElementById("e")!.setAttribute("pattern", bad);
+    const reads: string[] = [];
+    for (const id of ["e", "z"])
+      Object.defineProperty(document.getElementById(id)!, "validity", {
+        get: () => (reads.push(id), { valid: true }),
+      });
+    snapshot(scanned().deps);
+    expect(reads).not.toContain("e");
+    expect(reads).toContain("z");
+  });
+
   it("says why the scan left a control out", () => {
     setBody(`<form><label>Name<input name="name"></label><input name="hp_field" aria-label="Website"></form>`);
     const { deps } = scanned();
