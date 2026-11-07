@@ -79,7 +79,7 @@ export function Applications() {
     <section>
       <h1>Applications</h1>
       <p class="intro">
-        Every application YOLO made, and the ones you submitted yourself after a fill: none of these is applied to
+        Every application YOLO made, and the ones you submitted yourself after a fill: none of these are applied to
         again. {today} submitted today.
       </p>
       {pending > 0 && (
