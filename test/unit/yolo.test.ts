@@ -741,15 +741,17 @@ describe("discovery", () => {
       locations: ["Canada"],
       boards: ["linkedin" as const],
     };
-    const run = async (want: number | undefined, fail = Infinity, fresh = true) => {
+    const run = async (want: number | undefined, fail = Infinity, fresh = true, once: number[] = []) => {
       if (fresh) installChromeMock();
       const starts: number[] = [];
       const f = async (url: string) => {
         if (url === "https://api.lever.co/v0/postings/acme?mode=json") return new Response(lever);
         if (!url.includes("linkedin")) return new Response("", { status: 404 });
         const start = Number(new URL(url).searchParams.get("start"));
+        // `once`: refused the first time only, as LinkedIn does at random.
+        const flaked = once.includes(start) && !starts.includes(start);
         starts.push(start);
-        return start >= fail ? new Response("", { status: 429 }) : new Response(pages[start] ?? "");
+        return start >= fail || flaked ? new Response("", { status: 429 }) : new Response(pages[start] ?? "");
       };
       const n = await discover({ yolo: y, fetch: f, want });
       return [starts, n];
@@ -759,10 +761,15 @@ describe("discovery", () => {
     expect(await run(2)).toEqual([[0, 10], 2]);
     expect(await run(3)).toEqual([[0, 10, 20, 30], 3]);
     expect(await run(50)).toEqual([[0, 10, 20, 30, 40], 3]);
-    expect(await run(50, 10)).toEqual([[0, 10], 1]);
+    // A refused page is asked again 3 times, 2, 4 and 6 s on, before paging stops.
+    expect(await run(50, 10)).toEqual([[0, 10, 10, 10, 10], 1]);
+    expect(gaps.filter((ms) => ms > 1000)).toEqual([2000, 4000, 6000]);
+    // A page refused once is read on retry, and paging goes on.
+    expect(await run(3, Infinity, true, [0, 20])).toEqual([[0, 0, 10, 20, 20, 30], 3]);
     // LinkedIn is asked a second apart at most.
-    expect(gaps.length).toBeGreaterThan(0);
-    expect(gaps.every((ms) => ms > 0 && ms <= 1000)).toBe(true);
+    const paced = gaps.filter((ms) => ms <= 1000);
+    expect(paced.length).toBeGreaterThan(0);
+    expect(paced.every((ms) => ms > 0)).toBe(true);
     // Topping up the same batch reads past the pages already looked at.
     installChromeMock();
     expect(await run(1)).toEqual([[0], 1]);

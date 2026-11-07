@@ -37,9 +37,15 @@ import {
 const store = createStorage("background");
 /** Postings checked by the AI per cycle; the rest wait for the next one. */
 const BATCH = 60;
-/** LinkedIn search pages read per search when `want` asks for more: ~20 fast pages draw a 429, 40 a second apart don't (live, 2026-11-03). */
+/** LinkedIn search pages read per search when `want` asks for more, a second apart at most. */
 const LINKEDIN_PAGES = 30;
 const LINKEDIN_GAP_MS = 1000;
+/**
+ * LinkedIn answers about 1 logged-out search in 4 with a 429 at random, at any pace (10 s apart too), and the same page
+ * asked again 2 s later is answered (live, 2026-11-07). Retried 2, 4 then 6 s on; still refused, it's a real limit.
+ */
+const LINKEDIN_RETRIES = 3;
+const LINKEDIN_RETRY_MS = 2000;
 /** Jobright recommendation pages of 20 (~240 kB each) read per cycle; the feed held 160 jobs (live, 2026-11-03). */
 const JOBRIGHT_PAGES = 15;
 const NO_OWN = "No posting on the employer's own site";
@@ -285,8 +291,15 @@ export async function discover(d: DiscoverDeps): Promise<number> {
           await safely(row, async () => {
             const wait = linkedinAt + LINKEDIN_GAP_MS - Date.now();
             if (linkedinAt && wait > 0) await new Promise((r) => setTimeout(r, wait));
-            linkedinAt = Date.now();
-            const r = await d.fetch(linkedinSearch(q, loc, days, page * 10), { credentials: "omit" });
+            const ask = () => (
+              (linkedinAt = Date.now()),
+              d.fetch(linkedinSearch(q, loc, days, page * 10), { credentials: "omit" })
+            );
+            let r = await ask();
+            for (let i = 1; r.status === 429 && i <= LINKEDIN_RETRIES; i++) {
+              await new Promise((ok) => setTimeout(ok, LINKEDIN_RETRY_MS * i));
+              r = await ask();
+            }
             if (!r.ok)
               t.problem(
                 row,
@@ -306,8 +319,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
               const k = own && jobKey(own);
               if (k && !queued.has(k) && !applied(s.applications, k, "", y.reapplyManual)) linkedinOwn.add(k);
             }
-            // An empty page is the end of the results; a failed one (429) means stop asking. Pages already seen add
-            // nothing, so a later search for the same batch reads on past them.
+            // An empty page is the end of the results; a failed one (429 after its retries) means stop asking. Pages already
+            // seen add nothing, so a later search for the same batch reads on past them.
             more = jobs.length > 0 && ahead + linkedinOwn.size < (d.want ?? 0);
             return jobs;
           });
