@@ -2,7 +2,7 @@
 import { RE_APPLIED } from "../../shared/constants";
 import { createStorage, session } from "../../shared/storage";
 import type { Application } from "../../shared/yolo";
-import { updateApplications } from "./applicationStore";
+import { markApplicationSubmitted, updateApplications } from "./applicationStore";
 import { closeTab } from "./host";
 import { pendingReview } from "./submissionReview";
 
@@ -184,20 +184,7 @@ export const reviewRefillStarted = () => session.remove(STARTING);
 export async function submitReview(key: string, doneUrl?: string) {
   const t = tabs[key];
   if (t?.attemptUrl) await session.set(`reviewSubmitted:${t.tabId}`, { url: t.attemptUrl, at: Date.now() });
-  await updateApplications((apps) =>
-    apps.map((a) =>
-      a.key === key && pendingReview(a)
-        ? {
-            ...a,
-            status: "submitted",
-            submittedBy: "user",
-            at: Date.now(),
-            doneUrl: doneUrl ?? "",
-            reason: doneUrl ? "" : "Marked submitted by you",
-          }
-        : a,
-    ),
-  );
+  await markApplicationSubmitted(key, doneUrl ?? "", pendingReview);
   await releaseReview(key);
   resumePump();
 }

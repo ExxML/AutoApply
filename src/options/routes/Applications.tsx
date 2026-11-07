@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { isErr, send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
-import type { Application } from "../../shared/yolo";
+import { isPendingApplication, type Application } from "../../shared/yolo";
 import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
 import { SourceCheck } from "../components/SourceCheck";
@@ -36,18 +36,66 @@ export function Applications() {
   const [reviewTabs, setReviewTabs] = useState<{ live: string[]; refilling: string[] }>({ live: [], refilling: [] });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  const [forgetting, setForgetting] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const failedCount = apps?.filter((a) => a.status === "failed").length ?? 0;
+  const pendingCount = apps?.filter(isPendingApplication).length ?? 0;
+  const resumePending = async () => {
+    if (resuming || !pendingCount) return;
+    setResuming(true);
+    setMessage("");
+    try {
+      const r = await send({ type: "YOLO_RESUME_PENDING" });
+      if (isErr(r)) setMessage(r.error.message);
+      else
+        setMessage(
+          r.queued
+            ? `Queued ${r.queued} pending application${r.queued === 1 ? "" : "s"} to resume one at a time. Existing filled review tabs are kept.`
+            : "Pending applications are already queued, running, or ready for your review.",
+        );
+      loadReviews();
+    } catch {
+      setMessage("Couldn't reach AutoApply. Please try again.");
+    } finally {
+      setResuming(false);
+    }
+  };
+  const forgetFailed = async () => {
+    if (
+      forgetting ||
+      !failedCount ||
+      !window.confirm(
+        "Forget all failed applications? This removes every failed application from your history, including those hidden by filters. YOLO can queue these jobs again the next time it checks. This cannot be undone.",
+      )
+    )
+      return;
+    setForgetting(true);
+    setMessage("");
+    try {
+      const r = await send({ type: "YOLO_FORGET_FAILED" });
+      if (isErr(r)) setMessage(r.error.message);
+      else
+        setMessage(
+          `Forgot ${r.forgotten} failed application${r.forgotten === 1 ? "" : "s"}. YOLO can queue these jobs again the next time it checks.`,
+        );
+    } catch {
+      setMessage("Couldn't reach AutoApply. Please try again.");
+    } finally {
+      setForgetting(false);
+    }
+  };
   const loadReviews = () =>
     void send({ type: "YOLO_REVIEW_LIST" })
       .then(setReviewTabs)
       .catch(() => undefined);
   useEffect(() => {
-    if (!apps?.some((a) => a.review)) return;
+    if (!apps?.some((a) => a.review || isPendingApplication(a))) return;
     loadReviews();
     window.addEventListener("focus", loadReviews);
     return () => window.removeEventListener("focus", loadReviews);
   }, [apps, yoloState?.reviewUpdatedAt]);
-  const reviewAction = async (
-    type: "YOLO_REVIEW_OPEN" | "YOLO_REVIEW_REFILL" | "YOLO_REVIEW_DISMISS" | "YOLO_REVIEW_MARK_SUBMITTED",
+  const applicationAction = async (
+    type: "YOLO_REVIEW_OPEN" | "YOLO_REVIEW_REFILL" | "YOLO_REVIEW_DISMISS" | "YOLO_MARK_SUBMITTED",
     key: string,
   ) => {
     setBusy(key);
@@ -59,6 +107,7 @@ export function Applications() {
         setMessage(
           "Refill requested. It will start after the current application finishes and will stop before submission.",
         );
+      else if (type === "YOLO_MARK_SUBMITTED") setMessage("Application marked as submitted.");
       loadReviews();
     } catch {
       setMessage("Couldn't reach AutoApply. Please try again.");
@@ -131,7 +180,28 @@ export function Applications() {
         >
           Debug logs
         </button>
+        <button
+          type="button"
+          class="btn small primary"
+          disabled={resuming || pendingCount === 0}
+          title="Resume all Needs you and Ready for your review applications, including those hidden by filters, one at a time"
+          onClick={() => void resumePending()}
+        >
+          {resuming ? "Queueing resumes…" : "Resume all pending applications"}
+        </button>
+        <button
+          type="button"
+          class="btn small danger"
+          disabled={forgetting || failedCount === 0}
+          title="Remove every failed application from the history, including those hidden by filters, so YOLO can queue them again"
+          onClick={() => void forgetFailed()}
+        >
+          {forgetting ? "Forgetting…" : "Forget all failed applications"}
+        </button>
       </div>
+      {pendingCount > 0 && (
+        <p class="help">Resumes run one at a time and pause when your YOLO review tab limit is reached.</p>
+      )}
       {showLogs &&
         settings.debugLogging &&
         (logs.length ? (
@@ -190,7 +260,7 @@ export function Applications() {
                     onClick={(e) => {
                       if (a.review && ["review", "needs", "failed"].includes(a.status)) {
                         e.preventDefault();
-                        void reviewAction("YOLO_REVIEW_OPEN", a.key);
+                        void applicationAction("YOLO_REVIEW_OPEN", a.key);
                       }
                     }}
                   >
@@ -227,7 +297,7 @@ export function Applications() {
                         class="btn small primary"
                         disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
                         onClick={() =>
-                          void reviewAction(
+                          void applicationAction(
                             reviewTabs.live.includes(a.key) ? "YOLO_REVIEW_OPEN" : "YOLO_REVIEW_REFILL",
                             a.key,
                           )
@@ -248,17 +318,9 @@ export function Applications() {
                         <summary class="muted">More actions</summary>
                         <button
                           type="button"
-                          class="btn small"
-                          disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
-                          onClick={() => void reviewAction("YOLO_REVIEW_MARK_SUBMITTED", a.key)}
-                        >
-                          Mark submitted
-                        </button>{" "}
-                        <button
-                          type="button"
                           class="btn small danger"
                           disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
-                          onClick={() => void reviewAction("YOLO_REVIEW_DISMISS", a.key)}
+                          onClick={() => void applicationAction("YOLO_REVIEW_DISMISS", a.key)}
                         >
                           Dismiss &amp; close tab
                         </button>
@@ -269,12 +331,24 @@ export function Applications() {
                       <button
                         type="button"
                         class="btn small"
+                        disabled={reviewTabs.refilling.includes(a.key)}
                         title="Opens it in a tab and continues there"
                         onClick={() => void send({ type: "YOLO_RESUME", key: a.key })}
                       >
-                        Resume
+                        {reviewTabs.refilling.includes(a.key) ? "Resume pending…" : "Resume"}
                       </button>
                     )
+                  )}{" "}
+                  {a.status !== "submitted" && (
+                    <button
+                      type="button"
+                      class="btn small"
+                      disabled={busy === a.key}
+                      title="Record that you already submitted this application on the job site"
+                      onClick={() => void applicationAction("YOLO_MARK_SUBMITTED", a.key)}
+                    >
+                      Mark submitted
+                    </button>
                   )}{" "}
                   {!(a.review && ["review", "needs", "failed"].includes(a.status)) && (
                     <button

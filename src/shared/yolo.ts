@@ -182,6 +182,9 @@ export const ApplicationSchema = QueueItemSchema.omit({
 export type Application = z.infer<typeof ApplicationSchema>;
 export type Guess = Application["guesses"][number];
 
+/** The unfinished outcomes counted as pending on the Applications page. */
+export const isPendingApplication = (a: Application) => a.status === "needs" || a.status === "review";
+
 /** How a source fared in a check, worst last. */
 export const SOURCE_LEVELS = ["ok", "info", "warn", "error"] as const;
 export type SourceLevel = (typeof SOURCE_LEVELS)[number];

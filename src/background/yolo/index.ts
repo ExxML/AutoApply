@@ -9,6 +9,7 @@ import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
 import {
   defaultYolo,
   hasReviewRules,
+  isPendingApplication,
   type Application,
   type Guess,
   type Listing,
@@ -24,7 +25,8 @@ import { jobBrief } from "../services/jobBrief";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext } from "../jobContext";
 import { realInput, realInputReady, releaseRealInput } from "./realInput";
-import { recordApplication, updateApplications, updateQueue } from "./applicationStore";
+import { markApplicationSubmitted, recordApplication, updateApplications, updateQueue } from "./applicationStore";
+import { nextPendingResume, pendingResumeKeys, pendingResumeStarted, queuePendingResumes } from "./pendingResumes";
 import { completedSince, needsReviewTab, pendingReview, reviewReasons } from "./submissionReview";
 import {
   dismissReview,
@@ -128,7 +130,14 @@ async function schedule() {
   if (!on) {
     if (a) await chrome.alarms.clearAll();
     const run = await getRun();
-    if (run && !run.reviewKey && (await end(run.id)) && run.mode === "apply" && run.host !== "visible") {
+    if (
+      run &&
+      !run.reviewKey &&
+      !run.resumeKey &&
+      (await end(run.id)) &&
+      run.mode === "apply" &&
+      run.host !== "visible"
+    ) {
       // Past Submit it may have gone through: left for the user to check rather than applied to twice.
       if (run.confirming)
         await record(
@@ -310,6 +319,24 @@ async function pump() {
       await reviewRefillStarted();
       return;
     }
+    for (let pending = await nextPendingResume(); pending; pending = await nextPendingResume()) {
+      const reviews = await reviewList();
+      if (reviews.live.includes(pending.key)) {
+        await pendingResumeStarted(pending.key);
+        continue;
+      }
+      if (reviews.live.length >= yolo.submissionReview.maxPending) {
+        await setState({
+          pauseReason: `Review tab limit reached (${yolo.submissionReview.maxPending}). Submit or dismiss a review to continue resuming.`,
+        });
+        return;
+      }
+      if (pending.review) await releaseReview(pending.key, true);
+      await setState({ pauseReason: "" });
+      await startResumed(pending, "tab");
+      await pendingResumeStarted(pending.key);
+      return;
+    }
     if (!yolo.enabled) return;
     const apps = await store.get("applications");
     const policy = yolo.submissionReview;
@@ -364,7 +391,12 @@ async function pause(until: number, reason: string) {
   await chrome.alarms.create(RESUME, { when: until });
 }
 
-async function requeue(item: QueueItem) {
+async function requeue(item: QueueItem, resumeKey?: string) {
+  if (resumeKey) {
+    if ((await store.get("applications")).some((a) => a.key === resumeKey && isPendingApplication(a)))
+      await queuePendingResumes([resumeKey]);
+    return;
+  }
   const held = (await store.get("applications")).find((a) => a.key === item.key && pendingReview(a));
   if (held) {
     await queueReviewRefill(held.key);
@@ -450,7 +482,7 @@ async function finish(run: Run, r: YoloResult) {
     if (!(await end(run.id))) return;
     const limit = deps.logLimit();
     if (limit) await logRun(run, r, limit);
-    await requeue({ ...run.item, retries: (run.item.retries ?? 0) + 1 });
+    await requeue({ ...run.item, retries: (run.item.retries ?? 0) + 1 }, run.resumeKey);
     return whenOnline("pump");
   }
   if (!(await end(run.id))) return;
@@ -469,11 +501,12 @@ async function finish(run: Run, r: YoloResult) {
             tab: !!run.reviewTab,
           }
         : undefined,
+      run.resumeKey,
     );
     return;
   }
   if (r.status !== "submitted" && r.status !== "scraped" && r.retryAt) {
-    await requeue(run.item);
+    await requeue(run.item, run.resumeKey);
     await pause(r.retryAt, "AI usage limit reached");
     return;
   }
@@ -487,7 +520,8 @@ async function finish(run: Run, r: YoloResult) {
 /** The Applications entry a run's result makes. */
 async function outcome(run: Run, r: YoloResult): Promise<Application> {
   const { item } = run;
-  const previous = run.reviewKey ? (await store.get("applications")).find((a) => a.key === run.reviewKey) : undefined;
+  const previousKey = run.reviewKey ?? run.resumeKey;
+  const previous = previousKey ? (await store.get("applications")).find((a) => a.key === previousKey) : undefined;
   return {
     key: previous?.key ?? (run.atsUrl ? jobKey(run.atsUrl) : item.key),
     alt: item.alt,
@@ -512,7 +546,7 @@ async function outcome(run: Run, r: YoloResult): Promise<Application> {
 /** Save first, then stop driving, retaining the actual document and its uploads. */
 async function holdForReview(run: Run, status: "review" | "needs", reason = "") {
   if (run.tabId === undefined || (await getRun())?.id !== run.id) return;
-  const old = (await store.get("applications")).find((a) => a.key === run.reviewKey);
+  const old = (await store.get("applications")).find((a) => a.key === (run.reviewKey ?? run.resumeKey));
   const key = old?.key ?? (run.atsUrl ? jobKey(run.atsUrl) : run.item.key);
   const reasons =
     old?.review?.reasons ?? reviewReasons(run.reviewPolicy ?? yolo.submissionReview, run.item, run.hasGuessedAnswers);
@@ -612,17 +646,24 @@ async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
     return { ok: true };
   }
   const run = await getRun();
-  if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item);
-  const policy = yolo.submissionReview;
+  if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item, run.resumeKey);
+  await startResumed(a, "visible");
+  return { ok: true };
+}
+
+async function startResumed(a: Application, host: "tab" | "visible") {
+  const reviewing = !!a.review || a.status === "review";
+  const policy = reviewing ? { ...yolo.submissionReview, mode: "all" as const } : yolo.submissionReview;
+  const item = { ...a, listing: "", postedAt: 0, addedAt: Date.now() };
   await start(
-    { ...a, listing: "", postedAt: 0, addedAt: Date.now() },
+    item,
     "apply",
-    "visible",
+    host,
     policy.mode === "off"
       ? undefined
-      : { policy, tab: needsReviewTab(policy, { ...a, listing: "", postedAt: 0, addedAt: 0 }) },
+      : { policy, key: reviewing ? a.key : undefined, tab: needsReviewTab(policy, item) },
+    host === "tab" ? a.key : undefined,
   );
-  return { ok: true };
 }
 
 // ---------- page probes ----------
@@ -795,10 +836,25 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
 
   YOLO_RESUME: ({ key }) => resume(key),
 
+  async YOLO_RESUME_PENDING() {
+    const [apps, reviews, run] = await Promise.all([store.get("applications"), reviewList(), getRun()]);
+    const handled = new Set([
+      ...reviews.live,
+      ...reviews.refilling,
+      ...(run ? [run.item.key, run.reviewKey, run.resumeKey] : []),
+    ]);
+    const queued = await queuePendingResumes(
+      apps.filter((a) => isPendingApplication(a) && !handled.has(a.key)).map((a) => a.key),
+    );
+    void pump();
+    return { ok: true, queued };
+  },
+
   async YOLO_REVIEW_LIST() {
     const list = await reviewList();
     const run = await getRun();
-    if (run?.reviewKey) list.refilling.push(run.reviewKey);
+    list.refilling.push(...(await pendingResumeKeys()));
+    if (run?.mode === "apply") list.refilling.push(run.reviewKey ?? run.resumeKey ?? run.item.key);
     return list;
   },
   async YOLO_REVIEW_OPEN({ key }) {
@@ -827,11 +883,37 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
+  async YOLO_MARK_SUBMITTED({ key }) {
+    const run = await getRun();
+    if (run?.mode === "apply" && [run.item.key, run.reviewKey, run.resumeKey].includes(key)) await end(run.id, true);
+    const a = await markApplicationSubmitted(key);
+    if (!a) return { error: { kind: "other", message: "Unknown application" } };
+    await releaseReview(key);
+    await pendingResumeStarted(key);
+    await updateQueue((q) => q.filter((i) => i.key !== key && i.listing !== key && (!a.alt || i.alt !== a.alt)));
+    void pump();
+    return { ok: true };
+  },
+
   async YOLO_FORGET({ key }) {
     await releaseReview(key);
     await updateApplications((apps) => apps.filter((a) => a.key !== key));
     void pump();
     return { ok: true };
+  },
+
+  async YOLO_FORGET_FAILED() {
+    let failed: Application[] = [];
+    // Use the current history and serialize with submissions so their records cannot be lost.
+    await updateApplications((apps) => {
+      failed = apps.filter((a) => a.status === "failed");
+      return apps.filter((a) => a.status !== "failed");
+    });
+    for (const a of failed) if (a.review) await releaseReview(a.key);
+    // Unchanged feeds must be read again so forgotten jobs can be rediscovered.
+    if (failed.length) await store.set({ feedCache: {} });
+    void pump();
+    return { ok: true, forgotten: failed.length };
   },
 
   async YOLO_GMAIL_CONNECT() {
@@ -933,7 +1015,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       run.atsUrl = url;
       if (
         applied(
-          (await store.get("applications")).filter((a) => a.key !== run.reviewKey),
+          (await store.get("applications")).filter((a) => a.key !== (run.reviewKey ?? run.resumeKey)),
           jobKey(url),
           run.item.alt,
           yolo.reapplyManual,
@@ -1151,7 +1233,9 @@ export function initYolo(d: YoloDeps) {
       void setState({ reviewUpdatedAt: Date.now() }).then(() => pump());
     });
     await recoverLost();
-    if ((await reviewList()).refilling.length) void pump();
+    const run = await getRun();
+    if (run?.mode === "apply") await pendingResumeStarted(run.resumeKey ?? run.item.key);
+    if ((await reviewList()).refilling.length || (await pendingResumeKeys()).length) void pump();
   });
   store.onChange(["yolo"], (c) => {
     const prev = yolo;

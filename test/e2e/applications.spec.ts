@@ -1,6 +1,6 @@
 import type { Page, Worker } from "@playwright/test";
-import { ApplicationSchema, QueueItemSchema, type QueueItem } from "../../src/shared/yolo";
-import { expect, seed, storage, test } from "./extension";
+import { ApplicationSchema, QueueItemSchema, type Application, type QueueItem } from "../../src/shared/yolo";
+import { BASE, expect, seed, storage, test } from "./extension";
 
 async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45) {
   await seed(sw);
@@ -30,6 +30,240 @@ async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45)
   await expect(page.getByRole("button", { name: `Queued jobs ${queued}`, exact: true })).toBeVisible();
   return yoloQueue;
 }
+
+test("each non-submitted row can be marked submitted while preserving its application details", async ({
+  sw,
+  page,
+}) => {
+  await applicationsPage(sw, page, 0, 0);
+  const applications = (["submitted", "needs", "failed", "skipped", "review"] as const).map((status) =>
+    ApplicationSchema.parse({
+      key: status,
+      status,
+      url: `https://example.com/${status}`,
+      company: `Company ${status}`,
+      title: "Engineer",
+      source: "Lever",
+      guesses: [{ q: "Start date?", a: "May" }],
+      notes: ["Original note"],
+      ...(status === "review" && { review: { reasons: ["Review requested"], preparedAt: 1 } }),
+      at: 1,
+    }),
+  );
+  await sw.evaluate((applications) => chrome.storage.local.set({ applications }), applications);
+  await expect(page.getByRole("button", { name: "Mark submitted", exact: true })).toHaveCount(4);
+  const row = (key: string) =>
+    page.getByRole("row").filter({
+      has: page.getByRole("link", { name: `Company ${key} – Engineer`, exact: true }),
+    });
+  await expect(row("submitted").getByRole("button", { name: "Mark submitted", exact: true })).toHaveCount(0);
+
+  for (const original of applications.filter((a) => a.status !== "submitted")) {
+    await row(original.key).getByRole("button", { name: "Mark submitted", exact: true }).click();
+    await expect(row(original.key)).toContainText("Submitted (by you)");
+    await expect(row(original.key).getByRole("button", { name: "Mark submitted", exact: true })).toHaveCount(0);
+    const stored = (await storage<Application[]>(sw, "applications")).find((a) => a.key === original.key)!;
+    expect(stored).toEqual({
+      ...original,
+      status: "submitted",
+      submittedBy: "user",
+      reason: "Marked submitted by you",
+      at: expect.any(Number),
+    });
+    expect(stored.at).toBeGreaterThan(original.at);
+  }
+  await expect(page.locator("section").getByRole("status")).toHaveText("Application marked as submitted.");
+  await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Forget all failed applications", exact: true })).toBeDisabled();
+  const totals = page
+    .getByRole("definition")
+    .locator("..")
+    .filter({ has: page.getByText("All time", { exact: true }) });
+  await expect(totals).toContainText("5 submitted / 5 attempted");
+  expect((await storage<Application[]>(sw, "applications")).find((a) => a.key === "submitted")).toEqual(
+    applications[0],
+  );
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Mark submitted", exact: true })).toHaveCount(0);
+});
+
+test("marking a failed application submitted reports errors without changing its status", async ({ sw, page }) => {
+  await applicationsPage(sw, page, 2, 0);
+  const applications = await storage<Application[]>(sw, "applications");
+  await page.evaluate(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = ((message: { type: string }) =>
+      message.type === "YOLO_MARK_SUBMITTED"
+        ? Promise.resolve({ error: { kind: "other", message: "Couldn't mark the application submitted." } })
+        : send(message)) as typeof chrome.runtime.sendMessage;
+  });
+  const button = page.getByRole("button", { name: "Mark submitted", exact: true });
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't mark the application submitted.");
+  await expect(button).toBeEnabled();
+  expect(await storage(sw, "applications")).toEqual(applications);
+});
+
+test("forgetting all failed applications requires confirmation and includes filter-hidden failures", async ({
+  sw,
+  page,
+}) => {
+  const queue = await applicationsPage(sw, page, 0, 2);
+  const applications = [
+    { key: "submitted", status: "submitted" },
+    { key: "manual", status: "submitted", mode: "manual" },
+    { key: "failed", status: "failed" },
+    { key: "failed-review", status: "failed", review: { reasons: ["Review requested"], preparedAt: 1 } },
+    { key: "review", status: "review" },
+    { key: "needs", status: "needs" },
+    { key: "skipped", status: "skipped" },
+  ].map((app) => ApplicationSchema.parse({ ...app, url: `https://example.com/${app.key}`, company: app.key }));
+  await sw.evaluate((applications) => chrome.storage.local.set({ applications }), applications);
+  const button = page.getByRole("button", { name: "Forget all failed applications", exact: true });
+  await expect(button).toBeEnabled();
+  await page.getByRole("searchbox", { name: "Search applications", exact: true }).fill("submitted");
+  await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("submitted");
+  await expect(page.locator(".table tbody tr")).toHaveCount(1);
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("confirm");
+    expect(dialog.message()).toContain("including those hidden by filters");
+    expect(dialog.message()).toContain("YOLO can queue these jobs again");
+    await dialog.dismiss();
+  });
+  await button.click();
+  expect(await storage(sw, "applications")).toEqual(applications);
+  await expect(button).toBeEnabled();
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toContainText("Forgot 2 failed applications.");
+  await expect(button).toBeDisabled();
+  const remaining = applications.filter((app) => app.status !== "failed");
+  expect(await storage(sw, "applications")).toEqual(remaining);
+  expect(await storage(sw, "yoloQueue")).toEqual(queue);
+  await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("submitted");
+  await page.reload();
+  await expect(button).toBeDisabled();
+  expect(await storage(sw, "applications")).toEqual(remaining);
+});
+
+test("forget all failed applications is disabled for empty history", async ({ sw, page }) => {
+  await applicationsPage(sw, page, 0, 0);
+  await expect(page.getByRole("button", { name: "Forget all failed applications", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
+});
+
+test("bulk resume includes hidden pending jobs, keeps review required, and preserves filled review tabs", async ({
+  sw,
+  page,
+  context,
+}) => {
+  await applicationsPage(sw, page, 0, 0);
+  await seed(sw, { caps: true, settings: { reviewFills: false } });
+  const applications = [
+    { key: "first", status: "needs" },
+    { key: "second", status: "needs" },
+    { key: "review", status: "review", review: { reasons: ["Review requested"], preparedAt: 1 } },
+    { key: "submitted", status: "submitted" },
+    { key: "failed", status: "failed" },
+    { key: "skipped", status: "skipped" },
+  ].map((app) =>
+    ApplicationSchema.parse({
+      ...app,
+      url: `${BASE}yolo-review-form.html?job=${app.key}`,
+      company: app.key,
+      title: "Software Engineer Intern",
+    }),
+  );
+  await sw.evaluate(async (applications) => {
+    await chrome.storage.local.set({
+      applications,
+      yolo: { enabled: false, boards: [], feeds: [], reviewFills: false, aiNavigation: false },
+    });
+  }, applications);
+  await page.getByRole("searchbox", { name: "Search applications", exact: true }).fill("submitted");
+  await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("submitted");
+  const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toContainText("Queued 3 pending applications");
+  await expect
+    .poll(
+      async () => {
+        const apps = await storage<Application[]>(sw, "applications");
+        return apps.filter((a) => ["first", "second"].includes(a.key)).map((a) => a.status);
+      },
+      { timeout: 45_000 },
+    )
+    .toEqual(["submitted", "submitted"]);
+  await expect
+    .poll(async () => {
+      const { yoloReviewTabs } = await sw.evaluate(() =>
+        chrome.storage.session.get<{ yoloReviewTabs?: Record<string, { ready: boolean }> }>("yoloReviewTabs"),
+      );
+      return yoloReviewTabs?.review?.ready;
+    })
+    .toBe(true);
+  const stored = await storage<Application[]>(sw, "applications");
+  for (const key of ["submitted", "failed", "skipped"]) {
+    expect(stored.find((a) => a.key === key)).toEqual(applications.find((a) => a.key === key));
+  }
+  expect(stored.find((a) => a.key === "review")?.status).toBe("review");
+  const review = context.pages().find((p) => p.url().includes("job=review"))!;
+  await expect(review.locator("#first")).toHaveValue("Ada");
+  await review.locator("#first").fill("Edited");
+  const tabs = context.pages().length;
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toHaveText(
+    "Pending applications are already queued, running, or ready for your review.",
+  );
+  await expect(review.locator("#first")).toHaveValue("Edited");
+  expect(context.pages()).toHaveLength(tabs);
+});
+
+test("a failed bulk resume keeps pending records and allows retrying", async ({ sw, page }) => {
+  await applicationsPage(sw, page, 0, 0);
+  const applications = [
+    ApplicationSchema.parse({ key: "pending", url: "https://example.com/pending", status: "needs" }),
+  ];
+  await sw.evaluate((applications) => chrome.storage.local.set({ applications }), applications);
+  await page.evaluate(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = ((message: { type: string }) =>
+      message.type === "YOLO_RESUME_PENDING"
+        ? Promise.resolve({ error: { kind: "other", message: "Couldn't queue the pending applications." } })
+        : send(message)) as typeof chrome.runtime.sendMessage;
+  });
+  const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't queue the pending applications.");
+  await expect(button).toBeEnabled();
+  expect(await storage(sw, "applications")).toEqual(applications);
+});
+
+test("a failed bulk forget keeps the history and allows retrying", async ({ sw, page }) => {
+  await applicationsPage(sw, page, 2, 0);
+  const applications = await storage<Application[]>(sw, "applications");
+  await page.evaluate(() => {
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = ((message: { type: string }) =>
+      message.type === "YOLO_FORGET_FAILED"
+        ? Promise.resolve({ error: { kind: "other", message: "Couldn't update the application history." } })
+        : send(message)) as typeof chrome.runtime.sendMessage;
+  });
+  page.once("dialog", (dialog) => dialog.accept());
+  const button = page.getByRole("button", { name: "Forget all failed applications", exact: true });
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't update the application history.");
+  await expect(button).toBeEnabled();
+  expect(await storage(sw, "applications")).toEqual(applications);
+  await page.reload();
+  page.once("dialog", (dialog) => dialog.accept());
+  await button.click();
+  await expect(page.locator("section").getByRole("status")).toContainText("Forgot 1 failed application.");
+  await expect(button).toBeDisabled();
+});
 
 test("application totals separate outcomes, ignore filters, and refresh at local midnight", async ({ sw, page }) => {
   const day = new Date(2026, 10, 7).getTime();

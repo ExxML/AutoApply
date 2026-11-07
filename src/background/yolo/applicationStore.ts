@@ -24,3 +24,29 @@ export const updateQueue = (change: (queue: QueueItem[]) => QueueItem[]) =>
 
 export const recordApplication = (a: Application) =>
   updateApplications((apps) => [...apps.filter((x) => x.key !== a.key), a]);
+
+/** Record a submission without losing the original job, answers, or review metadata. */
+export async function markApplicationSubmitted(
+  key: string,
+  doneUrl?: string,
+  eligible: (a: Application) => boolean = (a) => a.status !== "submitted",
+): Promise<Application | null> {
+  let submitted: Application | null = null;
+  await updateApplications((apps) =>
+    apps.map((a) => {
+      if (a.key !== key) return a;
+      submitted = eligible(a)
+        ? {
+            ...a,
+            status: "submitted",
+            submittedBy: "user",
+            at: Date.now(),
+            doneUrl: doneUrl ?? a.doneUrl,
+            reason: doneUrl ? "" : "Marked submitted by you",
+          }
+        : a;
+      return submitted;
+    }),
+  );
+  return submitted;
+}

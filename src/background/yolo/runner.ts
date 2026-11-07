@@ -39,6 +39,8 @@ export interface Run {
   wokeAt?: number;
   reviewPolicy?: SubmissionReview;
   reviewKey?: string;
+  /** An application explicitly queued by Resume all, independently of automatic YOLO batches. */
+  resumeKey?: string;
   hasGuessedAnswers?: boolean;
   reviewTab?: boolean;
   documentId?: string;
@@ -74,6 +76,7 @@ export async function start(
     key?: string;
     tab: boolean;
   },
+  resumeKey?: string,
 ): Promise<Run> {
   const now = Date.now();
   const run: Run = {
@@ -86,6 +89,7 @@ export async function start(
     helloAt: 0,
     steps: [],
     guesses: [],
+    ...(resumeKey ? { resumeKey } : {}),
     ...(review ? { reviewPolicy: review.policy, reviewKey: review.key, reviewTab: review.tab } : {}),
   };
   const url = mode === "apply" ? applyUrl(item.url) : item.url;
