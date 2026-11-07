@@ -238,133 +238,143 @@ export function Applications() {
       {rows.length === 0 ? (
         <p class="muted">{apps.length ? "No matches." : "Nothing yet."}</p>
       ) : (
-        <table class="table">
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Job</th>
-              <th>Status</th>
-              <th>Source</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((a) => (
+        <div class="applications-table-scroll" role="region" aria-label="Application history" tabIndex={0}>
+          <table class="table applications-table">
+            <thead>
               <tr>
-                <td class="muted">{formatDateTime(a.at)}</td>
-                <td>
-                  <a
-                    href={a.doneUrl || a.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => {
-                      if (a.review && ["review", "needs", "failed"].includes(a.status)) {
-                        e.preventDefault();
-                        void applicationAction("YOLO_REVIEW_OPEN", a.key);
-                      }
-                    }}
-                  >
-                    {a.company} – {a.title || "(untitled)"}
-                  </a>
-                  {a.guesses.length > 0 && (
-                    <details>
-                      <summary class="muted">{a.guesses.length} guessed answers</summary>
-                      <ul>
-                        {a.guesses.map((g) => (
-                          <li>
-                            {g.q}: <b>{g.a}</b>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                  {a.notes?.map((n) => (
-                    <div class="muted">{n}</div>
-                  ))}
-                  {a.review && <div class="muted">Review rules: {a.review.reasons.join("; ")}</div>}
-                </td>
-                <td>
-                  {STATUS[a.status]}
-                  {a.mode === "manual" || a.submittedBy === "user" ? " (by you)" : ""}
-                  {a.reason && <div class="muted">{a.reason}</div>}
-                </td>
-                <td class="muted">{a.source}</td>
-                <td>
-                  {a.review && ["review", "needs", "failed"].includes(a.status) ? (
-                    <div class="review-actions">
-                      <button
-                        type="button"
-                        class="btn small primary"
-                        disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
-                        onClick={() =>
-                          void applicationAction(
-                            reviewTabs.live.includes(a.key) ? "YOLO_REVIEW_OPEN" : "YOLO_REVIEW_REFILL",
-                            a.key,
-                          )
+                <th>When</th>
+                <th>Job</th>
+                <th>Status</th>
+                <th>Source</th>
+                <th scope="col" class="application-actions-cell">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((a) => (
+                <tr>
+                  <td class="muted">{formatDateTime(a.at)}</td>
+                  <td>
+                    <a
+                      href={a.doneUrl || a.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => {
+                        if (a.review && ["review", "needs", "failed"].includes(a.status)) {
+                          e.preventDefault();
+                          void applicationAction("YOLO_REVIEW_OPEN", a.key);
                         }
-                      >
-                        {reviewTabs.refilling.includes(a.key)
-                          ? "Refill pending…"
-                          : reviewTabs.live.includes(a.key)
-                            ? "Review application"
-                            : "Refill for review"}
-                      </button>
-                      {!reviewTabs.live.includes(a.key) && (
-                        <span class="help">
-                          The original filled page is unavailable. Refilling may lose earlier edits.
-                        </span>
-                      )}
+                      }}
+                    >
+                      {a.company} – {a.title || "(untitled)"}
+                    </a>
+                    {a.guesses.length > 0 && (
                       <details>
-                        <summary class="muted">More actions</summary>
+                        <summary class="muted">{a.guesses.length} guessed answers</summary>
+                        <ul>
+                          {a.guesses.map((g) => (
+                            <li>
+                              {g.q}: <b>{g.a}</b>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                    {a.notes?.map((n) => (
+                      <div class="muted">{n}</div>
+                    ))}
+                    {a.review && <div class="muted">Review rules: {a.review.reasons.join("; ")}</div>}
+                  </td>
+                  <td>
+                    {STATUS[a.status]}
+                    {a.mode === "manual" || a.submittedBy === "user" ? " (by you)" : ""}
+                    {a.reason && <div class="muted">{a.reason}</div>}
+                  </td>
+                  <td class="muted">{a.source}</td>
+                  <td class="application-actions-cell">
+                    <div
+                      class="application-actions"
+                      role="group"
+                      aria-label={`Actions for ${a.company} – ${a.title || "(untitled)"}`}
+                    >
+                      {a.review && ["review", "needs", "failed"].includes(a.status) ? (
+                        <div class="review-actions">
+                          <button
+                            type="button"
+                            class="btn small primary"
+                            disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
+                            onClick={() =>
+                              void applicationAction(
+                                reviewTabs.live.includes(a.key) ? "YOLO_REVIEW_OPEN" : "YOLO_REVIEW_REFILL",
+                                a.key,
+                              )
+                            }
+                          >
+                            {reviewTabs.refilling.includes(a.key)
+                              ? "Refill pending…"
+                              : reviewTabs.live.includes(a.key)
+                                ? "Review application"
+                                : "Refill for review"}
+                          </button>
+                          {!reviewTabs.live.includes(a.key) && (
+                            <span class="help">
+                              The original filled page is unavailable. Refilling may lose earlier edits.
+                            </span>
+                          )}
+                          <details>
+                            <summary class="muted">More actions</summary>
+                            <button
+                              type="button"
+                              class="btn small danger"
+                              disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
+                              onClick={() => void applicationAction("YOLO_REVIEW_DISMISS", a.key)}
+                            >
+                              Dismiss &amp; close tab
+                            </button>
+                          </details>
+                        </div>
+                      ) : (
+                        (a.status === "needs" || a.status === "failed") && (
+                          <button
+                            type="button"
+                            class="btn small primary"
+                            disabled={reviewTabs.refilling.includes(a.key)}
+                            title="Opens it in a tab and continues there"
+                            onClick={() => void send({ type: "YOLO_RESUME", key: a.key })}
+                          >
+                            {reviewTabs.refilling.includes(a.key) ? "Resume pending…" : "Resume"}
+                          </button>
+                        )
+                      )}
+                      {a.status !== "submitted" && (
+                        <button
+                          type="button"
+                          class="btn small"
+                          disabled={busy === a.key}
+                          title="Record that you already submitted this application on the job site"
+                          onClick={() => void applicationAction("YOLO_MARK_SUBMITTED", a.key)}
+                        >
+                          Mark submitted
+                        </button>
+                      )}
+                      {!(a.review && ["review", "needs", "failed"].includes(a.status)) && (
                         <button
                           type="button"
                           class="btn small danger"
-                          disabled={busy === a.key || reviewTabs.refilling.includes(a.key)}
-                          onClick={() => void applicationAction("YOLO_REVIEW_DISMISS", a.key)}
+                          title="Remove from the log, so YOLO may apply to it again"
+                          onClick={() => void send({ type: "YOLO_FORGET", key: a.key })}
                         >
-                          Dismiss &amp; close tab
+                          Forget
                         </button>
-                      </details>
+                      )}
                     </div>
-                  ) : (
-                    (a.status === "needs" || a.status === "failed") && (
-                      <button
-                        type="button"
-                        class="btn small"
-                        disabled={reviewTabs.refilling.includes(a.key)}
-                        title="Opens it in a tab and continues there"
-                        onClick={() => void send({ type: "YOLO_RESUME", key: a.key })}
-                      >
-                        {reviewTabs.refilling.includes(a.key) ? "Resume pending…" : "Resume"}
-                      </button>
-                    )
-                  )}{" "}
-                  {a.status !== "submitted" && (
-                    <button
-                      type="button"
-                      class="btn small"
-                      disabled={busy === a.key}
-                      title="Record that you already submitted this application on the job site"
-                      onClick={() => void applicationAction("YOLO_MARK_SUBMITTED", a.key)}
-                    >
-                      Mark submitted
-                    </button>
-                  )}{" "}
-                  {!(a.review && ["review", "needs", "failed"].includes(a.status)) && (
-                    <button
-                      type="button"
-                      class="btn small danger"
-                      title="Remove from the log, so YOLO may apply to it again"
-                      onClick={() => void send({ type: "YOLO_FORGET", key: a.key })}
-                    >
-                      Forget
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
