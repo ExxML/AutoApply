@@ -8,7 +8,8 @@ const nextDay = (day: number) => {
   return date.getTime();
 };
 
-export function ApplicationSummary({ applications }: { applications: Application[] }) {
+/** `batchAt`: when the current YOLO batch started (0 if none has). */
+export function ApplicationSummary({ applications, batchAt }: { applications: Application[]; batchAt: number }) {
   const [day, setDay] = useState(startOfToday);
   useEffect(() => {
     const refresh = () => setDay(startOfToday());
@@ -21,6 +22,7 @@ export function ApplicationSummary({ applications }: { applications: Application
   }, [day]);
 
   const today = { submitted: 0, attempted: 0, failed: 0, pending: 0 };
+  const batch = { ...today };
   const allTime = { ...today };
   const tomorrow = nextDay(day);
   // Count each recorded job once; skipped postings never became application attempts.
@@ -33,11 +35,16 @@ export function ApplicationSummary({ applications }: { applications: Application
       today.attempted++;
       today[outcome]++;
     }
+    if (batchAt && app.at >= batchAt) {
+      batch.attempted++;
+      batch[outcome]++;
+    }
   }
 
   return (
     <dl class="application-summary" aria-label="Application totals">
       {[
+        { label: "Batch", counts: batch },
         { label: "Today", counts: today },
         { label: "All time", counts: allTime },
       ].map(({ label, counts }) => (

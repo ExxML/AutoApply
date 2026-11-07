@@ -135,7 +135,7 @@ export function Applications() {
         Every application YOLO made, and the ones you submitted yourself after a fill: none of these are applied to
         again.
       </p>
-      <ApplicationSummary applications={apps} />
+      <ApplicationSummary applications={apps} batchAt={yoloState?.batchAt ?? 0} />
       {pending > 0 && (
         <p class="review-summary">
           {pending} application{pending === 1 ? " is" : "s are"} waiting for your review. Open the filled tab, check
