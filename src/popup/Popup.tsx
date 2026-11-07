@@ -27,18 +27,24 @@ export function statusText(r: TabStatusResponse | null): string {
 
 export function yoloText(y: YoloStatus): string {
   if (!y.enabled) return "Finds new jobs matching your searches and applies to them in the background.";
+  const line = (parts: (string | undefined)[]) => parts.filter(Boolean).join(" · ");
+  // Rendered with white-space: pre-line, so "\n" breaks the batch summary from the rest.
   return [
-    y.running ? `Applying: ${y.running}` : y.nextCheckAt ? `Next batch ${formatTime(y.nextCheckAt)}` : "",
-    y.preparedBatch
-      ? `${y.appliedBatch} submitted · ${y.preparedBatch} prepared for review this batch`
-      : `${y.appliedBatch}/${y.batchSize} applied this batch`,
-    y.pendingReviews ? `${y.pendingReviews} awaiting your review` : "",
-    y.queued ? `${y.queued} queued` : "",
-    y.needsYou ? `${y.needsYou} need you` : "",
-    y.paused,
+    line([
+      y.running ? `Applying: ${y.running}` : y.nextCheckAt ? `Next batch ${formatTime(y.nextCheckAt)}` : "",
+      y.preparedBatch
+        ? `${y.appliedBatch} submitted · ${y.preparedBatch} prepared for review this batch`
+        : `${y.appliedBatch}/${y.batchSize} applied this batch`,
+    ]),
+    line([
+      y.pendingReviews ? `${y.pendingReviews} awaiting your review` : "",
+      y.queued ? `${y.queued} queued` : "",
+      y.needsYou ? `${y.needsYou} need you` : "",
+      y.paused,
+    ]),
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join("\n");
 }
 
 const openOptions = (hash: string) =>

@@ -831,6 +831,7 @@ main:has(.applications-table-scroll) {
 }
 .popup .yolo .help {
   display: block;
+  white-space: pre-line;
 }
 .popup .yolo-head {
   display: flex;
