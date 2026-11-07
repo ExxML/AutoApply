@@ -87,11 +87,11 @@ export async function startSourceCheck(y: Yolo, topUp: boolean, now = Date.now()
   await save();
   return {
     /** One feed, site or search of a source; the same label gives the same row. */
-    row(group: SourceGroup, label: string): SourceRow {
+    row(group: SourceGroup, label: string, url = ""): SourceRow {
       const g = groupOf(group);
       const found = g?.rows.find((r) => r.label === label);
       if (found) return found;
-      const r: SourceRow = { label, found: 0, problem: "", level: "ok" };
+      const r: SourceRow = { label, url, found: 0, problem: "", level: "ok" };
       if (g) {
         g.rows.push(r);
         owner.set(r, g);

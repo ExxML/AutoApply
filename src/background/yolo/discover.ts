@@ -347,7 +347,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   for (const g of ["linkedin", "glassdoor", "indeed"] as const) await t.done(g);
 
   for (const url of y.careerSites) {
-    const row = t.row("careers", labelOf(url, sitePath));
+    const row = t.row("careers", labelOf(url, sitePath), url);
     // Workday and SmartRecruiters search server-side; the other boards' APIs list every posting at once.
     const ats = boardOf(url)?.ats;
     const perQuery = /\{q\}/.test(url) || ats === "workday" || ats === "smartrecruiters";

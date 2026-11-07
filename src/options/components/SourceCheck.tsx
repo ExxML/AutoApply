@@ -39,7 +39,15 @@ function Group(props: { g: SourceGroupCheck; ended: boolean; finished: boolean }
       <ul class="source-rows">
         {g.rows.map((r) => (
           <li>
-            {r.label} <span class="muted">· {r.found} found</span>
+            {/^https?:\/\//i.test(r.url) ? (
+              // A "{q}" search URL opens with an empty query.
+              <a href={r.url.replace(/\{q\}/g, "")} target="_blank" rel="noreferrer">
+                {r.label}
+              </a>
+            ) : (
+              r.label
+            )}{" "}
+            <span class="muted">· {r.found} found</span>
             {r.problem && <span class={TEXT[r.level]}> · {r.problem}</span>}
           </li>
         ))}

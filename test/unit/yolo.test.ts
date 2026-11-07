@@ -1246,6 +1246,8 @@ describe("source check", () => {
       ],
     ]);
     expect(g.careers.problem).toMatch(/^boards\.greenhouse\.io\/missing: .* \(\+1 more\)$/);
+    // Each site's row links to the page the user entered.
+    expect(g.careers.rows.map((r) => r.url)).toEqual(y.careerSites);
 
     // Read again: the list hasn't changed, so it's a note rather than a problem.
     await discover({ yolo: { ...y, boards: [], jobright: [], careerSites: [] }, fetch: f, now, topUp: true });
