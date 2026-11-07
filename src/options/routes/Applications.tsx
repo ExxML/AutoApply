@@ -199,9 +199,6 @@ export function Applications() {
           {forgetting ? "Forgetting…" : "Forget all failed applications"}
         </button>
       </div>
-      {pendingCount > 0 && (
-        <p class="help">Resumes run one at a time and pause when your YOLO review tab limit is reached.</p>
-      )}
       {showLogs &&
         settings.debugLogging &&
         (logs.length ? (
