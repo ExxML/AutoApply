@@ -76,8 +76,7 @@ export function SourceCheck() {
         ? "Didn't finish"
         : `${queued} queued`;
   return (
-    // Opens itself only for problems; a user's own open or close is left alone otherwise.
-    <details class="card source-check" open={problems > 0} aria-busy={running}>
+    <details class="card source-check" aria-busy={running}>
       <summary>
         <b>Last source check</b>{" "}
         <span class="muted">
