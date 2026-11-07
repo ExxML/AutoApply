@@ -3,7 +3,8 @@ import { isErr, send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
 import type { Application } from "../../shared/yolo";
-import { store, useStored } from "../store";
+import { useStored } from "../store";
+import { QueuedJobs } from "../components/QueuedJobs";
 import { SourceCheck } from "../components/SourceCheck";
 
 const STATUS: Record<Application["status"], string> = {
@@ -77,7 +78,10 @@ export function Applications() {
   const pending = apps.filter((a) => a.review && ["review", "needs", "failed"].includes(a.status)).length;
   return (
     <section>
-      <h1>Applications</h1>
+      <div class="applications-heading">
+        <h1>Applications</h1>
+        <QueuedJobs queue={queue} />
+      </div>
       <p class="intro">
         Every application YOLO made, and the ones you submitted yourself after a fill: none of these are applied to
         again. {today} submitted today.
@@ -286,42 +290,6 @@ export function Applications() {
             ))}
           </tbody>
         </table>
-      )}
-      {queue.length > 0 && (
-        <>
-          <h2>
-            Queued ({queue.length}){" "}
-            <button
-              type="button"
-              class="btn small danger"
-              title="Drop every queued job for now; YOLO can queue them again when it next checks"
-              onClick={() => store.set({ yoloQueue: [] })}
-            >
-              Clear queue
-            </button>
-          </h2>
-          <ul class="queue">
-            {queue.map((i) => (
-              <li>
-                <a href={i.url} target="_blank" rel="noreferrer">
-                  {i.company} – {i.title}
-                </a>{" "}
-                <span class="muted">{i.source}</span>{" "}
-                <button
-                  type="button"
-                  class="btn small danger"
-                  title="Drop this job for now; YOLO can queue it again when it next checks"
-                  aria-label={`Remove ${i.company} – ${i.title} from the queue`}
-                  onClick={async () =>
-                    store.set({ yoloQueue: (await store.get("yoloQueue")).filter((x) => x.key !== i.key) })
-                  }
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
       )}
     </section>
   );

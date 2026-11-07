@@ -492,8 +492,122 @@ label.inline {
 .diff li {
   padding: 3px 0;
 }
-.queue li + li {
-  margin-top: 8px;
+/* Keep queue access visible while browsing a long application history. */
+.applications-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -12px 0 12px;
+  padding: 12px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.applications-heading h1 {
+  margin: 0;
+}
+.queue-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.queue-count {
+  min-width: 24px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.queue-panel {
+  inset: 0;
+  width: min(520px, 100%);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: -8px 0 32px #0002;
+}
+.queue-panel[open] {
+  display: flex;
+  flex-direction: column;
+}
+.queue-panel::backdrop {
+  background: #0005;
+}
+.queue-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.queue-panel-header h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.queue-panel-filters {
+  padding: 16px 20px;
+}
+.queue-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 20px 16px;
+}
+.queued-jobs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.queued-jobs li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.queued-job-info {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.queued-job-info a {
+  display: block;
+  font-weight: 600;
+}
+.queue-panel-header,
+.queue-panel-filters,
+.queue-panel-footer {
+  flex-shrink: 0;
+}
+.queue-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+.queue-panel-footer .help {
+  margin: 0;
+  max-width: 280px;
+}
+.queue-panel-footer .btn {
+  flex-shrink: 0;
 }
 .logs {
   max-height: 60vh;
