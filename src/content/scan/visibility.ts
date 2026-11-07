@@ -1,6 +1,14 @@
 // §11.3 visibility rules.
 
-export function isVisible(el: Element): boolean {
+export const isVisible = (el: Element): boolean => visible(el, true);
+
+/**
+ * isVisible, opacity aside: for reading links, never for fields (honeypots hide with opacity). Fade-in result cards
+ * sit at opacity 0 until scrolled into view, and the hidden host never paints (jobs.sap.com, live 2026-11-07).
+ */
+export const isVisibleAnyOpacity = (el: Element): boolean => visible(el, false);
+
+function visible(el: Element, byOpacity: boolean): boolean {
   if (!el.getClientRects().length) return false;
   if (typeof el.checkVisibility === "function" && !el.checkVisibility({ visibilityProperty: true })) return false;
   const cs = getComputedStyle(el);
@@ -8,7 +16,7 @@ export function isVisible(el: Element): boolean {
   let opacity = 1;
   for (let n: Element | null = el; n && opacity > 0.05; n = parentOf(n)) {
     if (n.getAttribute("aria-hidden") === "true") return false;
-    opacity *= Number(getComputedStyle(n).opacity || 1);
+    if (byOpacity) opacity *= Number(getComputedStyle(n).opacity || 1);
   }
   if (opacity <= 0.05) return false;
   const r = el.getBoundingClientRect();

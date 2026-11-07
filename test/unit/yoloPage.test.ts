@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
 import { botWall, captchaShown, embeddedForm, pageFacts } from "../../src/content/yolo/classify";
 import { cardText } from "../../src/content/yolo/driver";
+import { isVisible, isVisibleAnyOpacity } from "../../src/content/scan/visibility";
 import { indeedCardsInPage, parseIndeed } from "../../src/background/yolo/sources";
 import { confirmation, confirmFirst, kindOf, verifyFailed } from "../../src/background/yolo/classify";
 
@@ -116,6 +117,15 @@ describe("YOLO page kinds", () => {
     expect(card("Stagiaire en développement logiciel - Software developer Intern/Co-op")).toContain("Ciena");
     expect(card("Software Developer Intern, Some Long Team Name Here (Winter 2027)")).toContain("Quebec City");
     expect(card("Software Intern")).toContain("Ciena");
+  });
+
+  it("reads a fade-in job card the hidden host never painted, but not a hidden one", () => {
+    // jobs.sap.com, live: framer-motion holds result cards at opacity 0 until scrolled into view. The layout stub
+    // gives opacity 0 no box, so 0.01 stands in for it.
+    setBody(`<div style="opacity:0.01"><a id="a" href="/en/jobs/1/intern">Intern</a></div>
+      <div aria-hidden="true"><a id="b" href="/en/jobs/2/intern">Intern</a></div>`);
+    const [a, b] = ["a", "b"].map((id) => document.getElementById(id)!);
+    expect([isVisible(a), isVisibleAnyOpacity(a), isVisibleAnyOpacity(b)]).toEqual([false, true, false]);
   });
 
   it("tells a bot check standing in for a scraped page from the page itself", () => {

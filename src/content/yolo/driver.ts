@@ -8,7 +8,7 @@ import { collapse } from "../../shared/normalize";
 import type { Guess } from "../../shared/yolo";
 import { sleep, waitFor } from "../fill/events";
 import { deepQueryAll } from "../scan/traverse";
-import { isVisible } from "../scan/visibility";
+import { isVisible, isVisibleAnyOpacity } from "../scan/visibility";
 import { acceptNotices, emailSignIn, findSignup, forgotPassword, handleAuth, handleVerify, setLogin } from "./auth";
 import { botWall, captchaShown, embeddedForm, pageFacts, pageText, scoreCheck } from "./classify";
 import { IN_HOST } from "./frame";
@@ -113,7 +113,7 @@ export function cardText(a: HTMLElement): string {
 
 function scrapeLinks() {
   return (deepQueryAll("a[href]") as HTMLAnchorElement[])
-    .filter((a) => /^https?:/.test(a.href) && isVisible(a))
+    .filter((a) => /^https?:/.test(a.href) && isVisibleAnyOpacity(a))
     .slice(0, 800)
     .map((a) => ({ href: a.href, text: collapse(a.innerText || a.textContent || ""), card: cardText(a) }));
 }
