@@ -23,7 +23,9 @@ import {
   INDEED_ACCOUNT,
   indeedHost,
   indeedSearch,
+  JOBRIGHT_PAGE,
   jobrightFeed,
+  linkedinPage,
   linkedinSearch,
   parseFeed,
   parseGlassdoor,
@@ -209,7 +211,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   for (const url of y.feeds) await readFeed(url, (body) => parseFeed(body, sourceName(url)));
   await t.done("feeds");
   if (y.jobright.length) {
-    const row = t.row("jobright", "Your recommendations");
+    const row = t.row("jobright", "Your recommendations", JOBRIGHT_PAGE);
     await safely(row, async () => {
       const out: Listing[] = [];
       let page = 0;
@@ -284,7 +286,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     for (const loc of y.locations.length ? y.locations : [""]) {
       const label = `"${q}"${loc ? ` · ${loc}` : ""}`;
       if (y.boards.includes("linkedin")) {
-        const row = t.row("linkedin", label);
+        const row = t.row("linkedin", label, linkedinPage(q, loc, days));
         let read = 0;
         for (let page = 0; page < (d.want ? LINKEDIN_PAGES : 1); page++) {
           let more = false;
@@ -328,7 +330,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
         }
       }
       if (y.boards.includes("glassdoor")) {
-        const row = t.row("glassdoor", label);
+        const row = t.row("glassdoor", label, glassdoorSearch(q, loc, days));
         await safely(row, async () => {
           const r = await d.fetch(glassdoorSearch(q, loc, days), { credentials: "omit" });
           if (!r.ok) t.problem(row, `Glassdoor refused the search (HTTP ${r.status})`, "error");
@@ -338,7 +340,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
         });
       }
       if (indeed) {
-        const row = t.row("indeed", label);
+        const row = t.row("indeed", label, indeedSearch(q, loc, days));
         await safely(row, async () => {
           // Cloudflare guards Indeed's search; YOLO never solves a bot check, it tells the user instead.
           const list = await readIndeed(d, q, loc, days);
@@ -355,7 +357,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
           } else if (!list.length) t.problem(row, "No results read from the search", "info");
           return list ?? [];
         });
-      } else if (indeedWall) t.problem(t.row("indeed", label), "Skipped after the bot check", "info");
+      } else if (indeedWall)
+        t.problem(t.row("indeed", label, indeedSearch(q, loc, days)), "Skipped after the bot check", "info");
     }
   for (const g of ["linkedin", "glassdoor", "indeed"] as const) await t.done(g);
 

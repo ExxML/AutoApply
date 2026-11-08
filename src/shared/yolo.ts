@@ -192,7 +192,7 @@ const level = z.enum(SOURCE_LEVELS).catch("ok");
 const SourceRowSchema = z.object({
   /** One feed, career site, or "query · location" search. */
   label: z.string().catch(""),
-  /** The page the user entered, for a career site; the label links to it. */
+  /** The page the user entered, for a career site, or the search or feed page, for a job board; the label links to it. */
   url: z.string().catch(""),
   found: z.number().catch(0),
   problem: z.string().catch(""),

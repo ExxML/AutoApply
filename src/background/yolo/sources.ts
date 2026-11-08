@@ -97,6 +97,12 @@ const cellText = (s: string) => text(s.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")).
 export const linkedinSearch = (q: string, loc: string, days: number, start = 0) =>
   `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${enc(q)}&location=${enc(loc)}&f_TPR=r${days * 86400}&start=${start}`;
 
+/** The same search on LinkedIn's own page, for the user to open: the guest API above answers bare HTML cards. */
+export const linkedinPage = (q: string, loc: string, days: number) =>
+  `https://www.linkedin.com/jobs/search/?keywords=${enc(q)}&location=${enc(loc)}&f_TPR=r${days * 86400}`;
+/** The page Jobright's recommendation feed (`jobrightFeed`) backs. */
+export const JOBRIGHT_PAGE = "https://jobright.ai/jobs/recommend";
+
 export function parseLinkedIn(html: string): Listing[] {
   return html
     .split('data-entity-urn="urn:li:jobPosting:')
