@@ -189,7 +189,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   };
 
   const readFeed = (url: string, parse: (body: string) => Listing[]) => {
-    const row = t.row("feeds", labelOf(url, sourceName));
+    const row = t.row("feeds", labelOf(url, sourceName), url);
     return safely(row, async () => {
       // Conditional: GitHub answers 304 while the file is unchanged (most polls), so only changes are downloaded.
       const c = s.feedCache[url];
