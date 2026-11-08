@@ -133,6 +133,7 @@ export type Message =
   | { type: "YOLO_SET"; enabled: boolean }
   | { type: "YOLO_CHECK_NOW" }
   | { type: "YOLO_FORCE_BATCH" }
+  | { type: "YOLO_APPLY_QUEUED" }
   | { type: "YOLO_RESUME"; key: string }
   | { type: "YOLO_RESUME_PENDING" }
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
@@ -266,6 +267,7 @@ export interface Responses {
   YOLO_SET: Ok | Err;
   YOLO_CHECK_NOW: Ok;
   YOLO_FORCE_BATCH: Ok | Err;
+  YOLO_APPLY_QUEUED: Ok | Err;
   YOLO_RESUME: Ok | Err;
   YOLO_RESUME_PENDING: { ok: true; queued: number } | Err;
   YOLO_MARK_SUBMITTED: Ok | Err;

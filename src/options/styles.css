@@ -851,6 +851,9 @@ main:has(.applications-table-scroll) {
 .popup .yolo-actions p {
   margin: 4px 0 0;
 }
+.popup .yolo-actions .help + .btn {
+  margin-top: 8px;
+}
 .popup .links {
   display: flex;
   gap: 14px;

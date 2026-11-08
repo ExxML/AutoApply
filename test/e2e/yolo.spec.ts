@@ -417,6 +417,74 @@ test("force batch requires YOLO to be on with a search and leaves its off state 
   await expect(page.getByRole("button", { name: "Force start batch" })).toHaveCount(0);
 });
 
+for (const enabled of [false, true]) {
+  test(`applies queued jobs from the popup without discovery with YOLO ${enabled ? "on" : "off"}`, async ({
+    context,
+    sw,
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await seed(sw, { caps: true });
+    let requests = 0;
+    await context.route("https://autoapply.test/queued-batch.json", async (route) => {
+      requests++;
+      await route.fulfill({ contentType: "application/json", body: "[]" });
+    });
+    const batchAt = await sw.evaluate(async () => {
+      const batchAt = Date.now() - 60_000;
+      await chrome.storage.local.set({
+        yoloState: { batchAt },
+        applications: [{ key: "previous", url: "https://example.com/previous", status: "submitted", at: batchAt + 1 }],
+      });
+      return batchAt;
+    });
+    await queue(sw, `${BASE}yolo-job.html`, {
+      enabled,
+      batchSize: 1,
+      intervalMin: 120,
+      feeds: ["https://autoapply.test/queued-batch.json"],
+    });
+    const id = new URL(sw.url()).host;
+    await page.goto(`chrome-extension://${id}/src/popup/index.html`);
+    const apply = page.getByRole("button", { name: "Apply queued jobs" });
+    await expect(apply).toBeEnabled();
+    await apply.click();
+    await expect(page.getByRole("switch", { name: "YOLO Mode" })).toBeChecked();
+    await expect
+      .poll(async () => (await storage<Application[]>(sw, "applications")).length, { timeout: 90_000 })
+      .toBe(2);
+    const state = await storage<{ batchAt: number; queueOnlyBatch: boolean }>(sw, "yoloState");
+    expect(state).toMatchObject({ queueOnlyBatch: true });
+    expect(state.batchAt).toBeGreaterThan(batchAt);
+    expect(await sw.evaluate(() => chrome.alarms.get("yolo"))).toMatchObject({
+      scheduledTime: state.batchAt + 120 * 60_000,
+      periodInMinutes: 120,
+    });
+    await expect(apply).toBeDisabled();
+    expect(requests).toBe(0);
+    expect(await storage(sw, "applications")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "previous", status: "submitted" })]),
+    );
+  });
+}
+
+test("queued-job batch action updates with the queue and explains a zero application limit", async ({ sw, page }) => {
+  await seed(sw, { caps: true });
+  await queue(sw, `${BASE}yolo-job.html`, { enabled: false, batchSize: 0 });
+  const id = new URL(sw.url()).host;
+  await page.goto(`chrome-extension://${id}/src/popup/index.html`);
+  const apply = page.getByRole("button", { name: "Apply queued jobs" });
+  await expect(apply).toBeDisabled();
+  await expect(page.locator("#queued-batch-help")).toContainText("Set Applications per batch above 0");
+  await sw.evaluate(async () => {
+    const { yolo } = await chrome.storage.local.get<{ yolo: Record<string, unknown> }>("yolo");
+    await chrome.storage.local.set({ yolo: { ...yolo, batchSize: 2 } });
+  });
+  await expect(apply).toBeEnabled();
+  await sw.evaluate(() => chrome.storage.local.set({ yoloQueue: [] }));
+  await expect(apply).toHaveCount(0);
+});
+
 test("with YOLO off, a fill leaves no alarm or hidden page behind", async ({ sw, page }) => {
   await seed(sw, { caps: true });
   await page.goto(`${BASE}plain.html`);

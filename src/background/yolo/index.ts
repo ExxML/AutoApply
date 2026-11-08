@@ -214,6 +214,18 @@ let cycling: Promise<void> | null = null;
 let toppingUp = false;
 /** The batch (its `batchAt`) whose last discovery found nothing new: no top-up until the next batch. */
 let dryBatch = 0;
+
+/** Gives a manually started batch a fresh budget and a full interval before the next scheduled discovery. */
+async function resetBatch(queueOnlyBatch = false) {
+  const batchAt = Date.now();
+  await chrome.alarms.create(CHECK, {
+    when: batchAt + yolo.intervalMin * 60_000,
+    periodInMinutes: yolo.intervalMin,
+  });
+  const state = await store.get("yoloState");
+  await setState({ batchAt, queueOnlyBatch, pauseReason: state.pausedUntil > batchAt ? state.pauseReason : "" });
+}
+
 /**
  * One batch: discovery, then applying to up to `batchSize` jobs. A run in the host keeps it busy, so rendered sources
  * wait for the next batch; a run still going from the last batch counts toward this one. `topUp`: more discovery for
@@ -231,7 +243,7 @@ function cycle(topUp = false): Promise<void> {
     let added = 0;
     try {
       if (!yolo.enabled || !yolo.queries.length) return;
-      if (!topUp) await setState({ batchAt: Date.now(), pauseReason: "" });
+      if (!topUp) await setState({ batchAt: Date.now(), queueOnlyBatch: false, pauseReason: "" });
       const [busy, state] = await Promise.all([getRun(), store.get("yoloState")]);
       batchAt = state.batchAt;
       added = await discover({
@@ -295,6 +307,7 @@ async function checkSignIns(which: { jobright: boolean; indeed: boolean }): Prom
 /** The queue ran dry with the batch short of `batchSize`: finds more now rather than at the next batch. */
 async function topUp(): Promise<boolean> {
   const [state, next] = await Promise.all([store.get("yoloState"), chrome.alarms.get(CHECK)]);
+  if (state.queueOnlyBatch) return false;
   // Not when the next batch, which discovers anyway, is due within minutes (or YOLO was just turned on).
   if (!next || next.scheduledTime - Date.now() < 5 * 60e3) return false;
   if (cycling || !yolo.queries.length || state.batchAt === dryBatch || state.pausedUntil > Date.now()) return false;
@@ -824,6 +837,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       appliedBatch: submittedSince(apps, state.batchAt),
       batchSize: yolo.batchSize,
       queued: queue.length,
+      queueOnlyBatch: state.queueOnlyBatch,
       needsYou: apps.filter((a) => a.status === "needs").length,
       pendingReviews: apps.filter(pendingReview).length,
       preparedBatch: apps.filter((a) => a.review?.preparedAt && a.review.preparedAt >= state.batchAt).length,
@@ -852,6 +866,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_SET({ enabled }) {
     const blocked = enabled ? await resumeBlocker() : "";
     if (blocked) return { error: { kind: "other", message: blocked } };
+    if (enabled) await setState({ queueOnlyBatch: false });
     yolo = { ...yolo, enabled };
     await store.set({ yolo });
     // The new alarm's first firing, 30 s on, starts the first batch.
@@ -868,16 +883,30 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_FORCE_BATCH() {
     if (!yolo.enabled || !yolo.queries.length)
       return { error: { kind: "other", message: "Turn on YOLO with a job search before starting a batch." } };
-    const batchAt = Date.now();
-    await chrome.alarms.create(CHECK, {
-      when: batchAt + yolo.intervalMin * 60_000,
-      periodInMinutes: yolo.intervalMin,
-    });
-    const state = await store.get("yoloState");
-    await setState({ batchAt, pauseReason: state.pausedUntil > batchAt ? state.pauseReason : "" });
+    await resetBatch();
     // The new budget takes effect even during discovery. Reuse that work and any application in flight;
     // otherwise discover for the batch just started, without moving its timestamp again.
     void cycle(true);
+    return { ok: true };
+  },
+
+  async YOLO_APPLY_QUEUED() {
+    if (!yolo.queries.length)
+      return { error: { kind: "other", message: "Add a job search in YOLO settings before starting a batch." } };
+    if (!yolo.batchSize)
+      return { error: { kind: "other", message: "Set Applications per batch above 0 in YOLO settings." } };
+    if (!(await store.get("yoloQueue")).length)
+      return { error: { kind: "other", message: "No queued jobs to apply to." } };
+    const blocked = await resumeBlocker();
+    if (blocked) return { error: { kind: "other", message: blocked } };
+    await resetBatch(true);
+    if (!yolo.enabled) {
+      yolo = { ...yolo, enabled: true };
+      await store.set({ yolo });
+      await schedule();
+    }
+    // Skip the turn-on source checks and discovery. pump still enforces all applying safeguards and limits.
+    void pump();
     return { ok: true };
   },
 

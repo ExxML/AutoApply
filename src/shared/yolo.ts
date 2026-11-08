@@ -242,6 +242,8 @@ export const YoloStateSchema = z.object({
   lastCheckAt: z.number().catch(0),
   /** When the current batch started: its submissions are the ones since. */
   batchAt: z.number().catch(0),
+  /** This batch uses the existing queue, without discovery or automatic top-ups. */
+  queueOnlyBatch: b(false),
   pausedUntil: z.number().catch(0),
   pauseReason: z.string().catch(""),
   gmailNeedsAuth: b(false),
@@ -263,6 +265,7 @@ export interface YoloStatus {
   appliedBatch: number;
   batchSize: number;
   queued: number;
+  queueOnlyBatch?: boolean;
   needsYou: number;
   pendingReviews?: number;
   preparedBatch?: number;

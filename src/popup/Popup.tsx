@@ -2,10 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { ensureContentScript, isErr, send, type TabStatusResponse } from "../shared/messages";
 import { formatTime } from "../shared/time";
 import type { StatusCounts } from "../shared/types";
-import { createStorage } from "../shared/storage";
 import type { YoloStatus } from "../shared/yolo";
-
-const store = createStorage("popup");
 
 export function statusText(r: TabStatusResponse | null): string {
   const frames = Object.values(r?.status?.frames ?? {});
@@ -38,6 +35,7 @@ export function yoloText(y: YoloStatus): string {
     ]),
     line([
       y.pendingReviews ? `${y.pendingReviews} awaiting your review` : "",
+      y.queueOnlyBatch ? "Queued jobs only this batch" : "",
       y.queued ? `${y.queued} queued` : "",
       y.needsYou ? `${y.needsYou} need you` : "",
       y.paused,
@@ -55,7 +53,7 @@ export function Popup() {
   const [info, setInfo] = useState<TabStatusResponse | null>(null);
   const [msg, setMsg] = useState("");
   const [yolo, setYolo] = useState<YoloStatus | null>(null);
-  const [startingBatch, setStartingBatch] = useState(false);
+  const [startingBatch, setStartingBatch] = useState<"discover" | "queue" | null>(null);
   const [batchError, setBatchError] = useState("");
 
   const host = (() => {
@@ -70,8 +68,13 @@ export function Popup() {
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([t]) => setTab(t ?? null));
     const loadYolo = () => void send({ type: "YOLO_STATUS" }).then(setYolo);
     loadYolo();
-    // A source check finishing after turn-on lands here, so its warning shows while the popup is open.
-    return store.onChange(["yoloState"], loadYolo);
+    // Watch key names only; the background supplies the popup's status without exposing raw settings or jobs.
+    const changed = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+      if (area === "local" && ["yolo", "yoloState", "yoloQueue", "applications"].some((key) => key in changes))
+        loadYolo();
+    };
+    chrome.storage.onChanged.addListener(changed);
+    return () => chrome.storage.onChanged.removeListener(changed);
   }, []);
 
   const setYoloOn = async (enabled: boolean) => {
@@ -82,18 +85,18 @@ export function Popup() {
     setYolo(await send({ type: "YOLO_STATUS" }));
   };
 
-  const forceBatch = async () => {
+  const startBatch = async (queueOnly = false) => {
     if (startingBatch) return;
-    setStartingBatch(true);
+    setStartingBatch(queueOnly ? "queue" : "discover");
     setBatchError("");
     try {
-      const r = await send({ type: "YOLO_FORCE_BATCH" });
+      const r = await send(queueOnly ? { type: "YOLO_APPLY_QUEUED" } : { type: "YOLO_FORCE_BATCH" });
       if (isErr(r)) setBatchError(r.error.message);
       setYolo(await send({ type: "YOLO_STATUS" }));
     } catch {
       setBatchError("Couldn't start a batch. Please try again.");
     } finally {
-      setStartingBatch(false);
+      setStartingBatch(null);
     }
   };
 
@@ -174,20 +177,39 @@ export function Popup() {
           </a>
         </p>
       )}
-      {yolo?.enabled && yolo.searches > 0 && (
+      {yolo && yolo.searches > 0 && (yolo.enabled || yolo.queued > 0) && (
         <div class="yolo-actions">
+          {yolo.enabled && (
+            <>
+              <button
+                type="button"
+                class="btn"
+                onClick={() => void startBatch()}
+                disabled={!!startingBatch}
+                aria-describedby="force-batch-help"
+                aria-busy={startingBatch === "discover"}
+              >
+                {startingBatch === "discover" ? "Starting batch…" : "Force start batch"}
+              </button>
+              <p id="force-batch-help" class="help">
+                Starts a new batch now and resets the next batch timer.
+              </p>
+            </>
+          )}
           <button
             type="button"
             class="btn"
-            onClick={() => void forceBatch()}
-            disabled={startingBatch}
-            aria-describedby="force-batch-help"
-            aria-busy={startingBatch}
+            onClick={() => void startBatch(true)}
+            disabled={!!startingBatch || !yolo.queued || !yolo.batchSize}
+            aria-describedby="queued-batch-help"
+            aria-busy={startingBatch === "queue"}
           >
-            {startingBatch ? "Starting batch…" : "Force start batch"}
+            {startingBatch === "queue" ? "Starting batch…" : "Apply queued jobs"}
           </button>
-          <p id="force-batch-help" class="help">
-            Starts a new batch now and resets the next batch timer.
+          <p id="queued-batch-help" class="help">
+            {!yolo.batchSize
+              ? "Set Applications per batch above 0 in Settings → YOLO mode."
+              : "Uses only queued jobs for this batch. Turns YOLO on and resets the timer; scheduled batches still find new jobs."}
           </p>
           {batchError && (
             <p class="err" role="alert">
