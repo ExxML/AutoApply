@@ -19,6 +19,7 @@ import { updateQueue } from "./applicationStore";
 import { getRun } from "./runner";
 import { plainError, startSourceCheck } from "./sourceCheck";
 import {
+  glassdoorMore,
   glassdoorSearch,
   INDEED_ACCOUNT,
   indeedHost,
@@ -41,9 +42,9 @@ import {
 const store = createStorage("background");
 /** Postings checked by the AI per cycle; the rest wait for the next one. */
 const BATCH = 60;
-/** LinkedIn search pages read per search, to the end of its results, a second apart at most. */
-const LINKEDIN_PAGES = 30;
-const LINKEDIN_GAP_MS = 1000;
+/** Board search pages read per search, to the end of its results, a second apart at most. */
+const PAGES = 30;
+const PAGE_GAP_MS = 1000;
 /**
  * LinkedIn answers about 1 logged-out search in 4 with a 429 at random, at any pace (10 s apart too), and the same page
  * asked again 2 s later is usually answered (live, 2026-11-07). Retried 2, 4 then 6 s on.
@@ -134,22 +135,23 @@ export async function indeedSignedOutNow(fetch: Fetcher): Promise<boolean | null
 }
 
 /**
- * One Indeed search, read as the signed-in user: fetched with their cookies, and when Cloudflare checks the fetch, read
- * in a tab once the user has cleared the check there. null = a bot check stood in both ways.
+ * One Indeed search page (from 0), read as the signed-in user: fetched with their cookies, and when Cloudflare checks
+ * the fetch, read in a tab once the user has cleared the check there. null = a bot check stood in both ways.
  */
 export async function readIndeed(
   d: Pick<DiscoverDeps, "fetch" | "indeedTab">,
   q: string,
   loc: string,
   days: number,
+  page = 0,
 ): Promise<Listing[] | null> {
-  const url = indeedSearch(q, loc, days);
+  const url = indeedSearch(q, loc, days, page);
   const host = indeedHost(loc);
   const r = await d.fetch(url, { credentials: "include" });
   const list = r.ok ? parseIndeed(await r.text(), host) : null;
   if (list || !d.indeedTab) return list;
-  const page = await d.indeedTab(url);
-  return page === null ? null : (parseIndeed(page, host) ?? []);
+  const html = await d.indeedTab(url);
+  return html === null ? null : (parseIndeed(html, host) ?? []);
 }
 
 const sourceName = (url: string) => {
@@ -270,11 +272,11 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   const days = y.postedWithinDays;
   /** One LinkedIn search from `page` on, to its last page; `last` = already put aside once. */
   const searchLinkedIn = async (q: string, loc: string, row: SourceRow, page = 0, read = 0, last = false) => {
-    for (; page < LINKEDIN_PAGES; page++) {
+    for (; page < PAGES; page++) {
       const at = page;
       let more = false;
       await safely(row, async () => {
-        const wait = linkedinAt + LINKEDIN_GAP_MS - Date.now();
+        const wait = linkedinAt + PAGE_GAP_MS - Date.now();
         if (linkedinAt && wait > 0) await new Promise((r) => setTimeout(r, wait));
         const ask = () => (
           (linkedinAt = Date.now()),
@@ -313,6 +315,27 @@ export async function discover(d: DiscoverDeps): Promise<number> {
       if (!more) break;
     }
   };
+  /**
+   * One Glassdoor, ZipRecruiter or Indeed search, page by page from 0, a second apart, to its last page or PAGES: `read`
+   * gives a page's postings, or undefined once there are no more (the end, or a failure it reported). `seen` holds the
+   * URLs of the pages before; a posting shown on two pages is read once.
+   */
+  const paged = async (
+    row: SourceRow,
+    read: (page: number, seen: ReadonlySet<string>) => Promise<Listing[] | undefined>,
+  ) => {
+    const seen = new Set<string>();
+    for (let page = 0; page < PAGES; page++) {
+      if (page) await new Promise((r) => setTimeout(r, PAGE_GAP_MS));
+      let more = false;
+      await safely(row, async () => {
+        const list = await read(page, seen);
+        more = !!list;
+        return (list ?? []).filter((l) => !seen.has(l.url) && !!seen.add(l.url));
+      });
+      if (!more) break;
+    }
+  };
   // Indeed is searched only as the signed-in user: signed out, it's skipped and the user told.
   let indeed = false;
   /** Indeed's search showed a bot check this cycle: the searches after it are skipped. */
@@ -335,37 +358,52 @@ export async function discover(d: DiscoverDeps): Promise<number> {
         await searchLinkedIn(q, loc, t.row("linkedin", label, linkedinPage(q, loc, days)));
       if (y.boards.includes("glassdoor")) {
         const row = t.row("glassdoor", label, glassdoorSearch(q, loc, days));
-        await safely(row, async () => {
-          const r = await d.fetch(glassdoorSearch(q, loc, days), { credentials: "omit" });
-          if (!r.ok) t.problem(row, `Glassdoor refused the search (HTTP ${r.status})`, "error");
-          const list = r.ok ? parseGlassdoor(await r.text(), now) : [];
-          if (r.ok && !list.length) t.problem(row, "No results read from the page (none, or a bot check)", "warn");
-          return list;
+        let cursor: string | undefined;
+        await paged(row, async (page) => {
+          if (page && !cursor) return undefined;
+          const { url, init } = page
+            ? glassdoorMore(q, loc, days, page + 1, cursor!)
+            : { url: glassdoorSearch(q, loc, days), init: { credentials: "omit" } as const };
+          const r = await d.fetch(url, init);
+          if (!r.ok)
+            t.problem(row, `Glassdoor refused the search (HTTP ${r.status})${pages(page)}`, page ? "warn" : "error");
+          const { jobs, next } = r.ok ? parseGlassdoor(await r.text(), page + 1, now) : { jobs: [] };
+          if (r.ok && !jobs.length && !page)
+            t.problem(row, "No results read from the page (none, or a bot check)", "warn");
+          cursor = next;
+          return jobs.length ? jobs : undefined;
         });
       }
       if (y.boards.includes("ziprecruiter")) {
         const row = t.row("ziprecruiter", label, zipRecruiterSearch(q, loc, days));
-        await safely(row, async () => {
-          const r = await d.fetch(zipRecruiterSearch(q, loc, days), { credentials: "omit" });
+        let checked = 0;
+        await paged(row, async (page) => {
+          const r = await d.fetch(zipRecruiterSearch(q, loc, days, page), { credentials: "omit" });
           // Cloudflare checks about half of ZipRecruiter's searches at random (live, 2026-11-07).
-          if (r.headers.get("cf-mitigated") === "challenge")
+          if (r.headers.get("cf-mitigated") === "challenge") {
             t.problem(
               row,
-              "A bot check (Cloudflare) stood in for the search. YOLO searches again next check",
+              `A bot check (Cloudflare) stood in for the search${page ? ` on page ${page + 1}` : ""}. YOLO searches again next check`,
               "warn",
             );
-          else if (!r.ok) t.problem(row, `ZipRecruiter refused the search (HTTP ${r.status})`, "error");
+            // Random, so the next page is likely read; two in a row, the search is left for the next check.
+            return ++checked < 2 ? [] : undefined;
+          }
+          checked = 0;
+          if (!r.ok)
+            t.problem(row, `ZipRecruiter refused the search (HTTP ${r.status})${pages(page)}`, page ? "warn" : "error");
           const list = r.ok ? parseZipRecruiter(await r.text()) : [];
-          if (r.ok && !list.length) t.problem(row, "No results read from the page", "info");
-          return list;
+          if (r.ok && !list.length && !page) t.problem(row, "No results read from the page", "info");
+          // An empty page is past the last. Not "nothing new": its pages shuffle between asks (live, 2026-11-08).
+          return list.length ? list : undefined;
         });
       }
       if (indeed) {
         const row = t.row("indeed", label, indeedSearch(q, loc, days));
-        await safely(row, async () => {
+        await paged(row, async (page, seen) => {
           // Cloudflare guards Indeed's search; a blocked fetch opens the search in a visible tab.
-          const list = await readIndeed(d, q, loc, days);
-          await d.indeedBlocked?.(!list);
+          const list = await readIndeed(d, q, loc, days, page);
+          if (!page || !list) await d.indeedBlocked?.(!list);
           // Blocked both ways: the searches after it would be too, each one a tab.
           if (!list) {
             indeed = false;
@@ -375,8 +413,11 @@ export async function discover(d: DiscoverDeps): Promise<number> {
               "A bot check (Cloudflare) stood in for the search and wasn't ticked in the tab YOLO opened. Tick it on indeed.com in this browser and YOLO reads Indeed next check",
               "error",
             );
-          } else if (!list.length) t.problem(row, "No results read from the search", "info");
-          return list ?? [];
+            return undefined;
+          }
+          if (!list.length && !page) t.problem(row, "No results read from the search", "info");
+          // Nothing new (or nothing) ends the search: a page past the last has no new postings to read.
+          return list.some((l) => !seen.has(l.url)) ? list : undefined;
         });
       } else if (indeedWall)
         t.problem(t.row("indeed", label, indeedSearch(q, loc, days)), "Skipped after the bot check", "info");

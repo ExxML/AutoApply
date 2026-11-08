@@ -3,7 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { installChromeMock } from "./chromeMock";
 import { altKey, applyUrl, jobKey } from "../../src/background/yolo/jobKey";
 import {
+  glassdoorMore,
   glassdoorSearch,
+  indeedSearch,
   jobrightFeed,
   parseFeed,
   parseGlassdoor,
@@ -38,6 +40,46 @@ import { defaultYolo, YoloSchema, type Application, type Listing, type SourceChe
 import type { FieldDescriptor } from "../../src/shared/types";
 
 beforeAll(() => loadPlaces(() => readFile(`public/${PLACES_FILE}`, "utf8")));
+
+/** A Glassdoor search's results object, as page 1's payload and the "Show more jobs" answer carry it. */
+const glassdoorResults = (
+  jobs: {
+    id: number;
+    title?: string;
+    company?: string;
+    location?: string;
+    age?: number;
+    easy?: boolean;
+    expired?: boolean;
+    host?: string;
+  }[],
+  cursors: number[] = [],
+) => ({
+  jobListings: jobs.map((j) => ({
+    jobview: {
+      header: {
+        jobTitleText: j.title ?? `Student, Software Test ${j.id}`,
+        seoJobLink: `https://${j.host ?? "www.glassdoor.ca"}/job-listing/x-JV_IC1.htm?jl=${j.id}`,
+        employer: { shortName: j.company ?? "" },
+        employerNameFromSearch: j.company ?? "Co",
+        locationName: j.location ?? "London",
+        ageInDays: j.age ?? 0,
+        easyApply: !!j.easy,
+        expired: !!j.expired,
+      },
+      job: { listingId: j.id },
+    },
+  })),
+  paginationCursors: cursors.map((n) => ({ cursor: `cursor-${n}`, pageNumber: n })),
+  totalJobsCount: jobs.length,
+});
+/** A Glassdoor search page: its results streamed in the Next.js payload, in pieces. */
+const glassdoorPage = (results: object) => {
+  const payload = `9:["$","div",null,{"jobListings":${JSON.stringify(results)}}]`;
+  return [payload.slice(0, 30), payload.slice(30)]
+    .map((p) => `<script>self.__next_f.push([1,${JSON.stringify(p)}])</script>`)
+    .join("");
+};
 
 describe("job keys", () => {
   it("names a Workday requisition once across its location copies and apply steps", () => {
@@ -169,24 +211,54 @@ describe("sources", () => {
     ]);
   });
 
-  it("reads Glassdoor cards, marking Easy Apply ones", () => {
-    const card = (id: string, easy: boolean) => `<li data-jobid="${id}"><div data-test="job-card-wrapper">
-      <span class="EmployerProfile_compactEmployerName__9MGcV">General Dynamics</span>
-      <a data-test="job-title" href="https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=${id}" id="job-title-${id}">Student, Software Test</a>
-      <div data-test="emp-location" id="job-location-${id}">London</div>
-      ${easy ? '<button aria-label="Easy Apply"></button>' : ""}<div data-test="job-age">3d</div></div></li>`;
+  it("reads Glassdoor results from page 1's Next.js payload and from later pages' JSON, with the next page's cursor", () => {
     const now = Date.UTC(2026, 9, 26);
-    const out = parseGlassdoor(card("1", false) + card("2", true), now);
-    expect(out[0]).toMatchObject({
-      url: "https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=1",
-      title: "Student, Software Test",
-      company: "General Dynamics",
-      location: "London",
-      postedAt: now - 3 * 86400e3,
-      source: "glassdoor",
+    const results = glassdoorResults(
+      [
+        { id: 1, company: "General Dynamics", age: 3 },
+        { id: 2, easy: true, host: "fr.glassdoor.ca" },
+        { id: 3, expired: true },
+        { id: 1 },
+      ],
+      [2, 3],
+    );
+    const page1 = parseGlassdoor(glassdoorPage(results), 1, now);
+    expect(page1.jobs).toEqual([
+      {
+        url: "https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=1",
+        title: "Student, Software Test 1",
+        company: "General Dynamics",
+        location: "London",
+        postedAt: now - 3 * 86400e3,
+        source: "glassdoor",
+        easyApply: undefined,
+      },
+      expect.objectContaining({ url: "https://www.glassdoor.ca/job-listing/x-JV_IC1.htm?jl=2", easyApply: true }),
+    ]);
+    expect(page1.next).toBe("cursor-2");
+    // The "Show more jobs" answer: the same object, under data.
+    const page2 = parseGlassdoor(JSON.stringify({ data: { jobListings: results } }), 2, now);
+    expect(page2.jobs.map((l) => l.url)).toEqual(page1.jobs.map((l) => l.url));
+    expect(page2.next).toBe("cursor-3");
+    expect(parseGlassdoor(JSON.stringify({ data: { jobListings: results } }), 3, now).next).toBeUndefined();
+    // A bot check's page carries no payload.
+    expect(parseGlassdoor("<title>Just a moment...</title>")).toEqual({ jobs: [], next: undefined });
+    expect(parseGlassdoor("{not json")).toEqual({ jobs: [], next: undefined });
+  });
+
+  it("asks Glassdoor for a later page as its Show more jobs button does", () => {
+    const { url, init } = glassdoorMore("Software Intern", "Canada", 14, 2, "c2");
+    expect(url).toBe("https://www.glassdoor.ca/job-search-next/bff/jobSearchResultsQuery");
+    expect(init).toMatchObject({ method: "POST", credentials: "omit" });
+    expect(JSON.parse(init.body)).toMatchObject({
+      keyword: "software intern",
+      filterParams: [{ filterKey: "fromAge", values: "14" }],
+      originalPageUrl: "https://www.glassdoor.ca/Job/software-intern-jobs-SRCH_KO0,15.htm?fromAge=14",
+      pageCursor: "c2",
+      pageNumber: 2,
+      parameterUrlInput: "KO0,15",
+      seoFriendlyUrlInput: "software-intern-jobs",
     });
-    expect(out[0].easyApply).toBeUndefined();
-    expect(out[1].easyApply).toBe(true);
   });
 
   it("reads ZipRecruiter's result cards from the Next.js payload its search page streams, marking Quick Apply ones", () => {
@@ -234,6 +306,9 @@ describe("sources", () => {
     expect(parseZipRecruiter("<title>Just a moment...</title>")).toEqual([]);
     expect(zipRecruiterSearch("C++ intern", "Toronto, ON", 14)).toBe(
       "https://www.ziprecruiter.com/jobs-search?search=C%2B%2B%20intern&location=Toronto%2C%20ON&days=14",
+    );
+    expect(zipRecruiterSearch("C++ intern", "Toronto, ON", 14, 1)).toBe(
+      "https://www.ziprecruiter.com/jobs-search/2?search=C%2B%2B%20intern&location=Toronto%2C%20ON&days=14",
     );
   });
 
@@ -919,9 +994,17 @@ describe("discovery", () => {
       locations: ["Kanata, Ottawa, ON, Canada"],
       active: true,
     }));
-    const glassdoor = `<li data-jobid="1"><span class="EmployerProfile_compactEmployerName__x">Aptiv</span>
-      <a data-test="job-title" href="https://fr.glassdoor.ca/job-listing/x.htm?jl=1">Cloud Software Engineering Intern</a>
-      <div data-test="emp-location">Ottawa</div></li>`;
+    const glassdoor = glassdoorPage(
+      glassdoorResults([
+        {
+          id: 1,
+          company: "Aptiv",
+          title: "Cloud Software Engineering Intern",
+          location: "Ottawa",
+          host: "fr.glassdoor.ca",
+        },
+      ]),
+    );
     const f = async (url: string) =>
       new Response(url.includes("glassdoor") ? glassdoor : url.includes("greenhouse") ? "" : JSON.stringify(rows), {
         status: url.includes("greenhouse") || url.includes("lever") || url.includes("ashby") ? 404 : 200,
@@ -938,23 +1021,65 @@ describe("discovery", () => {
     expect(queued[0].sourceGroups).toEqual(expect.arrayContaining(["feeds", "glassdoor"]));
   });
 
-  it("queues ZipRecruiter jobs on their posting page and reports a search a bot check stood in for", async () => {
-    const cards = [
-      {
-        title: "Software Engineer Intern",
-        rawCanonicalZipJobPageUrl: "/c/Nobody/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=9f",
-        company: { name: "Nobody" },
-        display: { location: "Ottawa, ON" },
-        applyButtonConfig: { applyButtonType: 4 },
-      },
-    ];
-    const page = `<script>self.__next_f.push([1,${JSON.stringify(`"jobCards":${JSON.stringify(cards)}`)}])</script>`;
-    const f = async (url: string) =>
-      !url.includes("ziprecruiter")
-        ? new Response("", { status: 404 })
-        : url.includes("search=Software")
-          ? new Response(page)
-          : new Response("<title>Just a moment...</title>", { status: 403, headers: { "cf-mitigated": "challenge" } });
+  it("reads every page of a Glassdoor search, each later one at the cursor the page before gave", async () => {
+    const later = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => later(fn, 0)) as typeof setTimeout);
+    onTestFinished(() => void vi.restoreAllMocks());
+    const job = (id: number) => ({ id, company: `Co${id}`, title: "Software Engineer Intern", location: "Ottawa" });
+    const asked: [string, unknown][] = [];
+    const f = async (url: string, init?: RequestInit) => {
+      if (!url.includes("glassdoor")) return new Response("", { status: 404 });
+      const body = init?.body ? (JSON.parse(init.body as string) as { pageNumber: number; pageCursor: string }) : null;
+      asked.push([url.replace(/^https:\/\/www\.glassdoor\.ca/, ""), body && [body.pageNumber, body.pageCursor]]);
+      // Page 2 shows page 1's last posting again; page 3 is the last (no cursor past it).
+      if (!body) return new Response(glassdoorPage(glassdoorResults([job(1), job(2)], [2, 3])));
+      const results =
+        body.pageNumber === 2 ? glassdoorResults([job(2), job(3)], [1, 3, 4]) : glassdoorResults([job(4)], [1, 2]);
+      return new Response(JSON.stringify({ data: { jobListings: results } }));
+    };
+    const y = {
+      ...defaultYolo(),
+      queries: ["Software Engineer Intern"],
+      locations: ["Canada"],
+      feeds: [],
+      boards: ["glassdoor" as const],
+    };
+    expect(await discover({ yolo: y, fetch: f })).toBe(4);
+    expect(asked).toEqual([
+      ["/Job/software-engineer-intern-jobs-SRCH_KO0,24.htm?fromAge=14", null],
+      ["/job-search-next/bff/jobSearchResultsQuery", [2, "cursor-2"]],
+      ["/job-search-next/bff/jobSearchResultsQuery", [3, "cursor-3"]],
+    ]);
+    const { yoloSourceCheck } = (await chrome.storage.local.get("yoloSourceCheck")) as { yoloSourceCheck: SourceCheck };
+    expect(yoloSourceCheck.groups[0].rows[0]).toMatchObject({ found: 4, level: "ok" });
+  });
+
+  it("queues ZipRecruiter jobs from every page of a search, past a page a bot check stood in for", async () => {
+    const later = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => later(fn, 0)) as typeof setTimeout);
+    onTestFinished(() => void vi.restoreAllMocks());
+    const card = (jid: string) => ({
+      title: "Software Engineer Intern",
+      rawCanonicalZipJobPageUrl: `/c/Nobody${jid}/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=${jid}`,
+      company: { name: `Nobody${jid}` },
+      display: { location: "Ottawa, ON" },
+      applyButtonConfig: { applyButtonType: 4 },
+    });
+    const page = (...jids: string[]) =>
+      new Response(
+        `<script>self.__next_f.push([1,${JSON.stringify(`"jobCards":${JSON.stringify(jids.map(card))}`)}])</script>`,
+      );
+    const challenge = () =>
+      new Response("<title>Just a moment...</title>", { status: 403, headers: { "cf-mitigated": "challenge" } });
+    const asked: string[] = [];
+    const f = async (url: string) => {
+      if (!url.includes("ziprecruiter")) return new Response("", { status: 404 });
+      asked.push(url.replace(/\?.*/, "").replace("https://www.ziprecruiter.com", ""));
+      if (!url.includes("search=Software")) return challenge();
+      const n = /jobs-search\/(\d+)/.exec(url)?.[1] ?? "1";
+      // Page 2 is checked; page 3 repeats a posting of page 1 (its pages shuffle); page 4 is past the last.
+      return n === "1" ? page("9f") : n === "2" ? challenge() : n === "3" ? page("9f", "8e") : page();
+    };
     const y = {
       ...defaultYolo(),
       queries: ["Software Engineer Intern", "Co-op"],
@@ -962,18 +1087,27 @@ describe("discovery", () => {
       feeds: [],
       boards: ["ziprecruiter" as const],
     };
-    expect(await discover({ yolo: y, fetch: f })).toBe(1);
+    expect(await discover({ yolo: y, fetch: f })).toBe(2);
+    // Two checked pages in a row leave the search for the next check.
+    expect(asked).toEqual([
+      "/jobs-search",
+      "/jobs-search/2",
+      "/jobs-search/3",
+      "/jobs-search/4",
+      "/jobs-search",
+      "/jobs-search/2",
+    ]);
     const { yoloQueue, yoloSourceCheck } = (await chrome.storage.local.get(["yoloQueue", "yoloSourceCheck"])) as {
       yoloQueue: { url: string; sourceGroups: string[] }[];
       yoloSourceCheck: SourceCheck;
     };
     expect(yoloQueue[0]).toMatchObject({
-      url: "https://www.ziprecruiter.com/c/Nobody/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=9f",
+      url: "https://www.ziprecruiter.com/c/Nobody9f/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=9f",
       sourceGroups: ["ziprecruiter"],
     });
-    expect(yoloSourceCheck.groups[0].rows.map((r) => [r.label, r.level, r.problem ?? ""])).toEqual([
-      ['"Software Engineer Intern" · Canada', "ok", ""],
-      ['"Co-op" · Canada', "warn", expect.stringMatching(/^A bot check \(Cloudflare\) stood in for the search/)],
+    expect(yoloSourceCheck.groups[0].rows.map((r) => [r.label, r.found, r.level, r.problem ?? ""])).toEqual([
+      ['"Software Engineer Intern" · Canada', 2, "warn", expect.stringMatching(/^A bot check .* on page 2\./)],
+      ['"Co-op" · Canada', 0, "warn", expect.stringMatching(/^A bot check \(Cloudflare\) stood in for the search\./)],
     ]);
   });
 
@@ -1187,6 +1321,9 @@ describe("discovery", () => {
   });
 
   it("searches Indeed as the signed-in user, in a tab when Cloudflare checks the fetch, and tells what stood in", async () => {
+    const later = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => later(fn, 0)) as typeof setTimeout);
+    onTestFinished(() => void vi.restoreAllMocks());
     const page = (jk: string) =>
       `<script>window.mosaic.providerData["mosaic-provider-jobcards"]=${JSON.stringify({
         metaData: {
@@ -1206,7 +1343,8 @@ describe("discovery", () => {
       jobright: [],
     };
     let signedIn = true;
-    let search: () => Response = () => new Response(page("a1"));
+    // Page 2 is shown again past it: the search ends there.
+    let search = (url: string) => new Response(page(url.includes("&start=") ? "a2" : "a1"));
     const asked: [string, string | undefined, RequestCredentials | undefined][] = [];
     const f = async (url: string, init?: RequestInit) => {
       // Indeed's own requests: an employer-board lookup per posting follows, as for every board.
@@ -1218,7 +1356,7 @@ describe("discovery", () => {
         });
         return r;
       }
-      if (url.startsWith("https://ca.indeed.com/jobs?")) return search();
+      if (url.startsWith("https://ca.indeed.com/jobs?")) return search(url);
       return new Response("", { status: 404 });
     };
     const tabbed: string[] = [];
@@ -1234,10 +1372,13 @@ describe("discovery", () => {
         indeedBlocked: (b) => blocked.push(b),
       });
 
-    // Signed in, the fetch passes: no tab, and the user's cookies go with both requests.
-    expect(await run()).toBe(1);
+    // Signed in, the fetch passes: no tab, the user's cookies go with every request, and each page is read until one
+    // has nothing new.
+    expect(await run()).toBe(2);
     expect(asked).toEqual([
       ["https://secure.indeed.com/settings/account", "HEAD", "include"],
+      ["https://ca.indeed.com/jobs", undefined, "include"],
+      ["https://ca.indeed.com/jobs", undefined, "include"],
       ["https://ca.indeed.com/jobs", undefined, "include"],
     ]);
     expect(tabbed).toEqual([]);
@@ -1247,7 +1388,11 @@ describe("discovery", () => {
     search = () => new Response("<title>Just a moment...</title>", { status: 403 });
     tab = page("b2").replace(/^<script>|<\/script>$/g, "");
     expect(await run()).toBe(1);
-    expect(tabbed).toEqual(["https://ca.indeed.com/jobs?q=Software%20Intern&l=Canada&fromage=14&sort=date"]);
+    expect(tabbed).toEqual([
+      "https://ca.indeed.com/jobs?q=Software%20Intern&l=Canada&fromage=14&sort=date",
+      "https://ca.indeed.com/jobs?q=Software%20Intern&l=Canada&fromage=14&sort=date&start=10",
+    ]);
+    expect(indeedSearch("Software Intern", "Canada", 14, 3)).toMatch(/&sort=date&start=30$/);
 
     // Checked both ways: nothing, and the user told.
     installChromeMock();

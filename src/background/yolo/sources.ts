@@ -143,38 +143,111 @@ const GLASSDOOR_HOSTS: Record<string, string> = {
  * live, 2026-11-03), so the location filter does that part.
  */
 export const glassdoorSearch = (q: string, loc: string, days: number) => {
-  const kw = normalize(q)
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `https://${GLASSDOOR_HOSTS[countryOf(loc)] ?? "www.glassdoor.com"}/Job/${kw}-jobs-SRCH_KO0,${kw.length}.htm?fromAge=${Math.min(days, 30)}`;
+  const { host, kw, age } = glassdoorParts(q, loc, days);
+  return `https://${host}/Job/${kw}-jobs-SRCH_KO0,${kw.length}.htm?fromAge=${age}`;
 };
+const glassdoorParts = (q: string, loc: string, days: number) => ({
+  host: GLASSDOOR_HOSTS[countryOf(loc)] ?? "www.glassdoor.com",
+  kw: normalize(q)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, ""),
+  age: Math.min(days, 30),
+});
 
-export function parseGlassdoor(html: string, now = Date.now()): Listing[] {
+/**
+ * The search's page `page` (from 2) as its "Show more jobs" button asks for it, at the cursor an earlier page gave
+ * (`parseGlassdoor`): the search page itself always shows page 1, whatever page its URL names (live, 2026-11-08).
+ */
+export function glassdoorMore(q: string, loc: string, days: number, page: number, cursor: string) {
+  const { host, kw, age } = glassdoorParts(q, loc, days);
+  return {
+    url: `https://${host}/job-search-next/bff/jobSearchResultsQuery`,
+    init: {
+      method: "POST",
+      credentials: "omit",
+      headers: { "Content-Type": "application/json" },
+      // As the page sends it.
+      body: JSON.stringify({
+        excludeJobListingIds: [],
+        filterParams: [{ filterKey: "fromAge", values: String(age) }],
+        includeIndeedJobAttributes: true,
+        keyword: kw.replace(/-/g, " "),
+        locationId: 0,
+        numJobsToShow: 30,
+        originalPageUrl: glassdoorSearch(q, loc, days),
+        pageCursor: cursor,
+        pageNumber: page,
+        pageType: "SERP",
+        parameterUrlInput: `KO0,${kw.length}`,
+        queryString: `fromAge=${age}`,
+        seoFriendlyUrlInput: `${kw}-jobs`,
+        seoUrl: true,
+      }),
+    } satisfies RequestInit,
+  };
+}
+
+interface GlassdoorResults {
+  jobListings?: {
+    jobview?: {
+      header?: {
+        jobTitleText?: string;
+        /** The posting's page, `?jl=<listingId>`. */
+        seoJobLink?: string;
+        employer?: { shortName?: string };
+        employerNameFromSearch?: string;
+        locationName?: string;
+        /** 0 = within the last day ("24h"). */
+        ageInDays?: number;
+        easyApply?: boolean;
+        expired?: boolean;
+      };
+      job?: { listingId?: number };
+    };
+  }[];
+  /** Cursors to the pages around this one, by page number (from 1). */
+  paginationCursors?: { cursor?: string; pageNumber?: number }[];
+}
+
+/**
+ * Page `page` (from 1) of a Glassdoor search: its postings, and the cursor to the next page (none = the last). Read from
+ * the results object page 1 carries in its Next.js payload, or `glassdoorMore`'s JSON answer for the later pages: the
+ * same object either way. [] = no results (none, or a bot check stood in for the page).
+ */
+export function parseGlassdoor(body: string, page = 1, now = Date.now()): { jobs: Listing[]; next?: string } {
+  let r: GlassdoorResults | null = null;
+  if (body.trimStart().startsWith("{")) {
+    try {
+      r = (JSON.parse(body) as { data?: { jobListings?: GlassdoorResults } }).data?.jobListings ?? null;
+    } catch {
+      // Not JSON after all: no results.
+    }
+  } else {
+    const rsc = nextPayload(body);
+    const at = rsc.indexOf('"jobListings":{');
+    r = at < 0 ? null : (objectAt(rsc, at + 14) as GlassdoorResults | null);
+  }
   const seen = new Set<string>();
-  return html
-    .split('data-jobid="')
-    .slice(1)
-    .flatMap((c) => {
-      const id = /^\d+/.exec(c)?.[0];
-      const link = /data-test="job-title"[^>]*href="([^"]+)"[^>]*>([^<]*)/.exec(c);
-      if (!id || !link || seen.has(id)) return [];
-      seen.add(id);
-      const pick = (re: RegExp) => text(re.exec(c)?.[1] ?? "");
-      const age = /data-test="job-age"[^>]*>([^<]*)/.exec(c)?.[1] ?? "";
-      const n = Number(/\d+/.exec(age)?.[0] ?? NaN);
-      return [
-        {
-          // Glassdoor answers Canadian visitors in French at times; YOLO reads English pages.
-          url: decode(link[1]).replace(/:\/\/[a-z]{2}\.glassdoor\./, "://www.glassdoor."),
-          title: text(link[2]),
-          company: pick(/EmployerProfile_compactEmployerName[^"]*"[^>]*>([^<]*)/),
-          location: pick(/data-test="emp-location"[^>]*>([^<]*)/),
-          postedAt: Number.isFinite(n) ? now - n * (/h/i.test(age) ? 3600e3 : 86400e3) : undefined,
-          source: "glassdoor",
-          easyApply: /aria-label="Easy Apply"/.test(c) || undefined,
-        },
-      ];
-    });
+  const jobs = (Array.isArray(r?.jobListings) ? r.jobListings : []).flatMap(({ jobview: v } = {}) => {
+    const h = v?.header;
+    const id = String(v?.job?.listingId ?? "");
+    if (!h?.jobTitleText || !h.seoJobLink || !id || h.expired || seen.has(id)) return [];
+    seen.add(id);
+    return [
+      {
+        // Glassdoor answers Canadian visitors in French at times; YOLO reads English pages.
+        url: h.seoJobLink.replace(/:\/\/[a-z]{2}\.glassdoor\./, "://www.glassdoor."),
+        title: h.jobTitleText,
+        // The name its card shows.
+        company: h.employer?.shortName || h.employerNameFromSearch || "",
+        location: h.locationName ?? "",
+        postedAt: typeof h.ageInDays === "number" ? now - h.ageInDays * 86400e3 : undefined,
+        source: "glassdoor",
+        easyApply: h.easyApply || undefined,
+      },
+    ];
+  });
+  return { jobs, next: r?.paginationCursors?.find((c) => c.pageNumber === page + 1)?.cursor || undefined };
 }
 
 const INDEED_HOSTS: Record<string, string> = {
@@ -189,10 +262,11 @@ const indeedHost = (loc: string) => INDEED_HOSTS[countryOf(loc)] ?? "www.indeed.
 
 /**
  * Indeed's search, read as the signed-in user (their cookies): fetched by the worker, or rendered in a background tab
- * when Cloudflare checks the fetch. Either way the page carries its result cards as JSON (`parseIndeed`).
+ * when Cloudflare checks the fetch. Either way the page carries its result cards as JSON (`parseIndeed`). `page` (from 0)
+ * steps `start` by 10, as Indeed's own page links do (15 cards a page; live, 2026-11-08).
  */
-export const indeedSearch = (q: string, loc: string, days: number) =>
-  `https://${indeedHost(loc)}/jobs?q=${enc(q)}&l=${enc(loc)}&fromage=${[1, 3, 7, 14].find((d) => d >= days) ?? 14}&sort=date`;
+export const indeedSearch = (q: string, loc: string, days: number, page = 0) =>
+  `https://${indeedHost(loc)}/jobs?q=${enc(q)}&l=${enc(loc)}&fromage=${[1, 3, 7, 14].find((d) => d >= days) ?? 14}&sort=date${page ? `&start=${page * 10}` : ""}`;
 
 /**
  * Indeed's account page, asked with HEAD (headers only): signed out, it redirects to sign-in at /auth; signed in, it
@@ -233,6 +307,18 @@ function objectAt(s: string, at: number): unknown {
   }
   return null;
 }
+
+/** The Next.js payload a page streams in `self.__next_f.push([1,"…"])` scripts, as one string. */
+const nextPayload = (html: string) =>
+  [...html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g)]
+    .map((m) => {
+      try {
+        return JSON.parse(m[1]) as string;
+      } catch {
+        return "";
+      }
+    })
+    .join("");
 
 interface IndeedCard {
   jobkey?: string;
@@ -307,9 +393,12 @@ export function indeedCardsInPage(): string | null {
 export { indeedHost };
 
 // ---------- ZipRecruiter ----------
-/** One site for every country: ziprecruiter.ca redirects here, and Toronto searches find Toronto jobs (live, 2026-11-07). */
-export const zipRecruiterSearch = (q: string, loc: string, days: number) =>
-  `https://www.ziprecruiter.com/jobs-search?search=${enc(q)}&location=${enc(loc)}&days=${days}`;
+/**
+ * One site for every country: ziprecruiter.ca redirects here, and Toronto searches find Toronto jobs (live, 2026-11-07).
+ * `page` (from 0) is the path's page number from 2 on, as its own page links have it (live, 2026-11-08).
+ */
+export const zipRecruiterSearch = (q: string, loc: string, days: number, page = 0) =>
+  `https://www.ziprecruiter.com/jobs-search${page ? `/${page + 1}` : ""}?search=${enc(q)}&location=${enc(loc)}&days=${days}`;
 
 interface ZipCard {
   title?: string;
@@ -326,19 +415,11 @@ interface ZipCard {
 }
 
 /**
- * A search page's result cards (20 at most), from the Next.js payload it streams in `self.__next_f.push([1,"…"])`
- * scripts: its `jobCards`. [] = no cards (none, or a bot check stood in for the page).
+ * A search page's result cards (20 at most), from the Next.js payload it streams: its `jobCards`. [] = no cards (none,
+ * past the last page, or a bot check stood in for the page).
  */
 export function parseZipRecruiter(html: string): Listing[] {
-  const rsc = [...html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g)]
-    .map((m) => {
-      try {
-        return JSON.parse(m[1]) as string;
-      } catch {
-        return "";
-      }
-    })
-    .join("");
+  const rsc = nextPayload(html);
   const at = rsc.indexOf('"jobCards":[');
   const cards = at < 0 ? null : objectAt(rsc, at + 11);
   if (!Array.isArray(cards)) return [];
