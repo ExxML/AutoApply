@@ -52,7 +52,7 @@ import {
   waitForEmail,
   waitForFeedCode,
 } from "./gmail";
-import { closeFrame, readInTab } from "./host";
+import { closeFrame, openTab } from "./host";
 import { altKey, applyUrl, jobKey } from "./jobKey";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
@@ -157,8 +157,58 @@ async function schedule() {
 
 /** Bound: a detached `fetch` called as a method throws "Illegal invocation". */
 const fetcher = (url: string, init?: RequestInit) => fetch(url, init);
-/** An Indeed search Cloudflare checked the fetch of, rendered in a background tab instead. */
-const indeedTab = (url: string) => readInTab(url, indeedCardsInPage);
+/** How long discovery waits on the user to clear Indeed's bot check before going on without Indeed. */
+const INDEED_WAIT_MS = 10 * 60e3;
+const INDEED_NOTE = "yolo-indeed";
+const INDEED_PAUSE = "Waiting for you to tick Indeed's bot check in the tab YOLO opened";
+/** The tab YOLO opened on Indeed for the user to clear its bot check in; Indeed's next blocked search reuses it. */
+let indeedTabId: number | undefined;
+/** Discovery is waiting on the user to clear Indeed's bot check: no application starts meanwhile. */
+let indeedWaiting = false;
+
+/**
+ * An Indeed search Cloudflare checked the fetch of, read in a visible tab once the user has cleared the check there:
+ * YOLO never solves one, so the user is notified and the tab brought forward. null = closed, or not cleared in time.
+ */
+async function indeedTab(url: string): Promise<string | null> {
+  const old = indeedTabId === undefined ? null : await chrome.tabs.get(indeedTabId).catch(() => null);
+  // Reused only while it's still on Indeed: the user may have gone elsewhere in it.
+  if (old?.id !== undefined && /(^|\.)indeed\.com$/.test(new URL(old.url || old.pendingUrl || "about:blank").hostname))
+    await chrome.tabs.update(old.id, { url });
+  else indeedTabId = await openTab(url, true);
+  const id = indeedTabId!;
+  indeedWaiting = true;
+  let asked = false;
+  try {
+    for (const end = Date.now() + INDEED_WAIT_MS; Date.now() < end;) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const tab = await chrome.tabs.get(id).catch(() => null);
+      if (!tab) return null;
+      // Fails while the page navigates (a passed check reloads it); asked again a second later.
+      const [hit] = await chrome.scripting
+        .executeScript({ target: { tabId: id }, func: indeedCardsInPage })
+        .catch(() => []);
+      if (hit?.result != null) return hit.result;
+      // Still checked once loaded (a cleared tab reads within a few seconds): the user's to tick.
+      if (!asked && tab.status === "complete") {
+        asked = true;
+        await chrome.tabs.update(id, { active: true });
+        await chrome.windows.update(tab.windowId, { focused: true }).catch(() => undefined);
+        notify(
+          INDEED_NOTE,
+          "Indeed needs you",
+          'Tick Indeed\'s "Verify you are human" box in the tab YOLO opened. YOLO holds off applying until then.',
+        );
+        await setState({ indeedBlocked: true, pauseReason: INDEED_PAUSE });
+      }
+    }
+    return null;
+  } finally {
+    indeedWaiting = false;
+    void chrome.notifications.clear(INDEED_NOTE);
+    if ((await store.get("yoloState")).pauseReason === INDEED_PAUSE) await setState({ pauseReason: "" });
+  }
+}
 
 let cycling: Promise<void> | null = null;
 let toppingUp = false;
@@ -182,12 +232,7 @@ function cycle(topUp = false): Promise<void> {
     try {
       if (!yolo.enabled || !yolo.queries.length) return;
       if (!topUp) await setState({ batchAt: Date.now(), pauseReason: "" });
-      const [busy, state, queue, apps] = await Promise.all([
-        getRun(),
-        store.get("yoloState"),
-        store.get("yoloQueue"),
-        store.get("applications"),
-      ]);
+      const [busy, state] = await Promise.all([getRun(), store.get("yoloState")]);
       batchAt = state.batchAt;
       added = await discover({
         yolo,
@@ -195,7 +240,6 @@ function cycle(topUp = false): Promise<void> {
         scrape: busy ? undefined : scrape,
         indeedTab,
         relevance: yolo.aiRelevanceCheck ? relevance : undefined,
-        want: yolo.batchSize - completedSince(apps, state.batchAt) - queue.length,
         jobrightSignedOut: (out) => setState({ jobrightSignedOut: out }),
         indeedSignedOut: (out) => setState({ indeedSignedOut: out }),
         indeedBlocked: (blocked) => setState({ indeedBlocked: blocked }),
@@ -225,7 +269,8 @@ async function checkSources() {
   // Signed in: whether its search is bot-checked, read as discovery reads it.
   if (indeedOut === false && yolo.queries.length) {
     const q = [yolo.queries[0], yolo.locations[0] ?? "", yolo.postedWithinDays] as const;
-    const list = await readIndeed({ fetch: fetcher, indeedTab }, ...q).catch(() => undefined);
+    // The fetch only: the batch's discovery, moments later, asks the user to clear a bot check.
+    const list = await readIndeed({ fetch: fetcher }, ...q).catch(() => undefined);
     if (list !== undefined) await setState({ indeedBlocked: !list });
   }
 }
@@ -338,6 +383,8 @@ async function pump() {
       return;
     }
     if (!yolo.enabled) return;
+    // The user is asked to clear Indeed's bot check: applying waits for the check to read Indeed.
+    if (indeedWaiting) return;
     const apps = await store.get("applications");
     const policy = yolo.submissionReview;
     if (policy.mode === "matching" && !hasReviewRules(policy)) {
@@ -791,7 +838,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
               : "",
             // Signed out, Indeed isn't searched, so an older bot check says nothing current.
             yolo.boards.includes("indeed") && !state.indeedSignedOut && state.indeedBlocked
-              ? "Indeed: showed a bot check, so YOLO can't read it"
+              ? "Indeed: showed a bot check. Tick it in the Indeed tab YOLO opened (YOLO doesn't solve these)"
               : "",
           ].filter(Boolean)
         : [],
@@ -1268,6 +1315,11 @@ export function initYolo(d: YoloDeps) {
   chrome.notifications.onClicked.addListener((id) => {
     chrome.notifications.clear(id);
     if (id.startsWith("yolo:")) void ready.then(() => resume(id.slice(5)));
+    else if (id === INDEED_NOTE && indeedTabId !== undefined)
+      void chrome.tabs
+        .update(indeedTabId, { active: true })
+        .then((t) => t && chrome.windows.update(t.windowId, { focused: true }))
+        .catch(() => undefined);
     else if (id === "yolo-gmail")
       void chrome.tabs.create({ url: chrome.runtime.getURL("src/options/index.html#/yolo") });
   });

@@ -807,11 +807,11 @@ describe("discovery", () => {
     expect(seenHeaders[1]).toEqual({ "if-none-match": '"v1"' });
   });
 
-  it("pages LinkedIn only while the batch wants more postings on an employer's board, stopping at a failed page", async () => {
+  it("pages LinkedIn to the end of its results, and reads on after other sources from a page a lasting 429 stopped", async () => {
     const card = (id: number, title = `Software Engineer Intern ${id}`, company = "Acme") =>
       `<li data-entity-urn="urn:li:jobPosting:${id}"><h3 class="base-search-card__title">${title}</h3>
       <h4 class="base-search-card__subtitle">${company}</h4><span class="job-search-card__location">Toronto, ON</span></li>`;
-    // Acme posts its jobs on Lever; Nobody's aren't on any board, so they don't count toward the batch.
+    // Acme posts its jobs on Lever; Nobody's aren't on any board.
     const lever = JSON.stringify(
       [1, 2, 3].map((n) => ({ text: `Software Engineer Intern ${n}`, hostedUrl: `https://jobs.lever.co/acme/${n}` })),
     );
@@ -833,40 +833,46 @@ describe("discovery", () => {
       locations: ["Canada"],
       boards: ["linkedin" as const],
     };
-    const run = async (want: number | undefined, fail = Infinity, fresh = true, once: number[] = []) => {
+    /** `refused`: how many times each page answers 429 before it's read, as LinkedIn does at random. */
+    const run = async (refused: Record<number, number> = {}, fresh = true) => {
       if (fresh) installChromeMock();
+      gaps.length = 0;
       const starts: number[] = [];
       const f = async (url: string) => {
         if (url === "https://api.lever.co/v0/postings/acme?mode=json") return new Response(lever);
         if (!url.includes("linkedin")) return new Response("", { status: 404 });
         const start = Number(new URL(url).searchParams.get("start"));
-        // `once`: refused the first time only, as LinkedIn does at random.
-        const flaked = once.includes(start) && !starts.includes(start);
         starts.push(start);
-        return start >= fail || flaked ? new Response("", { status: 429 }) : new Response(pages[start] ?? "");
+        return starts.filter((s) => s === start).length <= (refused[start] ?? 0)
+          ? new Response("", { status: 429 })
+          : new Response(pages[start] ?? "");
       };
-      const n = await discover({ yolo: y, fetch: f, want });
+      const n = await discover({ yolo: y, fetch: f });
       return [starts, n];
     };
-    expect(await run(undefined)).toEqual([[0], 1]);
-    expect(await run(0)).toEqual([[0], 1]);
-    expect(await run(2)).toEqual([[0, 10], 2]);
-    expect(await run(3)).toEqual([[0, 10, 20, 30], 3]);
-    expect(await run(50)).toEqual([[0, 10, 20, 30, 40], 3]);
-    // A refused page is asked again 3 times, 2, 4 and 6 s on, before paging stops.
-    expect(await run(50, 10)).toEqual([[0, 10, 10, 10, 10], 1]);
-    expect(gaps.filter((ms) => ms > 1000)).toEqual([2000, 4000, 6000]);
+    // Every page, to the first empty one, whatever room the batch has.
+    expect(await run()).toEqual([[0, 10, 20, 30, 40], 3]);
     // A page refused once is read on retry, and paging goes on.
-    expect(await run(3, Infinity, true, [0, 20])).toEqual([[0, 0, 10, 20, 20, 30], 3]);
+    expect(await run({ 0: 1, 20: 1 })).toEqual([[0, 0, 10, 20, 20, 30, 40], 3]);
     // LinkedIn is asked a second apart at most.
     const paced = gaps.filter((ms) => ms <= 1000);
     expect(paced.length).toBeGreaterThan(0);
     expect(paced.every((ms) => ms > 0)).toBe(true);
-    // Topping up the same batch reads past the pages already looked at.
+    // A burst outlasting the retries (2, 4, 6 s on): the search is put aside and read on from that page 30 s later.
+    expect(await run({ 10: 4 })).toEqual([[0, 10, 10, 10, 10, 10, 20, 30, 40], 3]);
+    expect(gaps.filter((ms) => ms > 1000)).toEqual([2000, 4000, 6000, expect.any(Number)]);
+    expect(gaps.at(gaps.indexOf(6000) + 1)).toBeGreaterThan(29_000);
+    // Refused again then: paging stops there and the limit is reported.
+    expect(await run({ 10: Infinity })).toEqual([[0, ...Array(8).fill(10)], 1]);
+    const { yoloSourceCheck } = (await chrome.storage.local.get("yoloSourceCheck")) as { yoloSourceCheck: SourceCheck };
+    expect(yoloSourceCheck.groups[0]).toMatchObject({
+      level: "warn",
+      problem: "Rate limited by LinkedIn (HTTP 429) after 1 page",
+    });
+    // The next check reads every page again, and queues nothing twice.
     installChromeMock();
-    expect(await run(1)).toEqual([[0], 1]);
-    expect(await run(1, Infinity, false)).toEqual([[0, 10], 1]);
-    expect(await run(1, Infinity, false)).toEqual([[0, 10, 20, 30], 1]);
+    expect(await run()).toEqual([[0, 10, 20, 30, 40], 3]);
+    expect(await run({}, false)).toEqual([[0, 10, 20, 30, 40], 0]);
     const { yoloQueue, employerBoards } = (await chrome.storage.local.get(["yoloQueue", "employerBoards"])) as {
       yoloQueue: { url: string }[];
       employerBoards: Record<string, string>;
@@ -881,7 +887,8 @@ describe("discovery", () => {
       `<li data-entity-urn="urn:li:jobPosting:${id}"><h3 class="base-search-card__title">Software Engineer Intern</h3>
       <h4 class="base-search-card__subtitle">${company}</h4><span class="job-search-card__location">Toronto, ON</span></li>`;
     const f = async (url: string) => {
-      if (url.includes("linkedin")) return new Response(card(1, "Acme") + card(2, "Nobody"));
+      if (url.includes("linkedin"))
+        return new Response(url.includes("start=0") ? card(1, "Acme") + card(2, "Nobody") : "");
       if (url === "https://api.lever.co/v0/postings/acme?mode=json")
         return new Response(
           JSON.stringify([{ text: "Software Engineer Intern", hostedUrl: "https://jobs.lever.co/acme/1" }]),
@@ -1235,7 +1242,7 @@ describe("discovery", () => {
     ]);
     expect(tabbed).toEqual([]);
 
-    // Cloudflare checks the fetch: the search is rendered in a tab, which reads it.
+    // Cloudflare checks the fetch: the search is read in the tab the user clears the check in.
     installChromeMock();
     search = () => new Response("<title>Just a moment...</title>", { status: 403 });
     tab = page("b2").replace(/^<script>|<\/script>$/g, "");
@@ -1256,57 +1263,6 @@ describe("discovery", () => {
 
     expect(signedOut).toEqual([false, false, false, true]);
     expect(blocked).toEqual([false, false, true]);
-  });
-
-  it("pages LinkedIn only for what the lists read before it don't supply", async () => {
-    const linkedin: number[] = [];
-    const f = async (url: string) => {
-      if (url.startsWith("https://jobright.ai/swan/"))
-        return new Response(
-          JSON.stringify({
-            result: {
-              jobList: url.includes("position=0&")
-                ? [
-                    {
-                      jobResult: {
-                        jobTitle: "Software Intern",
-                        jobLocation: "Toronto, ON",
-                        applyLink: "https://jobs.lever.co/co/1",
-                      },
-                      companyResult: { companyName: "Co" },
-                    },
-                  ]
-                : [],
-            },
-          }),
-        );
-      if (!url.includes("linkedin")) return new Response("", { status: 404 });
-      const start = Number(new URL(url).searchParams.get("start"));
-      linkedin.push(start);
-      return new Response(
-        start
-          ? ""
-          : `<li data-entity-urn="urn:li:jobPosting:9"><h3 class="base-search-card__title">Software Intern</h3>
-          <h4 class="base-search-card__subtitle">Nobody</h4><span class="job-search-card__location">Toronto, ON</span></li>`,
-      );
-    };
-    const later = globalThis.setTimeout;
-    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => later(fn, 0)) as typeof setTimeout);
-    onTestFinished(() => void vi.restoreAllMocks());
-    const y = (jobright: string[]) => ({
-      ...defaultYolo(),
-      queries: ["Software Intern"],
-      locations: ["Canada"],
-      feeds: [],
-      boards: ["linkedin" as const],
-      jobright,
-    });
-    await discover({ yolo: y([]), fetch: f, want: 1 });
-    expect(linkedin).toEqual([0, 10]);
-    installChromeMock();
-    linkedin.length = 0;
-    await discover({ yolo: y(["recommendations"]), fetch: f, want: 1 });
-    expect(linkedin).toEqual([0]);
   });
 });
 
@@ -1353,7 +1309,7 @@ describe("source check", () => {
       careerSites: ["https://boards.greenhouse.io/missing", "https://example.com/careers"],
     };
     const scrape = async () => [{ href: "https://example.com/about", text: "About us" }];
-    expect(await discover({ yolo: y, fetch: f, scrape, want: 50, now })).toBe(1);
+    expect(await discover({ yolo: y, fetch: f, scrape, now })).toBe(1);
     const c = await report();
     expect(c.doneAt).toBeGreaterThan(0);
     expect(c.groups.map((g) => g.group)).toEqual(["linkedin", "jobright", "feeds", "careers"]);

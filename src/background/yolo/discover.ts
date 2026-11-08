@@ -41,15 +41,20 @@ import {
 const store = createStorage("background");
 /** Postings checked by the AI per cycle; the rest wait for the next one. */
 const BATCH = 60;
-/** LinkedIn search pages read per search when `want` asks for more, a second apart at most. */
+/** LinkedIn search pages read per search, to the end of its results, a second apart at most. */
 const LINKEDIN_PAGES = 30;
 const LINKEDIN_GAP_MS = 1000;
 /**
  * LinkedIn answers about 1 logged-out search in 4 with a 429 at random, at any pace (10 s apart too), and the same page
- * asked again 2 s later is answered (live, 2026-11-07). Retried 2, 4 then 6 s on; still refused, it's a real limit.
+ * asked again 2 s later is usually answered (live, 2026-11-07). Retried 2, 4 then 6 s on.
  */
 const LINKEDIN_RETRIES = 3;
 const LINKEDIN_RETRY_MS = 2000;
+/**
+ * Some 429 bursts outlast those retries (live, 2026-11-08): such a search is put aside and read on from the page it
+ * stopped at once the other sources are read, at least this long after; refused again, it's a real limit.
+ */
+const LINKEDIN_COOLDOWN_MS = 30_000;
 /** Jobright recommendation pages of 20 (~240 kB each) read per cycle; the feed held 160 jobs (live, 2026-11-03). */
 const JOBRIGHT_PAGES = 15;
 const NO_OWN = "No posting on the employer's own site";
@@ -61,16 +66,11 @@ export interface DiscoverDeps {
   scrape?: (url: string) => Promise<Link[] | null>;
   /** Indexes of the listings the AI judges a match; absent = keep all. */
   relevance?: (items: Listing[]) => Promise<Set<number>>;
-  /**
-   * Jobs the batch still has room for: LinkedIn is paged until that many fit, counting the lists read before it and
-   * LinkedIn's postings that have an employer posting. Absent = its first page only.
-   */
-  want?: number;
   /** Told whether Jobright's feed answered as signed out, each time it's read. */
   jobrightSignedOut?: (out: boolean) => unknown;
   /**
-   * Renders an Indeed search in a tab with the user's session, for when Cloudflare checks the fetch: what
-   * `indeedCardsInPage` read there, or null if a bot check still stood in. Absent = the fetch only.
+   * For when Cloudflare checks an Indeed search's fetch: the search in a visible tab, read once the user has cleared the
+   * check there (YOLO never solves one): what `indeedCardsInPage` read, or null if the user didn't. Absent = the fetch only.
    */
   indeedTab?: (url: string) => Promise<string | null>;
   /** Told whether Indeed answered as signed out, each time discovery asks (Indeed is skipped while it is). */
@@ -134,8 +134,8 @@ export async function indeedSignedOutNow(fetch: Fetcher): Promise<boolean | null
 }
 
 /**
- * One Indeed search, read as the signed-in user: fetched with their cookies, and when Cloudflare checks the fetch,
- * rendered in a tab instead (whose passed check also lets the next fetch through). null = a bot check stood in both ways.
+ * One Indeed search, read as the signed-in user: fetched with their cookies, and when Cloudflare checks the fetch, read
+ * in a tab once the user has cleared the check there. null = a bot check stood in both ways.
  */
 export async function readIndeed(
   d: Pick<DiscoverDeps, "fetch" | "indeedTab">,
@@ -261,14 +261,58 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     !applied(s.applications, key, alt, y.reapplyManual);
   const boards = new Map<string, Listing[] | null>();
   // LinkedIn shows logged-out visitors no way to the employer, so each fitting card is looked up on the employer's own
-  // board while paging: about 3 in 4 have none (live, 2026-11-03), and only those that do count toward `want`.
+  // board while paging: about 3 in 4 have none (live, 2026-11-03).
   const linkedin = new Map<string, string | null>();
-  /** The employer postings found that way, new to YOLO: what `want` counts. */
-  const linkedinOwn = new Set<string>();
   let linkedinAt = 0;
-  // What the lists read above already supply, a posting counted once across them.
-  const ahead = new Set(found.filter((l) => fits(l)).map((l) => altKey(l.company, l.title))).size;
+  /** Searches a lasting 429 stopped, each read on from its page once the other sources are read. */
+  const parked: (() => Promise<void>)[] = [];
+  let parkedAt = 0;
   const days = y.postedWithinDays;
+  /** One LinkedIn search from `page` on, to its last page; `last` = already put aside once. */
+  const searchLinkedIn = async (q: string, loc: string, row: SourceRow, page = 0, read = 0, last = false) => {
+    for (; page < LINKEDIN_PAGES; page++) {
+      const at = page;
+      let more = false;
+      await safely(row, async () => {
+        const wait = linkedinAt + LINKEDIN_GAP_MS - Date.now();
+        if (linkedinAt && wait > 0) await new Promise((r) => setTimeout(r, wait));
+        const ask = () => (
+          (linkedinAt = Date.now()),
+          d.fetch(linkedinSearch(q, loc, days, at * 10), { credentials: "omit" })
+        );
+        let r = await ask();
+        for (let i = 1; r.status === 429 && i <= LINKEDIN_RETRIES; i++) {
+          await new Promise((ok) => setTimeout(ok, LINKEDIN_RETRY_MS * i));
+          r = await ask();
+        }
+        if (r.status === 429 && !last) {
+          parkedAt = Date.now();
+          parked.push(() => searchLinkedIn(q, loc, row, at, read, true));
+          return [];
+        }
+        if (!r.ok)
+          t.problem(
+            row,
+            r.status === 429
+              ? `Rate limited by LinkedIn (HTTP 429)${pages(read)}`
+              : `LinkedIn refused the search (HTTP ${r.status})${pages(read)}`,
+            read ? "warn" : "error",
+          );
+        const jobs = r.ok ? parseLinkedIn(await r.text()) : [];
+        if (r.ok && !jobs.length && !at) t.problem(row, "No results for this search", "info");
+        if (r.ok) read++;
+        for (const l of jobs) {
+          const key = jobKey(l.url);
+          if (linkedin.has(key) || !fits(l, key)) continue;
+          linkedin.set(key, await findOnEmployerBoard(d.fetch, l, s.employerBoards, boards).catch(() => null));
+        }
+        // An empty page is the end of the results; a failed one means stop asking.
+        more = jobs.length > 0;
+        return jobs;
+      });
+      if (!more) break;
+    }
+  };
   // Indeed is searched only as the signed-in user: signed out, it's skipped and the user told.
   let indeed = false;
   /** Indeed's search showed a bot check this cycle: the searches after it are skipped. */
@@ -287,50 +331,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
   for (const q of y.queries)
     for (const loc of y.locations.length ? y.locations : [""]) {
       const label = `"${q}"${loc ? ` · ${loc}` : ""}`;
-      if (y.boards.includes("linkedin")) {
-        const row = t.row("linkedin", label, linkedinPage(q, loc, days));
-        let read = 0;
-        for (let page = 0; page < (d.want ? LINKEDIN_PAGES : 1); page++) {
-          let more = false;
-          await safely(row, async () => {
-            const wait = linkedinAt + LINKEDIN_GAP_MS - Date.now();
-            if (linkedinAt && wait > 0) await new Promise((r) => setTimeout(r, wait));
-            const ask = () => (
-              (linkedinAt = Date.now()),
-              d.fetch(linkedinSearch(q, loc, days, page * 10), { credentials: "omit" })
-            );
-            let r = await ask();
-            for (let i = 1; r.status === 429 && i <= LINKEDIN_RETRIES; i++) {
-              await new Promise((ok) => setTimeout(ok, LINKEDIN_RETRY_MS * i));
-              r = await ask();
-            }
-            if (!r.ok)
-              t.problem(
-                row,
-                r.status === 429
-                  ? `Rate limited by LinkedIn (HTTP 429)${pages(read)}`
-                  : `LinkedIn refused the search (HTTP ${r.status})${pages(read)}`,
-                read ? "warn" : "error",
-              );
-            const jobs = r.ok ? parseLinkedIn(await r.text()) : [];
-            if (r.ok && !jobs.length && !page) t.problem(row, "No results for this search", "info");
-            if (r.ok) read++;
-            for (const l of jobs) {
-              const key = jobKey(l.url);
-              if (linkedin.has(key) || !fits(l, key)) continue;
-              const own = await findOnEmployerBoard(d.fetch, l, s.employerBoards, boards).catch(() => null);
-              linkedin.set(key, own);
-              const k = own && jobKey(own);
-              if (k && !queued.has(k) && !applied(s.applications, k, "", y.reapplyManual)) linkedinOwn.add(k);
-            }
-            // An empty page is the end of the results; a failed one (429 after its retries) means stop asking. Pages already
-            // seen add nothing, so a later search for the same batch reads on past them.
-            more = jobs.length > 0 && ahead + linkedinOwn.size < (d.want ?? 0);
-            return jobs;
-          });
-          if (!more) break;
-        }
-      }
+      if (y.boards.includes("linkedin"))
+        await searchLinkedIn(q, loc, t.row("linkedin", label, linkedinPage(q, loc, days)));
       if (y.boards.includes("glassdoor")) {
         const row = t.row("glassdoor", label, glassdoorSearch(q, loc, days));
         await safely(row, async () => {
@@ -370,7 +372,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
             indeedWall = true;
             t.problem(
               row,
-              "A bot check (Cloudflare) stood in for the search. YOLO doesn't solve these; using indeed.com yourself in this browser may clear it",
+              "A bot check (Cloudflare) stood in for the search and wasn't ticked in the tab YOLO opened. YOLO doesn't solve these; tick it on indeed.com in this browser and YOLO reads Indeed next check",
               "error",
             );
           } else if (!list.length) t.problem(row, "No results read from the search", "info");
@@ -379,7 +381,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
       } else if (indeedWall)
         t.problem(t.row("indeed", label, indeedSearch(q, loc, days)), "Skipped after the bot check", "info");
     }
-  for (const g of ["linkedin", "glassdoor", "ziprecruiter", "indeed"] as const) await t.done(g);
+  for (const g of ["glassdoor", "ziprecruiter", "indeed"] as const) await t.done(g);
 
   for (const url of y.careerSites) {
     const row = t.row("careers", labelOf(url, sitePath), url);
@@ -399,6 +401,12 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     }
   }
   await t.done("careers");
+  if (parked.length) {
+    const wait = parkedAt + LINKEDIN_COOLDOWN_MS - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    for (const resume of parked) await resume();
+  }
+  await t.done("linkedin");
 
   // Merge provenance only: the representative listing, filtering and order stay unchanged.
   const origins = new Map<string, Set<SourceGroup>>();

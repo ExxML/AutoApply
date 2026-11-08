@@ -357,7 +357,7 @@ export function Yolo() {
                 label={BOARD_NAMES[b]}
                 help={
                   b === "indeed"
-                    ? "Searches Indeed as you, so it needs you signed in to indeed.com in this browser. When Indeed asks for a bot check, that search opens in a background tab in the collapsed AutoApply group for a few seconds."
+                    ? "Searches Indeed as you, so it needs you signed in to indeed.com in this browser. When Indeed asks for a bot check, YOLO opens that search in a tab in front, notifies you, and holds off applying until you tick it there (up to 10 minutes). It never solves one itself."
                     : undefined
                 }
                 checked={y.boards.includes(b)}
@@ -372,7 +372,7 @@ export function Yolo() {
               {b === "indeed" && y.boards.includes("indeed") && !state?.indeedSignedOut && state?.indeedBlocked && (
                 <p class="err" role="status">
                   Indeed showed a bot check instead of results at the last check, so it added no jobs. YOLO doesn't
-                  solve these; using indeed.com yourself in this browser may clear it before the next batch.
+                  solve these; tick it on indeed.com in this browser and YOLO reads Indeed at the next check.
                 </p>
               )}
             </>
