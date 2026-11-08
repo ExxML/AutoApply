@@ -115,6 +115,15 @@ addEventListener(
   true,
 );
 
+// Our clicks on <a href="javascript:…"> (iCIMS's Add More / Delete: onclick does the work, href is javascript:void(0))
+// would run that URL under the extension's CSP, which blocks it and logs an error. Cancelled in the bubble phase, after
+// the page's own handlers saw an uncancelled click, it runs nothing either way.
+addEventListener("click", (e) => {
+  if (!fillingNow) return;
+  const a = e.composedPath().find((n) => n instanceof HTMLAnchorElement);
+  if (a && /^\s*javascript:/i.test(a.getAttribute("href") ?? "")) e.preventDefault();
+});
+
 /** realClick, returning the file input whose picker the click tried to open. */
 export function clickForPicker(el: HTMLElement): HTMLInputElement | null {
   pickerInput = null;

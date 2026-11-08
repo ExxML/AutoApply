@@ -272,3 +272,23 @@ describe("résumé entries a site's parser wrote", () => {
     expect([...document.querySelectorAll("fieldset")].map((f) => f.style.display)).toEqual(["", "", "none", "none"]);
   });
 });
+
+describe("javascript: links (iCIMS Add More)", () => {
+  it("cancels the javascript: URL after the page's onclick ran, only for our clicks", async () => {
+    const { dispatching } = await import("../../src/content/fill/events");
+    setBody(`<a href="javascript:void(0)"><span>Add More (Education)</span></a><a href="#x">Other</a>`);
+    const [js, hash] = document.querySelectorAll("a");
+    let seenPrevented: boolean | undefined;
+    js.addEventListener("click", (e) => (seenPrevented = e.defaultPrevented));
+    const click = (el: Element, ours: boolean) => {
+      const ev = new MouseEvent("click", { bubbles: true, cancelable: true, composed: true });
+      if (ours) dispatching(() => el.dispatchEvent(ev));
+      else el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    expect(click(js.querySelector("span")!, true)).toBe(true);
+    expect(seenPrevented).toBe(false);
+    expect(click(js, false)).toBe(false);
+    expect(click(hash, true)).toBe(false);
+  });
+});
