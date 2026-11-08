@@ -8,3 +8,5 @@ When planning your approach/implementation, you must maintain the AutoApply auto
 3. Autofill must complete fast
 4. Autofill must use little to no background resources and performance should not be too impacted when using the autofill
 5. Autofill AI must keep token usage minimal
+
+Feel free to run any tests you need.
