@@ -168,7 +168,7 @@ let indeedWaiting = false;
 
 /**
  * An Indeed search Cloudflare checked the fetch of, read in a visible tab once the user has cleared the check there:
- * YOLO never solves one, so the user is notified and the tab brought forward. null = closed, or not cleared in time.
+ * The user is notified and the tab brought forward. null = closed, or not cleared in time.
  */
 async function indeedTab(url: string): Promise<string | null> {
   const old = indeedTabId === undefined ? null : await chrome.tabs.get(indeedTabId).catch(() => null);
@@ -852,7 +852,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
               : "",
             // Signed out, Indeed isn't searched, so an older bot check says nothing current.
             yolo.boards.includes("indeed") && !state.indeedSignedOut && state.indeedBlocked
-              ? "Indeed: showed a bot check. Tick it in the Indeed tab YOLO opened (YOLO doesn't solve these)"
+              ? "Indeed: showed a bot check. Tick it in the Indeed tab YOLO opened"
               : "",
           ].filter(Boolean)
         : [],

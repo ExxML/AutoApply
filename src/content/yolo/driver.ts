@@ -189,7 +189,7 @@ export async function drive(deps: DriverDeps) {
       return "end";
     }
     if (reply.action === "stop") {
-      // A bot check in the hidden frame is retried in a tab; in a tab it is the user's, like a CAPTCHA.
+      // A bot check in the hidden frame is retried in a tab; an unresolved check in a tab pauses the run.
       const status = reply.state === "closed" ? "skipped" : reply.state === "blocked" && IN_HOST ? "blocked" : "needs";
       result({ status, reason: reply.reason || why, guesses: deps.guesses() });
       return "end";
@@ -289,7 +289,7 @@ export async function drive(deps: DriverDeps) {
         case "success":
           return result({ status: "submitted", doneUrl: location.href, guesses: deps.guesses() });
         case "captcha":
-          // Never solved by us. In a visible tab the user solves it and the run goes on. In a background tab, a check
+          // In a visible tab the run waits for the challenge to clear. In a background tab, a check
           // that passes by itself (Cloudflare's "Verifying…") gets a moment first.
           if (!hello.visible) {
             if (await waitFor(() => !captchaShown(), CAPTCHA_SELF_CLEAR_MS)) continue;

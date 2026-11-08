@@ -70,7 +70,7 @@ export interface DiscoverDeps {
   jobrightSignedOut?: (out: boolean) => unknown;
   /**
    * For when Cloudflare checks an Indeed search's fetch: the search in a visible tab, read once the user has cleared the
-   * check there (YOLO never solves one): what `indeedCardsInPage` read, or null if the user didn't. Absent = the fetch only.
+   * check there: what `indeedCardsInPage` read, or null if the user didn't. Absent = the fetch only.
    */
   indeedTab?: (url: string) => Promise<string | null>;
   /** Told whether Indeed answered as signed out, each time discovery asks (Indeed is skipped while it is). */
@@ -347,11 +347,11 @@ export async function discover(d: DiscoverDeps): Promise<number> {
         const row = t.row("ziprecruiter", label, zipRecruiterSearch(q, loc, days));
         await safely(row, async () => {
           const r = await d.fetch(zipRecruiterSearch(q, loc, days), { credentials: "omit" });
-          // Cloudflare checks about half of ZipRecruiter's searches at random (live, 2026-11-07); YOLO never solves one.
+          // Cloudflare checks about half of ZipRecruiter's searches at random (live, 2026-11-07).
           if (r.headers.get("cf-mitigated") === "challenge")
             t.problem(
               row,
-              "A bot check (Cloudflare) stood in for the search. YOLO doesn't solve these; it searches again next check",
+              "A bot check (Cloudflare) stood in for the search. YOLO searches again next check",
               "warn",
             );
           else if (!r.ok) t.problem(row, `ZipRecruiter refused the search (HTTP ${r.status})`, "error");
@@ -363,7 +363,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
       if (indeed) {
         const row = t.row("indeed", label, indeedSearch(q, loc, days));
         await safely(row, async () => {
-          // Cloudflare guards Indeed's search; YOLO never solves a bot check, it tells the user instead.
+          // Cloudflare guards Indeed's search; a blocked fetch opens the search in a visible tab.
           const list = await readIndeed(d, q, loc, days);
           await d.indeedBlocked?.(!list);
           // Blocked both ways: the searches after it would be too, each one a tab.
@@ -372,7 +372,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
             indeedWall = true;
             t.problem(
               row,
-              "A bot check (Cloudflare) stood in for the search and wasn't ticked in the tab YOLO opened. YOLO doesn't solve these; tick it on indeed.com in this browser and YOLO reads Indeed next check",
+              "A bot check (Cloudflare) stood in for the search and wasn't ticked in the tab YOLO opened. Tick it on indeed.com in this browser and YOLO reads Indeed next check",
               "error",
             );
           } else if (!list.length) t.problem(row, "No results read from the search", "info");

@@ -357,7 +357,7 @@ export function Yolo() {
                 label={BOARD_NAMES[b]}
                 help={
                   b === "indeed"
-                    ? "Searches Indeed as you, so it needs you signed in to indeed.com in this browser. When Indeed asks for a bot check, YOLO opens that search in a tab in front, notifies you, and holds off applying until you tick it there (up to 10 minutes). It never solves one itself."
+                    ? "Searches Indeed as you, so it needs you signed in to indeed.com in this browser. When Indeed asks for a bot check, YOLO opens that search in a tab in front, notifies you, and holds off applying until you tick it there (up to 10 minutes)."
                     : undefined
                 }
                 checked={y.boards.includes(b)}

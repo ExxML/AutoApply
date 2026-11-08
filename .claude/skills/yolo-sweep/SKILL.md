@@ -35,11 +35,11 @@ State is in `.yolo-sweep/` at the main checkout (gitignored). Your profile comes
 ## Expected stops (not bugs)
 
 - Email needed: Workday "verify your account", Oracle emailed PIN, Greenhouse security code, verification links. Gmail can't connect headless.
-- CAPTCHAs (BambooHR reCAPTCHA, JazzHR, Lever/Workable hCaptcha, Ashby "flagged as possible spam"). CAPTCHAs are the only user input allowed.
+- Visible challenges (BambooHR reCAPTCHA, JazzHR, Lever/Workable hCaptcha, Ashby "flagged as possible spam").
 - Workday Voluntary Self-Identification of Disability (CC-305) final save returns HTTP 400 "Error Code: VPS" for any body.
 - SuccessFactors "Account Already Exists" on reruns (it dedups by phone): use another posting.
 - Closed postings: Ashby "Application submission is unavailable" or "Page not found", 404s, "no longer accepting".
-- After about 30 headless runs in a day Workable, Lever and Glassdoor CAPTCHA every load: stop testing them that day.
+- After about 30 headless runs in a day Workable, Lever and Glassdoor CAPTCHA every load.
 
 ## Traps
 

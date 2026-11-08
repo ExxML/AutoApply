@@ -269,7 +269,7 @@ test("refills a site's fixed work slots from the profile and empties the one pas
   );
 });
 
-test("hands a CAPTCHA to the user instead of trying it, after a background tab", async ({ sw, page }) => {
+test("pauses for a CAPTCHA after retrying in a background tab", async ({ sw, page }) => {
   test.setTimeout(120_000);
   await seed(sw, { caps: true });
   void page;
