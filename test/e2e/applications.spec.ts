@@ -72,7 +72,7 @@ test("each non-submitted row can be marked submitted while preserving its applic
     });
     expect(stored.at).toBeGreaterThan(original.at);
   }
-  await expect(page.locator("section").getByRole("status")).toHaveText("Application marked as submitted.");
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Forget all failed applications", exact: true })).toBeDisabled();
   const totals = page
@@ -87,7 +87,7 @@ test("each non-submitted row can be marked submitted while preserving its applic
   await expect(page.getByRole("button", { name: "Mark submitted", exact: true })).toHaveCount(0);
 });
 
-test("marking a failed application submitted reports errors without changing its status", async ({ sw, page }) => {
+test("a failed mark submitted keeps the application status and allows retrying", async ({ sw, page }) => {
   await applicationsPage(sw, page, 2, 0);
   const applications = await storage<Application[]>(sw, "applications");
   await page.evaluate(() => {
@@ -99,8 +99,8 @@ test("marking a failed application submitted reports errors without changing its
   });
   const button = page.getByRole("button", { name: "Mark submitted", exact: true });
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't mark the application submitted.");
   await expect(button).toBeEnabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   expect(await storage(sw, "applications")).toEqual(applications);
 });
 
@@ -137,8 +137,8 @@ test("forgetting all failed applications requires confirmation and includes filt
 
   page.once("dialog", (dialog) => dialog.accept());
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toContainText("Forgot 2 failed applications.");
   await expect(button).toBeDisabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   const remaining = applications.filter((app) => app.status !== "failed");
   expect(await storage(sw, "applications")).toEqual(remaining);
   expect(await storage(sw, "yoloQueue")).toEqual(queue);
@@ -187,7 +187,6 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
   const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
   await expect(button).toBeEnabled();
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toContainText("Queued 3 pending applications");
   await expect
     .poll(
       async () => {
@@ -197,6 +196,7 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
       { timeout: 45_000 },
     )
     .toEqual(["submitted", "submitted"]);
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   await expect
     .poll(async () => {
       const { yoloReviewTabs } = await sw.evaluate(() =>
@@ -215,9 +215,8 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
   await review.locator("#first").fill("Edited");
   const tabs = context.pages().length;
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toHaveText(
-    "Pending applications are already queued, running, or ready for your review.",
-  );
+  await expect(button).toBeEnabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   await expect(review.locator("#first")).toHaveValue("Edited");
   expect(context.pages()).toHaveLength(tabs);
 });
@@ -237,8 +236,8 @@ test("a failed bulk resume keeps pending records and allows retrying", async ({ 
   });
   const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't queue the pending applications.");
   await expect(button).toBeEnabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   expect(await storage(sw, "applications")).toEqual(applications);
 });
 
@@ -255,14 +254,14 @@ test("a failed bulk forget keeps the history and allows retrying", async ({ sw, 
   page.once("dialog", (dialog) => dialog.accept());
   const button = page.getByRole("button", { name: "Forget all failed applications", exact: true });
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toHaveText("Couldn't update the application history.");
   await expect(button).toBeEnabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   expect(await storage(sw, "applications")).toEqual(applications);
   await page.reload();
   page.once("dialog", (dialog) => dialog.accept());
   await button.click();
-  await expect(page.locator("section").getByRole("status")).toContainText("Forgot 1 failed application.");
   await expect(button).toBeDisabled();
+  await expect(page.locator("section").getByRole("status")).toHaveCount(0);
 });
 
 test("application totals separate outcomes, ignore filters, and refresh at local midnight", async ({ sw, page }) => {

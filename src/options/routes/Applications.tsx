@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import { isErr, send } from "../../shared/messages";
+import { send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
 import { isPendingApplication, type Application } from "../../shared/yolo";
@@ -34,7 +34,6 @@ export function Applications() {
   const [status, setStatus] = useState("");
   const [showLogs, setShowLogs] = useState(false);
   const [reviewTabs, setReviewTabs] = useState<{ live: string[]; refilling: string[] }>({ live: [], refilling: [] });
-  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [forgetting, setForgetting] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -43,22 +42,10 @@ export function Applications() {
   const resumePending = async () => {
     if (resuming || !pendingCount) return;
     setResuming(true);
-    setMessage("");
-    try {
-      const r = await send({ type: "YOLO_RESUME_PENDING" });
-      if (isErr(r)) setMessage(r.error.message);
-      else
-        setMessage(
-          r.queued
-            ? `Queued ${r.queued} pending application${r.queued === 1 ? "" : "s"} to resume one at a time. Existing filled review tabs are kept.`
-            : "Pending applications are already queued, running, or ready for your review.",
-        );
-      loadReviews();
-    } catch {
-      setMessage("Couldn't reach AutoApply. Please try again.");
-    } finally {
-      setResuming(false);
-    }
+    await send({ type: "YOLO_RESUME_PENDING" })
+      .then(loadReviews)
+      .catch(() => undefined)
+      .finally(() => setResuming(false));
   };
   const forgetFailed = async () => {
     if (
@@ -70,19 +57,9 @@ export function Applications() {
     )
       return;
     setForgetting(true);
-    setMessage("");
-    try {
-      const r = await send({ type: "YOLO_FORGET_FAILED" });
-      if (isErr(r)) setMessage(r.error.message);
-      else
-        setMessage(
-          `Forgot ${r.forgotten} failed application${r.forgotten === 1 ? "" : "s"}. YOLO can queue these jobs again the next time it checks.`,
-        );
-    } catch {
-      setMessage("Couldn't reach AutoApply. Please try again.");
-    } finally {
-      setForgetting(false);
-    }
+    await send({ type: "YOLO_FORGET_FAILED" })
+      .catch(() => undefined)
+      .finally(() => setForgetting(false));
   };
   const loadReviews = () =>
     void send({ type: "YOLO_REVIEW_LIST" })
@@ -99,21 +76,10 @@ export function Applications() {
     key: string,
   ) => {
     setBusy(key);
-    setMessage("");
-    try {
-      const r = await send({ type, key });
-      if (isErr(r)) setMessage(r.error.message);
-      else if (type === "YOLO_REVIEW_REFILL")
-        setMessage(
-          "Refill requested. It will start after the current application finishes and will stop before submission.",
-        );
-      else if (type === "YOLO_MARK_SUBMITTED") setMessage("Application marked as submitted.");
-      loadReviews();
-    } catch {
-      setMessage("Couldn't reach AutoApply. Please try again.");
-    } finally {
-      setBusy("");
-    }
+    await send({ type, key })
+      .then(loadReviews)
+      .catch(() => undefined)
+      .finally(() => setBusy(""));
   };
   if (!apps || !queue || !settings || !logs) return <p>Loading…</p>;
   const nq = normalize(q);
@@ -143,11 +109,6 @@ export function Applications() {
           <button class="btn small" onClick={() => setStatus("review")}>
             Show ready applications
           </button>
-        </p>
-      )}
-      {message && (
-        <p role="status" class="help">
-          {message}
         </p>
       )}
       <SourceCheck />
