@@ -560,6 +560,12 @@ const handlers: Handlers = {
     return { ok: true };
   },
 
+  // The overlay's Stop: this tab's frames only, never another tab's fill or a YOLO run's.
+  async BROADCAST_STOP(_msg, sender) {
+    if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "STOP_FILL" });
+    return { ok: true };
+  },
+
   async SET_OVERLAY_POS({ host, bottom }) {
     const overlayPos = await store.get("overlayPos");
     overlayPos[host] = bottom;

@@ -155,10 +155,12 @@ export type Message =
   | { type: "ABORT"; groupId: string }
   | { type: "SLEEP"; ms: number }
   | { type: "BROADCAST_FILL"; rerun: boolean }
+  | { type: "BROADCAST_STOP" }
   | { type: "SET_OVERLAY_POS"; host: string; bottom: number }
   | { type: "OPEN_OPTIONS"; hash: string }
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
+  | { type: "STOP_FILL" }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
   | { type: "TOGGLE_OVERLAY" }
   | { type: "READ_POSTING" }
@@ -206,9 +208,11 @@ export interface Responses {
   ABORT: Ok;
   SLEEP: Ok;
   BROADCAST_FILL: Ok;
+  BROADCAST_STOP: Ok;
   SET_OVERLAY_POS: Ok;
   OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
+  STOP_FILL: Ok;
   FOCUS_FIELD: Ok;
   TOGGLE_OVERLAY: Ok;
   TAB_STATUS: TabStatusResponse;

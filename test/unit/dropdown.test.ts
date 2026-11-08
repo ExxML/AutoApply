@@ -898,3 +898,23 @@ describe("ARIA menu selects", () => {
     expect(b.textContent).toContain("British Columbia");
   });
 });
+
+describe("haltFill (overlay Stop)", () => {
+  it("throws on the next write and ends a fill's waits, but not a non-fill wait", async () => {
+    const { dispatching, haltFill, waitFor } = await import("../../src/content/fill/events");
+    const fillWait = waitFor(() => false, 60_000);
+    const submitWait = waitFor(() => document.body.dataset.done, 200, false);
+    haltFill(true);
+    try {
+      expect(await fillWait).toBeNull();
+      expect(await waitFor(() => false, 60_000)).toBeNull();
+      expect(() => dispatching(() => 1)).toThrow("Stopped");
+      document.body.dataset.done = "yes";
+      expect(await submitWait).toBe("yes");
+    } finally {
+      haltFill(false);
+      delete document.body.dataset.done;
+    }
+    expect(dispatching(() => 1)).toBe(1);
+  });
+});

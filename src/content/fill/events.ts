@@ -8,7 +8,16 @@ import { throttled } from "../yolo/frame";
 let fillingNow = false;
 export const isFilling = () => fillingNow;
 
+/** The user pressed Stop on this frame's fill: until it unwinds, writes throw and waits end, so a widget mid-fill stops. */
+let halted = false;
+const waiting = new Set<() => void>();
+export function haltFill(on: boolean) {
+  halted = on;
+  if (on) for (const end of waiting) end();
+}
+
 export function dispatching<T>(fn: () => T): T {
+  if (halted) throw new Error("Stopped");
   const prev = fillingNow;
   fillingNow = true;
   try {
@@ -43,18 +52,29 @@ export async function holdScroll<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Resolves with fn()'s first truthy result, re-checking on DOM mutations and animation frames. */
-export function waitFor<T>(fn: () => T | null | undefined | false, timeoutMs: number): Promise<T | null> {
+/**
+ * Resolves with fn()'s first truthy result, re-checking on DOM mutations and animation frames. `stoppable`: a fill's
+ * wait, which a halted fill ends at once with null.
+ */
+export function waitFor<T>(
+  fn: () => T | null | undefined | false,
+  timeoutMs: number,
+  stoppable = true,
+): Promise<T | null> {
   return new Promise((resolve) => {
     const first = fn();
     if (first) return resolve(first);
+    if (halted && stoppable) return resolve(null);
     let done = false;
     const finish = (v: T | null) => {
       if (done) return;
       done = true;
       mo.disconnect();
+      waiting.delete(end);
       resolve(v);
     };
+    const end = () => finish(null);
+    if (stoppable) waiting.add(end);
     const check = () => {
       const v = fn();
       if (v) finish(v);

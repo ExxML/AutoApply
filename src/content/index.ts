@@ -32,7 +32,7 @@ import { deterministicValue, isFreeText, matchLearned, RE_CITY_FIELD, shoutedNam
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
-import { dispatching, isFilling, sleep, waitFor } from "./fill/events";
+import { dispatching, haltFill, isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
 import { addEntries, expandSections, resumeEntries, saveEntries, trimEntries, type EntryKind } from "./fill/sections";
 import { readValue } from "./fill/verify";
@@ -219,7 +219,12 @@ function renderOverlay() {
   overlay ??= createOverlay(
     {
       onRerun: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
-      onStop: stop,
+      // Every frame of this tab only: a form in an iframe fills in its own frame. Never a YOLO run's page.
+      onStop: () => {
+        if (yolo) return;
+        stop();
+        void send({ type: "BROADCAST_STOP" }).catch(() => undefined);
+      },
       onRetry: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
       onOpenSettings: () => void send({ type: "OPEN_OPTIONS", hash: "/ai" }).catch(() => undefined),
       onFocus: (n) =>
@@ -320,7 +325,10 @@ function focusField(id: string) {
 }
 
 function stop() {
-  if (!current) return;
+  if (!current || yolo) return;
+  queued = null;
+  clearTimeout(retryTimer);
+  haltFill(true);
   current.ctrl.abort();
   void send({ type: "ABORT", groupId: current.groupId }).catch(() => undefined);
   for (const [id, s] of states) if (s.status === "working") setStatus(handles.get(id)!, "needs", "Stopped");
@@ -577,8 +585,8 @@ async function doFill(h: FieldHandle, op: FillOp, okStatus: Status, tooltip: str
   if (r.outcome === "ok") {
     setStatus(h, okStatus, r.note, okStatus === "ai" && r.shown ? `${tooltip} → "${r.shown}"` : tooltip);
   } else if (r.outcome === "mismatch") setStatus(h, "check", r.note, tooltip);
-  else if (r.outcome === "failed") setStatus(h, "failed", r.note);
-  else setStatus(h, "needs", r.note);
+  else if (r.outcome === "failed" && !ctrl.signal.aborted) setStatus(h, "failed", r.note);
+  else setStatus(h, "needs", ctrl.signal.aborted ? "Stopped" : r.note);
 }
 
 const RE_COUNTRY_FIELD =
@@ -691,6 +699,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
   // A new trigger (not a follow-up pass of one): the review may correct each field afresh.
   if (opts.depth === undefined && opts.round === undefined) reviewTries.clear();
   running = true;
+  haltFill(false);
   lastError = null;
   clearTimeout(retryTimer);
   const ctrl = new AbortController();
@@ -959,6 +968,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
     lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
     running = false;
+    haltFill(false);
     document.dispatchEvent(new Event("autoapply-fill-end"));
     current = null;
     report();
@@ -1230,6 +1240,7 @@ async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortContr
       );
       if (states.get(h.id)?.userOwned) return;
       if (fr.outcome === "ok") setStatus(h, "draft", "AI draft – review", `${wordCount(e.text)} words`);
+      else if (ctrl.signal.aborted) setStatus(h, "needs", "Stopped");
       else setStatus(h, fr.outcome === "mismatch" ? "check" : "failed", fr.note);
     }),
   );
@@ -1463,10 +1474,12 @@ function onSubmitAttempt(e: Event) {
   const job = { url: location.href, company: ctx.company, title: ctx.jobTitle || ctx.title };
   void send({ type: "APPLY_ATTEMPT", job }).catch(() => undefined);
   if (RE_APPLIED.test(document.body?.innerText ?? "")) return; // said so already: no proof either way
-  void waitFor(() => RE_APPLIED.test(document.body?.innerText ?? "") && location.href, 20_000).then((doneUrl) => {
-    if (doneUrl) send({ type: "APPLY_ATTEMPT", job, doneUrl }).catch(() => undefined);
-    else if (reviewContext) attempted = false;
-  });
+  void waitFor(() => RE_APPLIED.test(document.body?.innerText ?? "") && location.href, 20_000, false).then(
+    (doneUrl) => {
+      if (doneUrl) send({ type: "APPLY_ATTEMPT", job, doneUrl }).catch(() => undefined);
+      else if (reviewContext) attempted = false;
+    },
+  );
 }
 
 // ---------- messages ----------
@@ -1488,6 +1501,9 @@ function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) =>
     case "YOLO_REVIEW_PING":
       sendResponse({ ready: reviewContext?.key === msg.key && reviewContext.ready });
       return false;
+    case "STOP_FILL":
+      stop();
+      break;
     case "TRIGGER_FILL":
       void runPipeline({ rerun: msg.rerun ?? msg.force });
       break;
