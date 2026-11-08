@@ -13,7 +13,12 @@ import {
   type Yolo as YoloConfig,
 } from "../../shared/yolo";
 
-const BOARD_NAMES: Record<Board, string> = { linkedin: "LinkedIn", indeed: "Indeed", glassdoor: "Glassdoor" };
+const BOARD_NAMES: Record<Board, string> = {
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  glassdoor: "Glassdoor",
+  ziprecruiter: "ZipRecruiter",
+};
 const SOURCE_NAMES: Record<SourceGroup, string> = {
   careers: "Company career sites",
   feeds: "GitHub job lists",

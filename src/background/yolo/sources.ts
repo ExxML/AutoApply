@@ -208,9 +208,12 @@ const INDEED_CARDS = /window\.mosaic\.providerData\["mosaic-provider-jobcards"\]
 const INDEED_WALL =
   /<title[^>]*>\s*(just a moment|security check|attention required|blocked|access denied)\b|\bRay ID\b/i;
 
-/** The JSON object starting at `at` in `s`, its braces matched outside strings; null if there's none or it won't parse. */
+/**
+ * The JSON object or array starting at `at` in `s`, its brackets matched outside strings; null if there's none or it
+ * won't parse.
+ */
 function objectAt(s: string, at: number): unknown {
-  if (s[at] !== "{") return null;
+  if (s[at] !== "{" && s[at] !== "[") return null;
   let depth = 0;
   let str = false;
   for (let i = at; i < s.length; i++) {
@@ -219,8 +222,8 @@ function objectAt(s: string, at: number): unknown {
       if (c === "\\") i++;
       else if (c === '"') str = false;
     } else if (c === '"') str = true;
-    else if (c === "{") depth++;
-    else if (c === "}" && --depth === 0) {
+    else if (c === "{" || c === "[") depth++;
+    else if ((c === "}" || c === "]") && --depth === 0) {
       try {
         return JSON.parse(s.slice(at, i + 1));
       } catch {
@@ -302,6 +305,69 @@ export function indeedCardsInPage(): string | null {
   return document.readyState === "complete" && !wall ? "" : null;
 }
 export { indeedHost };
+
+// ---------- ZipRecruiter ----------
+/** One site for every country: ziprecruiter.ca redirects here, and Toronto searches find Toronto jobs (live, 2026-11-07). */
+export const zipRecruiterSearch = (q: string, loc: string, days: number) =>
+  `https://www.ziprecruiter.com/jobs-search?search=${enc(q)}&location=${enc(loc)}&days=${days}`;
+
+interface ZipCard {
+  title?: string;
+  /** Its own posting page, site-relative: "/c/PayPal/Job/…?jid=…". */
+  rawCanonicalZipJobPageUrl?: string;
+  company?: { name?: string };
+  location?: { displayName?: string };
+  /** `locationTypes` "On-site", "Remote" or "Hybrid". */
+  display?: { location?: string; locationTypes?: string };
+  /** Seconds as the page's "$n<digits>" bigint. */
+  status?: { isActive?: boolean; postedAtUtc?: { seconds?: string | number } };
+  /** 3 = "Quick Apply" on ZipRecruiter; 4 = "Apply", a /job-redirect link to the employer's site (live, 2026-11-07). */
+  applyButtonConfig?: { applyButtonType?: number };
+}
+
+/**
+ * A search page's result cards (20 at most), from the Next.js payload it streams in `self.__next_f.push([1,"…"])`
+ * scripts: its `jobCards`. [] = no cards (none, or a bot check stood in for the page).
+ */
+export function parseZipRecruiter(html: string): Listing[] {
+  const rsc = [...html.matchAll(/self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g)]
+    .map((m) => {
+      try {
+        return JSON.parse(m[1]) as string;
+      } catch {
+        return "";
+      }
+    })
+    .join("");
+  const at = rsc.indexOf('"jobCards":[');
+  const cards = at < 0 ? null : objectAt(rsc, at + 11);
+  if (!Array.isArray(cards)) return [];
+  const seen = new Set<string>();
+  return (cards as ZipCard[]).flatMap((c) => {
+    const path = c?.rawCanonicalZipJobPageUrl;
+    if (!c?.title || !path?.startsWith("/") || c.status?.isActive === false || seen.has(path)) return [];
+    seen.add(path);
+    const place = c.display?.location || c.location?.displayName || "";
+    const secs = Number(String(c.status?.postedAtUtc?.seconds ?? "").replace(/^\$n/, ""));
+    return [
+      {
+        url: `https://www.ziprecruiter.com${path}`,
+        title: c.title,
+        company: c.company?.name ?? "",
+        location:
+          /\bremote\b/i.test(c.display?.locationTypes ?? "") && !/\bremote\b/i.test(place)
+            ? place
+              ? `Remote - ${place}`
+              : "Remote"
+            : place,
+        postedAt: secs > 1e9 ? secs * 1000 : undefined,
+        source: "ziprecruiter",
+        // Applied to on ZipRecruiter itself: not supported yet, so never queued.
+        easyApply: c.applyButtonConfig?.applyButtonType === 3 || undefined,
+      },
+    ];
+  });
+}
 
 // ---------- Jobright ----------
 /**

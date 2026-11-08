@@ -15,7 +15,7 @@ import {
 const store = createStorage("background");
 
 /** The settings page's order. */
-const ORDER: SourceGroup[] = ["linkedin", "indeed", "glassdoor", "jobright", "feeds", "careers"];
+const ORDER: SourceGroup[] = ["linkedin", "indeed", "glassdoor", "ziprecruiter", "jobright", "feeds", "careers"];
 const on = (y: Yolo, g: SourceGroup) =>
   g === "feeds"
     ? y.feeds.length > 0

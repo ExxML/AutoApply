@@ -352,9 +352,13 @@ export async function drive(deps: DriverDeps) {
             if (n) continue;
             return result({ status: "failed", reason: "No Apply button", guesses: deps.guesses() });
           }
-          // A job board's own "Apply now" is its Easy Apply; only "Apply on company site" leads to the employer.
+          // A job board's own "Apply now" is its Easy Apply; only "Apply on company site" leads to the employer, or on
+          // ZipRecruiter an "Apply" link through its /job-redirect ("Quick Apply" is a button).
           const board = /(^|\.)(indeed|glassdoor|linkedin|ziprecruiter)\./.test(location.hostname);
-          if (RE_EASY_APPLY.test(b.innerText) || (board && !/company|employer/i.test(labelOf(b))))
+          const toEmployer =
+            /company|employer/i.test(labelOf(b)) ||
+            (/(^|\.)ziprecruiter\.com$/.test(location.hostname) && !!b.closest('a[href*="/job-redirect"]'));
+          if (RE_EASY_APPLY.test(b.innerText) || (board && !toEmployer))
             return result({ status: "skipped", reason: "Easy Apply only (not supported yet)" });
           await deps.posting();
           press(b);

@@ -32,7 +32,9 @@ import {
   parseIndeed,
   parseJobrightFeed,
   parseLinkedIn,
+  parseZipRecruiter,
   indeedSignedOut,
+  zipRecruiterSearch,
   type Link,
 } from "./sources";
 
@@ -339,6 +341,23 @@ export async function discover(d: DiscoverDeps): Promise<number> {
           return list;
         });
       }
+      if (y.boards.includes("ziprecruiter")) {
+        const row = t.row("ziprecruiter", label, zipRecruiterSearch(q, loc, days));
+        await safely(row, async () => {
+          const r = await d.fetch(zipRecruiterSearch(q, loc, days), { credentials: "omit" });
+          // Cloudflare checks about half of ZipRecruiter's searches at random (live, 2026-11-07); YOLO never solves one.
+          if (r.headers.get("cf-mitigated") === "challenge")
+            t.problem(
+              row,
+              "A bot check (Cloudflare) stood in for the search. YOLO doesn't solve these; it searches again next check",
+              "warn",
+            );
+          else if (!r.ok) t.problem(row, `ZipRecruiter refused the search (HTTP ${r.status})`, "error");
+          const list = r.ok ? parseZipRecruiter(await r.text()) : [];
+          if (r.ok && !list.length) t.problem(row, "No results read from the page", "info");
+          return list;
+        });
+      }
       if (indeed) {
         const row = t.row("indeed", label, indeedSearch(q, loc, days));
         await safely(row, async () => {
@@ -360,7 +379,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
       } else if (indeedWall)
         t.problem(t.row("indeed", label, indeedSearch(q, loc, days)), "Skipped after the bot check", "info");
     }
-  for (const g of ["linkedin", "glassdoor", "indeed"] as const) await t.done(g);
+  for (const g of ["linkedin", "glassdoor", "ziprecruiter", "indeed"] as const) await t.done(g);
 
   for (const url of y.careerSites) {
     const row = t.row("careers", labelOf(url, sitePath), url);
@@ -448,8 +467,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     }
     let url = l.url;
     // Boards: apply on the employer's own posting. LinkedIn shows logged-out visitors no way there; Glassdoor and
-    // Indeed pages have an "Apply on company site" button the run can click instead.
-    if (["linkedin", "glassdoor", "indeed"].includes(l.source)) {
+    // Indeed pages have an "Apply on company site" button the run can click instead, ZipRecruiter's an "Apply" link.
+    if (["linkedin", "glassdoor", "indeed", "ziprecruiter"].includes(l.source)) {
       const own =
         l.source === "linkedin"
           ? linkedin.get(key)

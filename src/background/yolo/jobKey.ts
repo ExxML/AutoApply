@@ -39,6 +39,7 @@ export function jobKey(raw: string): string {
   if (host.endsWith("indeed.com") && q("jk")) return `indeed:${q("jk")}`;
   if (/(^|\.)glassdoor\.[a-z.]+$/.test(host) && (q("jl") ?? q("joblistingid")))
     return `glassdoor:${q("jl") ?? q("joblistingid")}`;
+  if (host.endsWith("ziprecruiter.com") && q("jid")) return `ziprecruiter:${q("jid")}`;
   if (seg.includes("CandidateExperience") && after("job")) return `oracle:${host}:${after("job")}`;
   if (q("ats") === "successfactors" || host.endsWith("successfactors.com")) {
     const id = q("jobid") ?? seg.find((s) => /^\d{6,}$/.test(s));

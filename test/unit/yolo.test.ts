@@ -11,6 +11,8 @@ import {
   parseIndeed,
   parseJobrightFeed,
   parseLinkedIn,
+  parseZipRecruiter,
+  zipRecruiterSearch,
 } from "../../src/background/yolo/sources";
 import {
   boardOf,
@@ -67,6 +69,9 @@ describe("job keys", () => {
     expect(jobKey("https://www.glassdoor.ca/job-listing/x-JV_IC2.htm?jl=1010271659983&cs=1")).toBe(
       "glassdoor:1010271659983",
     );
+    expect(
+      jobKey("https://www.ziprecruiter.com/c/paypal/Job/Software-Engineer-Intern/-in-Austin,TX?jid=06a5d35f0de7929e"),
+    ).toBe("ziprecruiter:06a5d35f0de7929e");
     expect(jobKey("https://careers.example.com/Jobs/42?utm_source=a&ref=b")).toBe("careers.example.com/jobs/42");
   });
 
@@ -182,6 +187,54 @@ describe("sources", () => {
     });
     expect(out[0].easyApply).toBeUndefined();
     expect(out[1].easyApply).toBe(true);
+  });
+
+  it("reads ZipRecruiter's result cards from the Next.js payload its search page streams, marking Quick Apply ones", () => {
+    const at = Date.UTC(2026, 10, 5) / 1000;
+    const card = (jid: string, type: number, extra: object = {}) => ({
+      $typeName: "job_services.job_card.public.v1.JobCard",
+      title: `Software Engineer Intern ${jid}`,
+      rawCanonicalZipJobPageUrl: `/c/PayPal/Job/Software-Engineer-Intern/-in-Austin,TX?jid=${jid}`,
+      company: { name: "PayPal" },
+      location: { displayName: "Austin, TX US 78716" },
+      display: { location: "Austin, TX", locationTypes: "On-site" },
+      status: { isActive: true, postedAtUtc: { seconds: `$n${at}`, nanos: 0 } },
+      applyButtonConfig: { applyButtonType: type },
+      ...extra,
+    });
+    const payload = `5:["$","div",null,{"jobKeys":[{"listingKey":"x"}],"jobCards":${JSON.stringify([
+      card("a1", 4),
+      card("b2", 3),
+      card("c3", 4, { display: { location: "Austin, TX", locationTypes: "Remote" } }),
+      card("d4", 4, { status: { isActive: false } }),
+      card("a1", 4),
+    ])}}]`;
+    // Streamed in pieces, each a JS string literal.
+    const html = [payload.slice(0, 40), payload.slice(40)]
+      .map((s) => `<script>self.__next_f.push([1,${JSON.stringify(s)}])</script>`)
+      .join("");
+    const out = parseZipRecruiter(html);
+    expect(out.map((l) => l.title)).toEqual([
+      "Software Engineer Intern a1",
+      "Software Engineer Intern b2",
+      "Software Engineer Intern c3",
+    ]);
+    expect(out[0]).toEqual({
+      url: "https://www.ziprecruiter.com/c/PayPal/Job/Software-Engineer-Intern/-in-Austin,TX?jid=a1",
+      title: "Software Engineer Intern a1",
+      company: "PayPal",
+      location: "Austin, TX",
+      postedAt: at * 1000,
+      source: "ziprecruiter",
+      easyApply: undefined,
+    });
+    expect(out[1].easyApply).toBe(true);
+    expect(out[2].location).toBe("Remote - Austin, TX");
+    // A bot check's page carries no payload.
+    expect(parseZipRecruiter("<title>Just a moment...</title>")).toEqual([]);
+    expect(zipRecruiterSearch("C++ intern", "Toronto, ON", 14)).toBe(
+      "https://www.ziprecruiter.com/jobs-search?search=C%2B%2B%20intern&location=Toronto%2C%20ON&days=14",
+    );
   });
 
   it("reads Indeed's result cards from the job-card data its search page embeds", () => {
@@ -876,6 +929,45 @@ describe("discovery", () => {
     expect(await discover({ yolo: y, fetch: f })).toBe(1);
     const queued = (await chrome.storage.local.get("yoloQueue")).yoloQueue as { sourceGroups: string[] }[];
     expect(queued[0].sourceGroups).toEqual(expect.arrayContaining(["feeds", "glassdoor"]));
+  });
+
+  it("queues ZipRecruiter jobs on their posting page and reports a search a bot check stood in for", async () => {
+    const cards = [
+      {
+        title: "Software Engineer Intern",
+        rawCanonicalZipJobPageUrl: "/c/Nobody/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=9f",
+        company: { name: "Nobody" },
+        display: { location: "Ottawa, ON" },
+        applyButtonConfig: { applyButtonType: 4 },
+      },
+    ];
+    const page = `<script>self.__next_f.push([1,${JSON.stringify(`"jobCards":${JSON.stringify(cards)}`)}])</script>`;
+    const f = async (url: string) =>
+      !url.includes("ziprecruiter")
+        ? new Response("", { status: 404 })
+        : url.includes("search=Software")
+          ? new Response(page)
+          : new Response("<title>Just a moment...</title>", { status: 403, headers: { "cf-mitigated": "challenge" } });
+    const y = {
+      ...defaultYolo(),
+      queries: ["Software Engineer Intern", "Co-op"],
+      locations: ["Canada"],
+      feeds: [],
+      boards: ["ziprecruiter" as const],
+    };
+    expect(await discover({ yolo: y, fetch: f })).toBe(1);
+    const { yoloQueue, yoloSourceCheck } = (await chrome.storage.local.get(["yoloQueue", "yoloSourceCheck"])) as {
+      yoloQueue: { url: string; sourceGroups: string[] }[];
+      yoloSourceCheck: SourceCheck;
+    };
+    expect(yoloQueue[0]).toMatchObject({
+      url: "https://www.ziprecruiter.com/c/Nobody/Job/Software-Engineer-Intern/-in-Ottawa,ON?jid=9f",
+      sourceGroups: ["ziprecruiter"],
+    });
+    expect(yoloSourceCheck.groups[0].rows.map((r) => [r.label, r.level, r.problem ?? ""])).toEqual([
+      ['"Software Engineer Intern" · Canada', "ok", ""],
+      ['"Co-op" · Canada', "warn", expect.stringMatching(/^A bot check \(Cloudflare\) stood in for the search/)],
+    ]);
   });
 
   it("asks the AI about the batch and drops what it rejects", async () => {

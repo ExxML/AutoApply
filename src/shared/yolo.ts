@@ -9,7 +9,7 @@ export const SIMPLIFY_FEED =
   "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json";
 
 /** Job boards searched with the user's queries. They only find jobs: applying happens on the employer's own site. */
-export const BOARDS = ["linkedin", "indeed", "glassdoor"] as const;
+export const BOARDS = ["linkedin", "indeed", "glassdoor", "ziprecruiter"] as const;
 export type Board = (typeof BOARDS)[number];
 
 /** Where a queued job was found, as the queue order ranks it. */
@@ -47,6 +47,7 @@ export const SOURCE_NAMES: Record<SourceGroup, string> = {
   linkedin: "LinkedIn",
   indeed: "Indeed",
   glassdoor: "Glassdoor",
+  ziprecruiter: "ZipRecruiter",
   jobright: "Jobright",
 };
 
@@ -69,7 +70,7 @@ const base = z.object({
   aiRelevanceCheck: b(true),
   /** Days a job the AI judged not a fit is skipped without asking again (yolo/discover.ts). */
   aiRejectDays: n(90, 1, 365),
-  boards: z.array(z.enum(BOARDS)).catch(["linkedin", "indeed", "glassdoor"]),
+  boards: z.array(z.enum(BOARDS)).catch(["linkedin", "indeed", "glassdoor", "ziprecruiter"]),
   feeds: strs([SIMPLIFY_FEED]),
   /** Non-empty = read the signed-in user's Jobright recommendations. Its values are unused (once Jobright's GitHub lists). */
   jobright: strs(),
