@@ -2,9 +2,34 @@ import { useState } from "preact/hooks";
 import { z } from "zod";
 import { ProfileSchema } from "../../shared/profileSchema";
 import { SettingsSchema } from "../../shared/settings";
-import { ApiKeyEntrySchema, DocumentMetaSchema, LOCAL_SCHEMAS } from "../../shared/storage";
+import {
+  ApiKeyEntrySchema,
+  DocumentMetaSchema,
+  LOCAL_SCHEMAS,
+  type LocalKey,
+  type LocalValues,
+} from "../../shared/storage";
+import { send } from "../../shared/messages";
 import { migrateYoloReview } from "../../shared/yolo";
 import { markSaved, save, store } from "../store";
+
+/**
+ * What else lets another browser carry on where this one left off: YOLO's queue, source check, AI fit verdicts and
+ * lookups, and the model caches. Left behind: what belongs to this browser (sign-ins, the Claude connection, the
+ * encrypted vault, debug logs, a run's session state) and the feed validators, cleared anyway when searches change.
+ */
+const CARRIED = [
+  "modelCatalog",
+  "modelListFetchedAt",
+  "modelCapabilities",
+  "overlayPos",
+  "yoloQueue",
+  "yoloInFlight",
+  "yoloSourceCheck",
+  "yoloRejected",
+  "yoloTabHosts",
+  "employerBoards",
+] as const satisfies LocalKey[];
 
 const ExportSchema = z.object({
   app: z.literal("autoapply"),
@@ -20,6 +45,8 @@ const ExportSchema = z.object({
   // their key can't leave this browser.
   yolo: z.unknown().optional(),
   applications: z.unknown().optional(),
+  /** CARRIED's keys, the current batch (`yoloState`) and, with the API keys, their states (`keyState`). */
+  local: z.record(z.string(), z.unknown()).optional(),
   /** The LaTeX résumé for AI tailoring: its source, untailored PDF and optional fallback PDF (base64). */
   tailorResume: z
     .object({
@@ -72,6 +99,12 @@ export function Data() {
       pdf: (await store.getDoc("tailor-pdf")) ?? "",
       fallbackPdf: (await store.getDoc("tailor-fallback-pdf")) ?? undefined,
     };
+    const local: Record<string, unknown> = await store.getMany([
+      ...CARRIED,
+      ...(withKeys ? ["keyState" as const] : []),
+    ]);
+    const { batchAt, queueOnlyBatch } = await store.get("yoloState");
+    local.yoloState = { batchAt, queueOnlyBatch };
     const data: Export = {
       app: "autoapply",
       version: 1,
@@ -82,6 +115,7 @@ export function Data() {
       reviewModel,
       yolo,
       applications,
+      local,
       ...(withDocs ? { documents, tailorResume } : {}),
       ...(withKeys ? { apiKeys } : {}),
     };
@@ -110,6 +144,7 @@ export function Data() {
         ...(r.data.applications
           ? ["YOLO settings and applications: replaced (YOLO stays off until you turn it on)"]
           : []),
+        ...(r.data.local ? ["YOLO queue, batch, source check and model caches: replaced"] : []),
       ];
       setPending({ data: r.data, summary });
     } catch {
@@ -121,6 +156,15 @@ export function Data() {
     if (!pending) return;
     const { data } = pending;
     const settings = SettingsSchema.parse(data.settings);
+    // Exports from before these were carried have no `local`: the current ones stay.
+    const local: Record<string, unknown> = {};
+    const keys: LocalKey[] = [...CARRIED, ...(data.apiKeys ? ["keyState" as const] : [])];
+    for (const k of keys) if (data.local && k in data.local) local[k] = LOCAL_SCHEMAS[k].parse(data.local[k]);
+    if (data.local?.yoloState) {
+      // Only the batch: the rest is this browser's sign-ins and Gmail connection, or a pause whose alarm stayed behind.
+      const { batchAt, queueOnlyBatch } = LOCAL_SCHEMAS.yoloState.parse(data.local.yoloState);
+      local.yoloState = { ...(await store.get("yoloState")), batchAt, queueOnlyBatch };
+    }
     if (data.documents) {
       const old = await store.get("documentsIndex");
       for (const d of old) await store.removeDoc(d.id);
@@ -150,7 +194,11 @@ export function Data() {
       ...(data.reviewModel !== undefined ? { reviewModel: data.reviewModel } : {}),
       ...(data.yolo ? { yolo: { ...migrateYoloReview(data.yolo, settings.reviewFills), enabled: false } } : {}),
       ...(data.applications ? { applications: LOCAL_SCHEMAS.applications.parse(data.applications) } : {}),
+      ...local,
     });
+    await send({ type: "IMPORTED", keyState: local.keyState as LocalValues["keyState"] | undefined }).catch(
+      () => undefined,
+    );
     setPending(null);
     setMsg("Imported.");
   };
@@ -169,7 +217,7 @@ export function Data() {
       <h1>Data</h1>
       <div class="panel-box">
         <h2>Export</h2>
-        <p>Profile, settings, models, site rules and documents as one JSON file.</p>
+        <p>Profile, settings, models, site rules, documents and YOLO's applications and queue as one JSON file.</p>
         <label class="inline">
           <input type="checkbox" checked={withKeys} onChange={(e) => setWithKeys(e.currentTarget.checked)} /> Include
           API keys

@@ -11,6 +11,7 @@ import type {
   FrameStatus,
   JobBrief,
   JobContext,
+  KeyState,
   LearnedAnswerInput,
   Pay,
   Profile,
@@ -144,6 +145,8 @@ export type Message =
   | { type: "YOLO_ACCOUNTS" }
   | { type: "YOLO_REVEAL"; site: string }
   | { type: "YOLO_DELETE_ACCOUNT"; site: string }
+  /** An export was just imported: its API keys' states, and the job its browser was mid-application on. */
+  | { type: "IMPORTED"; keyState?: Record<string, KeyState> }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }
   /** YOLO's navigator: the next step on a page its wording rules can't read (content/yolo/driver.ts). */
   | { type: "NAVIGATE"; page: string; facts: PageFacts; url: string; why: string }
@@ -278,6 +281,7 @@ export interface Responses {
   YOLO_ACCOUNTS: { site: string; email: string; createdAt: number }[];
   YOLO_REVEAL: { password: string } | Err;
   YOLO_DELETE_ACCOUNT: Ok;
+  IMPORTED: Ok;
 }
 
 /**

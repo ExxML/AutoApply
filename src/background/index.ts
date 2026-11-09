@@ -34,6 +34,7 @@ import { isTailoredDoc, TAILOR_PLACEHOLDER } from "../shared/resumeMode";
 import {
   initYolo,
   isYoloDoc,
+  recoverLost,
   runTab,
   yoloApplied,
   yoloDoc,
@@ -722,6 +723,17 @@ const handlers: Handlers = {
     } catch (e) {
       return { error: toApiError(e) };
     }
+  },
+
+  async IMPORTED({ keyState }) {
+    // Applied here, not through storage: this worker's next save of its own key states would overwrite them.
+    if (keyState) {
+      pool.setKeys(await store.get("apiKeys"), keyState);
+      persistKeys();
+    }
+    // Requeued (or recorded) as after a browser restart: no run here is applying to it.
+    await recoverLost();
+    return { ok: true };
   },
 
   ...yoloHandlers,

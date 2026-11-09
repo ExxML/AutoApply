@@ -497,7 +497,7 @@ async function sleptThrough(run: Run, r: YoloResult): Promise<boolean> {
 }
 
 /** A browser restart lost the run (session storage) mid-application: its job goes back to the front of the queue. */
-async function recoverLost() {
+export async function recoverLost() {
   const item = await store.get("yoloInFlight");
   if (!item || (await getRun())) return;
   await store.set({ yoloInFlight: null });
