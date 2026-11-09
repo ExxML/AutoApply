@@ -429,7 +429,8 @@ async function pump() {
       const ok = (i: QueueItem) => i.postedAt === RETRY || !applied(apps, i.key, i.alt, yolo.reapplyManual);
       const [first, ...rest] = inQueueOrder(q.filter(ok), yolo);
       item = first;
-      return rest;
+      // Its other copies too: a requeued copy would skip the already-applied check above.
+      return rest.filter((i) => i.key !== first?.key);
     });
     if (!item) return;
     await setState({ pauseReason: "" });
@@ -462,7 +463,9 @@ async function requeue(item: QueueItem, resumeKey?: string) {
     await queueReviewRefill(held.key);
     return;
   }
-  await updateQueue((q) => [{ ...item, postedAt: RETRY }, ...q]);
+  // Replaces any copy already queued: two recoveries racing on one in-flight job would otherwise queue it twice, and
+  // requeued jobs skip the already-applied check.
+  await updateQueue((q) => [{ ...item, postedAt: RETRY }, ...q.filter((i) => i.key !== item.key)]);
 }
 
 /**
