@@ -741,10 +741,10 @@ const accountEmail = async () => yolo.email || (await store.get("profile")).pers
  */
 export async function yoloJob(
   sender: chrome.runtime.MessageSender,
-): Promise<{ company: string; title: string } | null> {
+): Promise<{ company: string; title: string; location: string } | null> {
   const run = await getRun();
   if (!fromRun(run, sender) || run.mode !== "apply" || run.item.source === "careers") return null;
-  return { company: run.item.company, title: run.item.title };
+  return { company: run.item.company, title: run.item.title, location: run.item.location };
 }
 
 /** The run's tab as the rest of the background sees it; the hidden frame has none, so it stands in as tab -1. */

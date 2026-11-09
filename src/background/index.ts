@@ -22,7 +22,7 @@ import { defaultModel, updateCatalog, visibleModels } from "./gemini/models";
 import { VALIDATION_PROMPT } from "./gemini/prompts";
 import { VALIDATION_SCHEMA, ValidationZ } from "./gemini/schemas";
 import { adoptPosting, getJobContext, getJobPay, setJobContext, setJobPay } from "./jobContext";
-import { mapFields, type ServiceCtx } from "./services/mapFields";
+import { jobCountry, mapFields, type ServiceCtx } from "./services/mapFields";
 import { navigate } from "./services/navigate";
 import { reviewForm } from "./services/reviewForm";
 import { chooseOptions } from "./services/chooseOptions";
@@ -378,6 +378,12 @@ const handlers: Handlers = {
     const tab = await runTab(sender);
     const job = await yoloJob(sender);
     if (job) ctx = { ...ctx, company: job.company || ctx.company, jobTitle: job.title || ctx.jobTitle };
+    // The listing and the page naming different countries: one is wrong, so work authorization isn't decided from
+    // either alone. Astera's Greenhouse page showed its San Jose HQ for a Vancouver role ("Vancouver, BC" listed),
+    // and the US entry's "needs sponsorship" went in.
+    const listed = job?.location ? jobCountry(job.location) : undefined;
+    if (listed && ctx.location && jobCountry(ctx.location) && jobCountry(ctx.location) !== listed)
+      ctx = { ...ctx, location: `${ctx.location}; ${job!.location}` };
     // A run's pages are all one job: Paccar's career site ("portalcareer") names no location, the posting did
     // ("Kirkland, WA, US"), and "authorized to work in the country where position is based?" got the home country's Yes.
     if (!ctx.location && tab?.id !== undefined && (await yoloOverrides(sender))) {
