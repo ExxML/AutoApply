@@ -428,7 +428,7 @@ export function Yolo() {
         />
         <Toggle
           label="Retry in a background tab"
-          help="Sites that refuse to work hidden or show a CAPTCHA there are retried in an inactive tab (in a collapsed “AutoApply” group), closed when done. Their later jobs start in one."
+          help="Sites that refuse to work hidden or show a CAPTCHA there are retried in an inactive tab (in an “AutoApply” tab group), closed when done. Their later jobs start in one."
           checked={y.tabFallback}
           onChange={(tabFallback) => set({ tabFallback })}
         />

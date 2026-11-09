@@ -37,12 +37,14 @@ export async function closeFrame() {
   await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE] });
 }
 
-/** A tab for pages that won't work hidden (inactive, in a collapsed group), or a visible one for the user. */
+/** A tab for pages that won't work hidden (inactive, in an "AutoApply" group), or a visible one for the user. */
 export async function openTab(url: string, visible: boolean): Promise<number> {
   const tab = await chrome.tabs.create({ url, active: visible });
   if (!visible && tab.id !== undefined) {
     const groupId = await chrome.tabs.group({ tabIds: tab.id });
-    await chrome.tabGroups.update(groupId, { title: "AutoApply", collapsed: true });
+    // Not collapsed: Chrome freezes a collapsed group's tabs within seconds (tab.frozen), stopping the page's own
+    // scripts mid-application (Greenhouse's school search never answered).
+    await chrome.tabGroups.update(groupId, { title: "AutoApply", collapsed: false });
   }
   return tab.id!;
 }
