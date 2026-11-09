@@ -85,7 +85,8 @@ function parseTables(md: string, source: string): Listing[] {
     const url = cells
       .slice(3)
       .join(" ")
-      .match(/https?:\/\/[^\s)"'<>]+/g)
+      // Balanced parentheses stay in the URL: Acuity's ".../Stagiaire-développement-matériel-(hardware)-Québ…/".
+      .match(/https?:\/\/(?:[^\s()"'<>]|\([^\s()"'<>]*\))+/g)
       ?.find((u) => !/simplify\.jobs|github\.com|githubusercontent|imgur|shields\.io/.test(u));
     if (url && company)
       out.push({ url: decode(url), company, title: cellText(cells[1]), location: cellText(cells[2]), source });

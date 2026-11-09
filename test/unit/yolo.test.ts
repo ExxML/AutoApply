@@ -195,12 +195,14 @@ describe("sources", () => {
 | ↳ | Data Intern | Remote | [Apply](https://jobs.lever.co/acme/2) | 1d |
 | Closed Co | SWE Intern | NYC | 🔒 | 3d |
 | ↳ | Open Intern | NYC | [Apply](https://jobs.lever.co/closedco/3) | 3d |
+| Paren Co | HW Intern | QC | [![Apply](https://img.shields.io/x)](https://careers.example.com/job/Intern-(hardware)-QC/12/?ats=sf) | 1d |
 <table><tr><td><strong><a href="https://simplify.jobs/c/Beta">Beta</a></strong></td><td>SWE Intern</td><td>Seattle, WA</br>Remote</td><td><a href="https://job-boards.greenhouse.io/beta/jobs/9"><img></a></td><td>0d</td></tr></table>`;
     expect(parseFeed(md, "r").map((l) => [l.company, l.title, l.location, l.url])).toEqual([
       ["Beta", "SWE Intern", "Seattle, WA; Remote", "https://job-boards.greenhouse.io/beta/jobs/9"],
       ["Acme", "Software Engineer Intern", "Toronto, ON", "https://jobs.lever.co/acme/1?utm_source=Simplify"],
       ["Acme", "Data Intern", "Remote", "https://jobs.lever.co/acme/2"],
       ["Closed Co", "Open Intern", "NYC", "https://jobs.lever.co/closedco/3"],
+      ["Paren Co", "HW Intern", "QC", "https://careers.example.com/job/Intern-(hardware)-QC/12/?ats=sf"],
     ]);
   });
 
