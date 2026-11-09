@@ -69,6 +69,9 @@ $psi.RedirectStandardError = $true
 $psi.StandardOutputEncoding = [Text.Encoding]::UTF8
 $psi.StandardErrorEncoding = [Text.Encoding]::UTF8
 $psi.EnvironmentVariables['DISABLE_AUTOUPDATER'] = '1'
+# The system prompt (the same in every call) keeps Claude Code's hour-long cache; each call's own message is written to
+# the 5-minute one, which costs less of the plan's limits.
+$psi.EnvironmentVariables['CLAUDE_CODE_MESSAGES_PROMPT_CACHE_TTL'] = '5m'
 
 try { $p = [Diagnostics.Process]::Start($psi) }
 catch {
@@ -76,20 +79,33 @@ catch {
   Send-Reply 127 '' $_.Exception.Message
   exit 0
 }
-$out = $p.StandardOutput.ReadToEndAsync()
+$out = New-Object Text.StringBuilder
+$line = $p.StandardOutput.ReadLineAsync()
 $err = $p.StandardError.ReadToEndAsync()
 try { $p.StandardInput.BaseStream.Write($in, 0, $in.Length); $p.StandardInput.Close() } catch {}
 
 # Chrome closes stdin when the extension disconnects (aborted, timed out): stop claude then.
 $eof = $stdin.ReadAsync((New-Object byte[] 1), 0, 1)
-while (-not $p.WaitForExit(200)) {
-  if ($eof.IsCompleted) {
+$result = $false
+while ($true) {
+  if ($line.Wait(200)) {
+    if ($null -eq $line.Result) { break }
+    [void]$out.Append($line.Result).Append("`n")
+    # The result line is the whole answer: replying then saves the half second claude takes to shut down.
+    if ($line.Result.Contains('"type":"result"')) { $result = $true; break }
+    $line = $p.StandardOutput.ReadLineAsync()
+  } elseif ($eof.IsCompleted) {
     # The whole tree: an npm install's claude.cmd runs node as a child.
     & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     exit 0
   }
 }
-$p.WaitForExit()
+if ($result) { Send-Reply 0 $out.ToString() '' }
+else {
+  $p.WaitForExit()
+  Send-Reply $p.ExitCode $out.ToString() $err.Result
+}
+# Not killed: claude finishes saving its own state.
+$p.WaitForExit(15000) | Out-Null
 Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
-Send-Reply $p.ExitCode $out.Result $err.Result

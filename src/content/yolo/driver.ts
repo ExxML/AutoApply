@@ -243,7 +243,7 @@ export async function drive(deps: DriverDeps) {
     let pickedWay = false;
     /** Presses of Next/Submit in a row that changed nothing. */
     let idle = 0;
-    /** Steps of this page load read as unknown. */
+    /** Unknown steps in a row on this page load. */
     let unknowns = 0;
     for (let i = 0; i < 30; i++) {
       // A navigation that never commits (a download, a 204) leaves the page as it was.
@@ -285,6 +285,9 @@ export async function drive(deps: DriverDeps) {
         if ("fail" in r) return needs(r.fail);
         kind = "form";
       }
+      // Unknown steps in a row: a single-page app re-rendering between known steps (Workday's next section) is waited
+      // on afresh each time, not handed to the navigator for the rest of the page load.
+      if (kind !== "unknown") unknowns = 0;
       switch (kind) {
         case "success":
           return result({ status: "submitted", doneUrl: location.href, guesses: deps.guesses() });

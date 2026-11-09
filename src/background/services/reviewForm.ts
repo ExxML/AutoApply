@@ -206,6 +206,7 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
         description: input.job?.text.slice(0, 8000) || input.job?.header,
       }),
       today: todayIso(),
+      desiredCompensationForThisJob: base.desiredCompensationForThisJob,
       policy,
       fields: input.fields,
       page: input.page,

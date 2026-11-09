@@ -2,6 +2,14 @@ import { defang } from "./injection";
 import { todayIso } from "./time";
 import type { Decision, FieldDescriptor, JobContext, Profile } from "./types";
 
+/**
+ * An internship or co-op term length to choose ("What duration of an internship are you interested in?"): SCREENING
+ * POLICY's own "acceptable term lengths" rule, so its answers cite "screening". Not a past term's length.
+ */
+const RE_TERM_LENGTH =
+  /\b(durations?|lengths?|how long|how many (months|weeks))\b[^?]*\b(internships?|co-?ops?|work[- ]?terms?|placements?|terms?)\b|\b(internships?|co-?ops?|work[- ]?terms?|placements?)\b[^?]*\b(durations?|lengths?)\b/i;
+const RE_PAST = /\b(was|were|did|previous|prior|last|past|completed)\b/i;
+
 /** Saved answers to screening questions must be reconsidered against this job and the current profile. */
 export function isScreeningQuestion(f: Pick<FieldDescriptor, "label" | "hint">): boolean {
   const text = `${defang(f.label)} ${defang(f.hint ?? "")}`;
@@ -11,6 +19,7 @@ export function isScreeningQuestion(f: Pick<FieldDescriptor, "label" | "hint">):
     )
   )
     return false;
+  if (RE_TERM_LENGTH.test(text) && !RE_PAST.test(text)) return true;
   return /\b(experience|proficien\w*|qualif\w*|requirements?|availab\w*|willing\w*|relocat\w*|eligible|conflicts?|non-compete|shifts?|overtime|licen[cs]e|vehicle|travel|weekends?|hours|on-?site|hybrid|skills?|familiar|comfortable|able to)\b|\bhow many (years?|months?)\b.*\b(used|using|worked|working)\b|\bhave you\b.*\bused\b/i.test(
     text,
   );

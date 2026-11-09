@@ -23,7 +23,11 @@ if (args.includes("--input-format")) {
 }
 const sys = fs.readFileSync(args.find((a) => a.startsWith("--system-prompt-file=")).split("=").slice(1).join("="), "utf8");
 if (stdin === "SLEEP") { fs.writeFileSync(process.env.PIDFILE, String(process.pid)); setTimeout(() => {}, 60000); }
-else console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: JSON.stringify({ args, stdin, sys, cwd: process.cwd(), env: process.env.DISABLE_AUTOUPDATER }) }));
+else {
+  console.log(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: JSON.stringify({ args, stdin, sys, cwd: process.cwd(), env: process.env.DISABLE_AUTOUPDATER, ttl: process.env.CLAUDE_CODE_MESSAGES_PROMPT_CACHE_TTL }) }));
+  // Claude Code's own shutdown after its result: the reply doesn't wait for it.
+  if (stdin === "LINGER") setTimeout(() => {}, 3000);
+}
 `;
 
 const dirs: string[] = [];
@@ -122,7 +126,21 @@ describe.each(kinds)("Claude bridge host (%s)", (kind) => {
     ]);
     expect(out.args.slice(14)).toEqual(["--model=haiku", "--effort=low"]);
     expect(out.env).toBe("1");
+    expect(out.ttl).toBe("5m");
     expect(resolve(out.cwd).toLowerCase()).toBe(resolve(r.dir).toLowerCase());
+  }, 30000);
+
+  it("replies once the result line is written, not when claude exits", async () => {
+    const { p, reply } = start(kind, install(kind));
+    const closed = new Promise((r) => p.on("close", r));
+    p.stdin.write(frame([b64("s"), b64("LINGER"), "", ""]));
+    const r = await reply;
+    const repliedAt = Date.now();
+    expect(r.code).toBe(0);
+    expect(JSON.parse(JSON.parse(r.out.trim()).result).stdin).toBe("LINGER");
+    // The host still lets claude finish (it isn't killed mid-shutdown).
+    await closed;
+    expect(Date.now() - repliedAt).toBeGreaterThan(1500);
   }, 30000);
 
   it("leaves model and effort out when empty", async () => {

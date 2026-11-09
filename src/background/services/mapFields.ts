@@ -1987,12 +1987,12 @@ async function auditFills(
   });
   if (!items.length) return decisions;
   try {
-    const { profile, resume, learnedAnswers, job, today } = base;
+    const { profile, resume, learnedAnswers, job, today, desiredCompensationForThisJob } = base;
     const r = await ctx.ai.call(
       {
         system: AUDIT_PROMPT,
         context: { profile, resume },
-        payload: { learnedAnswers, job, today, items },
+        payload: { learnedAnswers, job, today, desiredCompensationForThisJob, items },
         schema: AUDIT_SCHEMA,
         validate: (d) => AuditZ.parse(d),
         timeoutMs: ctx.settings.requestTimeoutMs,
@@ -2153,9 +2153,17 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">, pay: PayTarg
   const { resumeText, learnedAnswers, ...rest } = input.profile;
   // The model gets the pay to answer for this job, not the rule for choosing it.
   const { strategy: _, ...comp } = rest.preferences.desiredCompensation;
-  const desiredCompensation = pay
-    ? { ...comp, amount: String(rounded(pay.amount, pay.period)), period: pay.period, currency: pay.currency }
-    : comp;
+  const asked = (p: PayTarget) => ({
+    ...comp,
+    amount: String(rounded(p.amount, p.period)),
+    period: p.period,
+    currency: p.currency,
+  });
+  // The profile is the prompt part cached across jobs (CallSpec.context), so it holds the lowest pay; a posting's own
+  // target goes with the request, or every job with a listed range would re-send the whole profile uncached.
+  const floor = payTarget(rest.preferences.desiredCompensation, []);
+  const desiredCompensation = floor ? asked(floor) : comp;
+  const forJob = pay && asked(pay);
   return {
     profile:
       compactProfile(withoutEssayStyle({ ...rest, preferences: { ...rest.preferences, desiredCompensation } })) ?? {},
@@ -2175,6 +2183,9 @@ export function mappingPayloadBase(input: Omit<MapInput, "fields">, pay: PayTarg
       descriptionExcerpt: input.job?.text.slice(0, 3000) || input.job?.header,
     }),
     today: todayIso(),
+    ...(forJob && JSON.stringify(forJob) !== JSON.stringify(desiredCompensation)
+      ? { desiredCompensationForThisJob: forJob }
+      : {}),
   };
 }
 

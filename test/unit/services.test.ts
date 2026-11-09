@@ -2447,13 +2447,15 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const gemini = {
       call: async (s: {
         context?: { profile?: { preferences?: object } };
-        payload: { fields?: FieldDescriptor[] };
+        payload: { fields?: FieldDescriptor[]; desiredCompensationForThisJob?: object };
       }) => {
         asked.push(JSON.stringify(s.context?.profile?.preferences));
+        forJob.push(JSON.stringify(s.payload.desiredCompensationForThisJob));
         const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
         return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
       },
     } as unknown as Gemini;
+    const forJob: string[] = [];
     const profile = emptyProfile();
     profile.preferences.desiredCompensation = {
       amount: "80000",
@@ -2490,9 +2492,12 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "flag",
       "100000",
     ]);
-    // The model sees the pay to answer for this job, not the rule.
-    expect(asked[0]).toContain('"amount":"100000"');
+    // The model sees the pay to answer for this job, not the rule; the cached profile keeps the lowest pay, so it is
+    // the same for every job.
+    expect(asked[0]).toContain('"amount":"80000"');
     expect(asked[0]).not.toContain("strategy");
+    expect(forJob[0]).toContain('"amount":"100000"');
+    expect(forJob[0]).not.toContain("strategy");
   });
 
   it("leaves questions about AI use in the application to the user", async () => {

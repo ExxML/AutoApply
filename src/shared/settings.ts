@@ -66,6 +66,11 @@ const base = z.object({
   aiProvider: z.enum(["gemini", "claude"]).catch("gemini"),
   /** Per task: fill = autofill and YOLO's relevance check, write = essays and cover letters, resume = résumé import. */
   claude: claudeTasks.catch(() => claudeTasks.parse({})),
+  /**
+   * Claude as the provider: the fill task (field answers, the answer check, YOLO's best guesses, dropdown picks and
+   * relevance check) goes to the Gemini keys and model instead, leaving Claude's limits to writing and review.
+   */
+  geminiFill: b(false),
   overwritePrefilled: b(false),
   autoAcceptAcknowledgements: b(true),
   optionalConsents: z.enum(["ask", "accept", "decline"]).catch("decline"),

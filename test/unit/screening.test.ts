@@ -263,6 +263,45 @@ describe("screening security and safeguards", () => {
   });
 
   it.each([
+    "What duration of an internship are you interested in?",
+    "How long would you like your co-op term to be?",
+    "Preferred internship length",
+    "How many months can your work term be?",
+  ])("treats a term length to choose as screening (the policy's acceptable term lengths): %s", (label) => {
+    expect(isScreeningQuestion(field(label))).toBe(true);
+  });
+
+  it.each(["What was the duration of your previous internship?", "How long did your last co-op term last?"])(
+    "leaves a past term's length to the data: %s",
+    (label) => {
+      expect(isScreeningQuestion(field(label))).toBe(false);
+    },
+  );
+
+  it("keeps a policy-sourced term length the mapper chose, rather than flagging it as made up", () => {
+    // Live 2026-11-08 (Lever, Analytic Partners): "6 months" for a candidate open to any length was flagged "Not in
+    // your profile", then re-asked as a guess; the review's same correction was dropped.
+    const duration = field("What duration of an internship are you interested in?", {
+      kind: "radio_group",
+      options: ["6 months", "8 months"],
+    });
+    const [d] = validateDecisions(
+      [duration],
+      [
+        {
+          fieldId: "q",
+          action: "fill",
+          intendedAnswer: "6 months",
+          optionIndexes: [0],
+          confidence: "medium",
+          sources: [SCREENING_SOURCE],
+        },
+      ],
+    );
+    expect(d).toMatchObject({ action: "fill", optionIndexes: [0] });
+  });
+
+  it.each([
     "Do you have a driver's license?",
     "Are you able to travel?",
     "Have you used React?",

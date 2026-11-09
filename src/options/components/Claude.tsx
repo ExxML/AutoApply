@@ -5,6 +5,7 @@ import { formatDateTime } from "../../shared/time";
 import type { ClaudeModel, Settings } from "../../shared/types";
 import { installerScript, setupCommand, uninstallCommand, type SetupOs } from "../claudeSetup";
 import { save, useStored } from "../store";
+import { Toggle } from "./controls";
 
 const PROVIDERS: [Settings["aiProvider"], string, string][] = [
   [
@@ -274,6 +275,12 @@ export function ClaudeModels() {
           ))}
         </tbody>
       </table>
+      <Toggle
+        label="Autofill with Gemini"
+        help="Field answers, dropdown picks, the answer check and YOLO's relevance check use your Gemini API keys and model (below) instead of Claude, so your plan's limits go to essays, résumés, navigation and the answer review, which still checks every answer. Claude answers when Gemini can't (no keys, or all out of quota)."
+        checked={s.geminiFill}
+        onChange={(v) => void save({ settings: { ...s, geminiFill: v } })}
+      />
     </section>
   );
 }

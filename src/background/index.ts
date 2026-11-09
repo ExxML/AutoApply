@@ -85,13 +85,15 @@ const claude = createClaude({
 const claudeLabel = (t: ClaudeTask) => `Claude (${t.model || "default"})`;
 /** A Gemini model id (or Claude's fill model) as the AI page's Model list names it, for the popup and overlay. */
 async function modelName(id: string | null): Promise<string | null> {
-  if (settings.aiProvider === "claude") {
+  const catalog = await store.get("modelCatalog");
+  // A Gemini id with Claude as the provider: the fill went to Gemini (settings.geminiFill).
+  if (settings.aiProvider === "claude" && !(id && catalog[id])) {
     const { model } = settings.claude.fill;
     const listed = (await store.get("claudeModels")).find((m) => m.value === model)?.displayName;
     // Capitalized alias until Claude Code has listed its models.
     return `Claude (${listed ?? (model ? model[0].toUpperCase() + model.slice(1) : "Default")})`;
   }
-  return id && ((await store.get("modelCatalog"))[id]?.displayName || id);
+  return id && (catalog[id]?.displayName || id);
 }
 const CLAUDE_MAP_FIELDS = 6;
 
@@ -172,20 +174,41 @@ const untrapped = <T>(spec: CallSpec<T>): CallSpec<T> => ({ ...spec, payload: de
 
 /** What a service calls the AI with; `task` picks Claude's model and effort. */
 async function serviceCtx(signal?: AbortSignal, task: AiTask = "fill"): Promise<ServiceCtx | { error: ApiError }> {
-  if (settings.aiProvider === "claude") {
-    if (!(await store.get("claudeReady")))
-      return { error: { kind: "noKey", message: "Claude isn't connected: set it up in AutoApply → AI." } };
-    const t = settings.claude[task];
-    // Claude always thinks, and thinking is serial: small parallel MAP calls finish sooner (15 fields: ~11 s → ~8.5 s).
-    const capped = { ...settings, maxFieldsPerRequest: Math.min(settings.maxFieldsPerRequest, CLAUDE_MAP_FIELDS) };
-    return {
-      ai: { call: (spec) => claude.call(untrapped(spec), t) },
-      settings: capped,
-      model: claudeLabel(t),
-      fallback: null,
-      signal,
-    };
-  }
+  if (settings.aiProvider !== "claude") return geminiCtx(signal, task);
+  const c = await claudeCtx(signal, task);
+  if ("error" in c || task !== "fill" || !settings.geminiFill) return c;
+  // Autofill's own calls on the Gemini keys, so Claude's limits go to writing and review; Claude answers when
+  // Gemini can't (no keys or model, every key out of quota).
+  const g = await geminiCtx(signal, task);
+  if ("error" in g) return c;
+  return {
+    ...g,
+    ai: {
+      call: (spec, o) =>
+        g.ai.call(spec, o).catch((e) => {
+          if (e instanceof AllKeysExhaustedError || e instanceof NoKeysError) return c.ai.call(spec, o);
+          throw e;
+        }),
+    },
+  };
+}
+
+async function claudeCtx(signal: AbortSignal | undefined, task: AiTask): Promise<ServiceCtx | { error: ApiError }> {
+  if (!(await store.get("claudeReady")))
+    return { error: { kind: "noKey", message: "Claude isn't connected: set it up in AutoApply → AI." } };
+  const t = settings.claude[task];
+  // Claude always thinks, and thinking is serial: small parallel MAP calls finish sooner (15 fields: ~11 s → ~8.5 s).
+  const capped = { ...settings, maxFieldsPerRequest: Math.min(settings.maxFieldsPerRequest, CLAUDE_MAP_FIELDS) };
+  return {
+    ai: { call: (spec) => claude.call(untrapped(spec), t) },
+    settings: capped,
+    model: claudeLabel(t),
+    fallback: null,
+    signal,
+  };
+}
+
+async function geminiCtx(signal: AbortSignal | undefined, task: AiTask): Promise<ServiceCtx | { error: ApiError }> {
   const { selectedModel, fallbackModel, reviewModel } = await store.getMany([
     "selectedModel",
     "fallbackModel",

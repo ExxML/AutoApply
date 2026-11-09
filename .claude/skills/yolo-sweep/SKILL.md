@@ -18,6 +18,7 @@ State is in `.yolo-sweep/` at the main checkout (gitignored). Your profile comes
   Env: `REAL=1` (click the final Submit: applies), `MAXMIN` (fill timeout per page, default 3), `PAGES` (default 6), `EXP=<js file>` (run in every frame at the end), `VERBOSE=1`.
 - `MODE=manual` makes pick.mjs/batch.mjs use fill.mjs and `.yolo-sweep/tested-manual.json`, and skips sign-in ATSs (Workday, Oracle, SuccessFactors, iCIMS, Taleo, Avature) whose forms the manual harness can't reach. `loop.mjs --mode manual` runs the whole flow for manual autofill.
 - `AI_PROVIDER=claude|gemini` picks the provider for any command; Claude works headless through the installed bridge (harness builds request `nativeMessaging`). `AA_EXT=<dir>` runs another build (before/after comparisons).
+  On Windows the bridge's registry manifest admits only the user's own extension ID, so the harness relays `connectNative` to the installed `host.ps1` itself; `AA_BRIDGE_DIR=<dir>` (a folder with `host.ps1` + `claude-path.txt`) tries an edited host. `<out>.ai.json` Claude entries carry each call's `usage` and `total_cost_usd`. `SETTINGS='{json}'` overrides AutoApply settings (e.g. `{"geminiFill":true}`).
 - `node tools/yolo-sweep/pick.mjs --per 1 --out list.txt`: varied untested postings (a few per ATS, intern/co-op first).
 - `node tools/yolo-sweep/batch.mjs list.txt <outDir>`: run a list, 3 at a time (`P`); records results in `.yolo-sweep/tested.json`.
 - `node tools/yolo-sweep/loop.mjs`: the whole unattended flow (sweep → triage → one fix session per bug → repeat).

@@ -49,11 +49,25 @@ else
 fi
 
 cd "$dir" || exit 1
-DISABLE_AUTOUPDATER=1 "$(cat "$dir/claude-path")" "$@" < "$tmp/in" > "$tmp/out" 2> "$tmp/err" &
+# The system prompt (the same in every call) keeps Claude Code's hour-long cache; each call's own message is written to
+# the 5-minute one, which costs less of the plan's limits.
+CLAUDE_CODE_MESSAGES_PROMPT_CACHE_TTL=5m DISABLE_AUTOUPDATER=1 "$(cat "$dir/claude-path")" "$@" < "$tmp/in" > "$tmp/out" 2> "$tmp/err" &
 cpid=$!
 # Chrome closes stdin when the extension disconnects (aborted, timed out): stop claude then.
 (cat > /dev/null; kill "$cpid" 2>/dev/null) <&3 > /dev/null 2>&1 &
 wpid=$!
+# The result line is the whole answer: replying once it is written saves the half second claude takes to shut down.
+while kill -0 "$cpid" 2>/dev/null; do
+  if grep -q '"type":"result"' "$tmp/out" && [ -z "$(tail -c 1 "$tmp/out")" ]; then
+    kill "$wpid" 2>/dev/null
+    reply 0
+    # Not killed: claude finishes saving its own state.
+    wait "$cpid"
+    cpid=
+    exit 0
+  fi
+  sleep 0.1
+done
 wait "$cpid"
 code=$?
 cpid=

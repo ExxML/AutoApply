@@ -123,6 +123,11 @@ const reviewTries = new Map<string, number>();
 const revealed = new WeakSet<Element>();
 /** Review rounds per trigger: each re-reads the page after the last one's corrections. */
 const MAX_REVIEW_ROUNDS = 3;
+/**
+ * The last review's request and verdicts: the same page and answers again (corrections the page didn't take, a pass
+ * that changed nothing) get those verdicts without asking the AI the same question. A trigger of the user's asks anew.
+ */
+let lastReview: { key: string; r: Responses["REVIEW_FORM"] } | null = null;
 /** Save buttons of entry editors addEntries opened, clicked after the last fill pass. */
 const unsaved: HTMLElement[] = [];
 let lastError: ApiError | null = null;
@@ -1072,7 +1077,10 @@ async function reviewPage(groupId: string, ctrl: AbortController): Promise<"none
     await transitionsEnd();
     const { shown, owner, snap } = pageSnapshot();
     if (!shown.length && !snap.unscanned.length) return "none";
-    const r = await send({ type: "REVIEW_FORM", page: snap.text, fields: shown.map(reviewField), groupId, yolo });
+    const req = { page: snap.text, fields: shown.map(reviewField) };
+    const key = JSON.stringify(req);
+    const r = lastReview?.key === key ? lastReview.r : await send({ type: "REVIEW_FORM", ...req, groupId, yolo });
+    if (!isErr(r)) lastReview = { key, r };
     if (ctrl.signal.aborted) return "none";
     if (isErr(r)) {
       if (config.settings.debugLogging) console.warn("[AutoApply] review failed:", r.error.message);
@@ -1505,6 +1513,7 @@ function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) =>
       stop();
       break;
     case "TRIGGER_FILL":
+      lastReview = null;
       void runPipeline({ rerun: msg.rerun ?? msg.force });
       break;
     case "FOCUS_FIELD":

@@ -63,6 +63,20 @@ describe("review guards (checkFix)", () => {
     expect(checkFix(fix({ answer: "No", sources: ["guess"] }), choice, profile(), true, undefined)?.answer).toBe("No");
   });
 
+  it("applies a policy-sourced correction of a term length the screening policy decides", () => {
+    const duration = field({
+      question: "What duration of an internship are you interested in?",
+      kind: "radio_group",
+      required: true,
+      options: ["6 months", "8 months"],
+      shown: "8 months",
+      status: "ai",
+    });
+    const wrong = fix({ verdict: "wrong", answer: "6 months", sources: ["screening"] });
+    expect(checkFix(wrong, duration, profile(), true, undefined)?.answer).toBe("6 months");
+    expect(checkFix(wrong, duration, profile(), false, undefined)?.answer).toBe("6 months");
+  });
+
   it("turns a manual-mode guess for a required field into a suggestion for the user", () => {
     const r = checkFix(fix({ sources: ["guess"] }), field({ required: true }), profile(), false, undefined);
     expect(r).toMatchObject({ verdict: "needs_user", answer: "Ada" });
@@ -311,8 +325,10 @@ describe("reviewForm", () => {
     };
     i.pays = [{ min: 80000, max: 100000, currency: "CAD", period: "year" }];
     expect((await reviewForm(ctx, i)).fixes).toEqual([]);
+    // The job's target goes with the request; the cached profile keeps the floor, the same for every job.
+    expect(calls[0].spec.payload).toMatchObject({ desiredCompensationForThisJob: { amount: "90000" } });
     expect(calls[0].spec.context).toMatchObject({
-      profile: { preferences: { desiredCompensation: { amount: "90000" } } },
+      profile: { preferences: { desiredCompensation: { amount: "50000" } } },
     });
   });
 

@@ -4,7 +4,8 @@ import { ModelPicker } from "../components/ModelPicker";
 import { useStored } from "../store";
 
 export function AI() {
-  const provider = useStored("settings")?.aiProvider;
+  const settings = useStored("settings");
+  const provider = settings?.aiProvider;
   return (
     <section>
       <h1>AI</h1>
@@ -15,7 +16,7 @@ export function AI() {
           <ClaudeModels />
         </>
       )}
-      {provider === "gemini" && (
+      {(provider === "gemini" || settings?.geminiFill) && (
         <>
           <Keys />
           <ModelPicker showFallback />

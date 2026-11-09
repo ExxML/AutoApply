@@ -4,6 +4,7 @@
 //      PORT (CDP port, default random), MAXMIN (timeout minutes, default 10), TITLE/COMPANY (listing meta),
 //      TABHOST=<host> (run in a background tab, not the hidden frame), YOLO='{json}' (YOLO setting overrides),
 //      AI_PROVIDER (default: the export's, or gemini when that is the Claude bridge, which needs the native host),
+//      SETTINGS='{json}' (AutoApply setting overrides),
 //      EARLY=<js file> (evaluated in the page every 2 s), EXP=<js file> (evaluated at the end instead of the dump),
 //      EXPHOST=<substring> (which frame/page EXP and the final dump target)
 // Writes <out>.report.txt (compact, read this first), <out>.json (summary), <out>.log (SW + step log),
@@ -72,7 +73,7 @@ const meta = { company: process.env.COMPANY, title: process.env.TITLE, tab: proc
 await seed(
   sw,
   exp,
-  { aiProvider: provider },
+  { aiProvider: provider, ...(process.env.SETTINGS ? JSON.parse(process.env.SETTINGS) : {}) },
   {
     yoloQueue: [
       {

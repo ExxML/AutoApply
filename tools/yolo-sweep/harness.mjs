@@ -66,7 +66,73 @@ export async function launch(ext, profileDir, port, say) {
     (m) => /AutoApply|YOLO|\[review\]|\[navigate\]/.test(m.text()) && say("SW:", m.text().slice(0, 400)),
   );
   if (fs.existsSync(BRIDGE)) registerBridge(profileDir, new URL(sw.url()).host);
+  else if (fs.existsSync(WIN_HOST)) await relayBridge(sw);
   return { ctx, sw };
+}
+
+/** Windows' installed bridge (src/native/host.ps1): its registry manifest admits only the user's own extension ID. */
+// AA_BRIDGE_DIR: another bridge folder (host.ps1 + claude-path.txt), e.g. to try an edited host before installing it.
+const WIN_HOST = path.join(
+  process.env.AA_BRIDGE_DIR ?? path.join(process.env.LOCALAPPDATA ?? "", "AutoApply", "claude-bridge"),
+  "host.ps1",
+);
+
+/**
+ * Windows: the test extension's connectNative is relayed over localhost to the installed host.ps1, which this
+ * process runs the way Chrome does (length-prefixed JSON on stdin, kept open until the reply), so the bridge's
+ * registration stays the user's own.
+ */
+async function relayBridge(sw) {
+  const { spawn } = await import("node:child_process");
+  const http = await import("node:http");
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const p = spawn("powershell", [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        WIN_HOST,
+      ]);
+      const msg = Buffer.from(body);
+      const len = Buffer.alloc(4);
+      len.writeUInt32LE(msg.length);
+      p.stdin.write(Buffer.concat([len, msg]));
+      let out = Buffer.alloc(0);
+      // Delivered once the framed reply is complete, as Chrome does: the host may still be waiting for claude to exit.
+      p.stdout.on("data", (c) => {
+        out = Buffer.concat([out, c]);
+        if (!res.writableEnded && out.length >= 4 && out.length >= 4 + out.readUInt32LE(0))
+          res.end(out.subarray(4, 4 + out.readUInt32LE(0)));
+      });
+      // The extension gave up (abort, timeout) or got its reply: closing stdin is Chrome's disconnect.
+      res.on("close", () => p.stdin.end());
+      p.on("close", () => !res.writableEnded && res.destroy());
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  server.unref();
+  await sw.evaluate((url) => {
+    chrome.runtime.connectNative = () => {
+      const ctl = new AbortController();
+      const on = { message: [], disconnect: [] };
+      return {
+        postMessage(m) {
+          fetch(url, { method: "POST", body: JSON.stringify(m), signal: ctl.signal })
+            .then((r) => r.json())
+            .then((reply) => on.message.forEach((l) => l(reply)))
+            .catch(() => !ctl.signal.aborted && on.disconnect.forEach((l) => l()));
+        },
+        disconnect: () => ctl.abort(),
+        onMessage: { addListener: (l) => on.message.push(l) },
+        onDisconnect: { addListener: (l) => on.disconnect.push(l) },
+      };
+    };
+  }, `http://127.0.0.1:${server.address().port}/`);
 }
 
 /** Profile, settings, keys and documents from the export, plus `extra` storage keys; logs AI calls. */
