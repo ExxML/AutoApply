@@ -91,6 +91,18 @@ describe("job keys", () => {
     expect(b).toBe(a);
   });
 
+  it("keeps hyphenated requisitions and Eightfold pid links apart", () => {
+    const wd = (req: string) =>
+      jobKey(`https://workday.wd5.myworkdayjobs.com/Workday_Early_Career/job/Canada-BC-Vancouver/Intern_${req}`);
+    expect(wd("JR-0110807")).toBe("workday:workday:jr-0110807");
+    expect(wd("JR-0110807-1")).toBe("workday:workday:jr-0110807");
+    expect(wd("JR-0110900")).not.toBe(wd("JR-0110807"));
+    const ef = (id: string) => jobKey(`https://qualcomm.eightfold.ai/careers?pid=${id}&domain=qualcomm.com`);
+    expect(ef("446721229661")).toBe("eightfold:qualcomm.eightfold.ai:446721229661");
+    expect(ef("446721229661")).toBe(jobKey("https://qualcomm.eightfold.ai/careers/job/446721229661"));
+    expect(ef("446721156615")).not.toBe(ef("446721229661"));
+  });
+
   it("matches a company page's gh_jid to the Greenhouse board's job", () => {
     expect(jobKey("https://www.pinterestcareers.com/jobs/8138039/software-intern/?gh_jid=8138039")).toBe(
       "greenhouse:8138039",

@@ -18,13 +18,17 @@ export function jobKey(raw: string): string {
   const host = u.hostname.toLowerCase().replace(/^www\./, "");
   const seg = u.pathname.split("/").filter(Boolean).map(decodeURIComponent);
   const q = (k: string) => [...u.searchParams].find(([p]) => p.toLowerCase() === k)?.[1];
-  const after = (s: string) => seg[seg.indexOf(s) + 1];
+  const after = (s: string) => (seg.includes(s) ? seg[seg.indexOf(s) + 1] : undefined);
   const tenant = host.split(".")[0];
 
   if (/\.myworkday(jobs|site)\.com$/.test(host)) {
     // …/job/<location>/<title>_<REQ>[-N]: "-N" numbers the same requisition's postings in other locations.
+    // The REQ itself can hold a hyphen ("JR-0110807"): only a short number after a digit is a copy number.
     const slug = seg.slice(seg.indexOf("job") + 1).find((s) => s.includes("_"));
-    const req = slug?.split("_").pop()?.replace(/-\d+$/, "");
+    const req = slug
+      ?.split("_")
+      .pop()
+      ?.replace(/(?<=\d)-\d{1,2}$/, "");
     if (req) return `workday:${tenant}:${req.toLowerCase()}`;
   }
   // Greenhouse ids are global: a company page's gh_jid and the board's /jobs/<id> name the same posting.
@@ -45,7 +49,9 @@ export function jobKey(raw: string): string {
     const id = q("jobid") ?? seg.find((s) => /^\d{6,}$/.test(s));
     if (id) return `sf:${host}:${id}`;
   }
-  if (host.endsWith("eightfold.ai") && after("job")) return `eightfold:${host}:${after("job")}`;
+  // Eightfold names a posting by path (/careers/job/<id>) or by ?pid=<id> on /careers.
+  const ef = after("job") ?? q("pid");
+  if (host.endsWith("eightfold.ai") && ef) return `eightfold:${host}:${ef}`;
   if (host.endsWith("icims.com") && after("jobs")) return `icims:${host}:${after("jobs")}`;
 
   const path = seg
