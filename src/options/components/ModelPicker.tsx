@@ -60,7 +60,7 @@ function List(props: {
   );
 }
 
-export function ModelPicker(props: { showFallback?: boolean }) {
+export function ModelPicker(props: { showFallback?: boolean; showReview?: boolean }) {
   const selected = useStored("selectedModel");
   const fallback = useStored("fallbackModel") ?? null;
   const review = useStored("reviewModel") ?? null;
@@ -120,7 +120,7 @@ export function ModelPicker(props: { showFallback?: boolean }) {
           }}
         />
       )}
-      {props.showFallback && (
+      {props.showReview && (
         <List
           label="Review model (optional; none = the primary model)"
           value={review}
@@ -131,7 +131,7 @@ export function ModelPicker(props: { showFallback?: boolean }) {
           }}
         />
       )}
-      {props.showFallback && (
+      {props.showReview && (
         <p class="muted">
           The AI review of each filled page and YOLO's navigator use this model, thinking as hard as it allows. A
           stronger (Pro) model catches more mistakes.

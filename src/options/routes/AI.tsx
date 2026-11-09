@@ -19,7 +19,7 @@ export function AI() {
       {(provider === "gemini" || settings?.geminiFill) && (
         <>
           <Keys />
-          <ModelPicker showFallback />
+          <ModelPicker showFallback showReview={provider === "gemini"} />
         </>
       )}
     </section>
