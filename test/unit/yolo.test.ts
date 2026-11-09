@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
-import { altKey, applyUrl, jobKey } from "../../src/background/yolo/jobKey";
+import { altKey, applyUrl, jobKey, namesPosting } from "../../src/background/yolo/jobKey";
 import {
   glassdoorMore,
   glassdoorSearch,
@@ -101,6 +101,17 @@ describe("job keys", () => {
     expect(ef("446721229661")).toBe("eightfold:qualcomm.eightfold.ai:446721229661");
     expect(ef("446721229661")).toBe(jobKey("https://qualcomm.eightfold.ai/careers/job/446721229661"));
     expect(ef("446721156615")).not.toBe(ef("446721229661"));
+  });
+
+  it("keys custom-domain pid links apart and knows SuccessFactors' shared page names no posting", () => {
+    const qc = (id: string) => jobKey(`https://careers.qualcomm.com/careers/apply?pid=${id}&domain=qualcomm.com`);
+    expect(qc("446721229661")).not.toBe(qc("446721156615"));
+    expect(jobKey("https://career4.successfactors.com/careers?career_job_req_id=4242&company=x")).toBe(
+      "sf:career4.successfactors.com:4242",
+    );
+    expect(namesPosting("https://career4.successfactors.com/careers?company=acuitybrands")).toBe(false);
+    expect(namesPosting("https://careers.acuityinc.com/job/Brossard-Intern/1433678100/?ats=successfactors")).toBe(true);
+    expect(namesPosting(qc("1"))).toBe(true);
   });
 
   it("matches a company page's gh_jid to the Greenhouse board's job", () => {

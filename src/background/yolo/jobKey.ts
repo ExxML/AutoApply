@@ -10,7 +10,7 @@ const parse = (raw: string) => {
 };
 
 /** Query parameters that name the posting; every other one (utm_*, ref, source…) is tracking. */
-const ID_PARAMS = ["gh_jid", "jk", "jobid", "job", "id", "req", "requisitionid", "token", "for"];
+const ID_PARAMS = ["gh_jid", "jk", "jobid", "job", "id", "req", "requisitionid", "token", "for", "pid"];
 
 export function jobKey(raw: string): string {
   const u = parse(raw);
@@ -46,7 +46,7 @@ export function jobKey(raw: string): string {
   if (host.endsWith("ziprecruiter.com") && q("jid")) return `ziprecruiter:${q("jid")}`;
   if (seg.includes("CandidateExperience") && after("job")) return `oracle:${host}:${after("job")}`;
   if (q("ats") === "successfactors" || host.endsWith("successfactors.com")) {
-    const id = q("jobid") ?? seg.find((s) => /^\d{6,}$/.test(s));
+    const id = q("jobid") ?? q("career_job_req_id") ?? seg.find((s) => /^\d{6,}$/.test(s));
     if (id) return `sf:${host}:${id}`;
   }
   // Eightfold names a posting by path (/careers/job/<id>) or by ?pid=<id> on /careers.
@@ -61,6 +61,12 @@ export function jobKey(raw: string): string {
   const ids = ID_PARAMS.flatMap((k) => (q(k) ? [`${k}=${q(k)}`] : [])).join("&");
   return `${host}/${path}${ids ? `?${ids}` : ""}`;
 }
+
+/**
+ * Whether the address names one posting. SuccessFactors' shared application page ("career4.successfactors.com/careers
+ * ?company=X") names none: as every Acuity job's key, the first one's record read as "already applied" for the next.
+ */
+export const namesPosting = (raw: string): boolean => !/^[^/:]*successfactors\.com\//.test(jobKey(raw));
 
 const TITLE_FORMS: [RegExp, string][] = [
   [/\b(20\d\d|summer|fall|autumn|winter|spring|\d+ ?months?|full ?time|part ?time)\b/g, ""],

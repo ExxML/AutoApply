@@ -53,7 +53,7 @@ import {
   waitForFeedCode,
 } from "./gmail";
 import { closeFrame, openTab } from "./host";
-import { altKey, applyUrl, jobKey } from "./jobKey";
+import { altKey, applyUrl, jobKey, namesPosting } from "./jobKey";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
 import { letterText, textPdf } from "./pdf";
@@ -1090,7 +1090,12 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       await store.set({ yoloTabHosts: [...hosts, hostOf(url)].slice(-200) });
     }
     // Reached the employer's own posting from a board link: it may be one applied to through another source.
-    if (!run.atsUrl && /^(form|signin|signup)$/.test(kind) && hostOf(url) !== hostOf(run.item.url)) {
+    if (
+      !run.atsUrl &&
+      /^(form|signin|signup)$/.test(kind) &&
+      hostOf(url) !== hostOf(run.item.url) &&
+      namesPosting(url)
+    ) {
       run.atsUrl = url;
       if (
         applied(
