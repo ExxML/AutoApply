@@ -3,6 +3,7 @@ import type { PageFacts } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible } from "../scan/visibility";
+import { throttled } from "./frame";
 import { alertText, applyInfo, findApply, findNext, findSubmit } from "./nav";
 
 /** ATS forms embedded in a company page: the run loads them on their own. Query text is never a frame's origin. */
@@ -95,7 +96,10 @@ export const scoreCheck = () =>
 export function embeddedForm(): string | null {
   const f = deepQueryAll("iframe").find((f) => {
     const r = f.getBoundingClientRect();
-    return isEmbeddedFormUrl((f as HTMLIFrameElement).src) && r.width > 300 && r.height > 200;
+    // A lazy frame never loads where nothing renders, so it never grows to its form's height: Lyft's CareerPuck page
+    // keeps its Greenhouse form at 640x150 in the hidden frame.
+    const unloaded = throttled() && (f as HTMLIFrameElement).loading === "lazy";
+    return isEmbeddedFormUrl((f as HTMLIFrameElement).src) && r.width > 300 && (r.height > 200 || unloaded);
   }) as HTMLIFrameElement | undefined;
   return f?.src ?? null;
 }

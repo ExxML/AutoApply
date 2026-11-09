@@ -23,6 +23,8 @@ export interface Run {
   guesses: Guess[];
   /** The employer's posting the run reached, when the queued link was a job board's. */
   atsUrl?: string;
+  /** An embedded ATS form's own address, loaded from the company page that framed it: where a tab retry starts. */
+  embedUrl?: string;
   /** Debug logging: every field the run filled and its answer, by document and field. */
   answers?: Record<string, Guess>;
   /** Debug logging: the documents fetched for upload, in order. */

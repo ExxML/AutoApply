@@ -553,8 +553,10 @@ async function finish(run: Run, r: YoloResult) {
   const limit = deps.logLimit();
   if (limit) await logRun(run, r, limit);
   if (r.status === "blocked" && run.host === "frame" && yolo.tabFallback) {
+    // From the embedded form itself: Lyft's CareerPuck page, which framed its Greenhouse form, renders nothing in a
+    // background tab.
     await start(
-      run.item,
+      run.embedUrl ? { ...run.item, url: run.embedUrl } : run.item,
       "apply",
       "tab",
       run.reviewPolicy
@@ -1082,6 +1084,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     run.guesses = mergeGuesses(run.guesses, guesses);
     // The page reloads to retry a submission flagged as spam: its steps repeat from the start, only the flags count.
     if (kind === "flagged") run.steps = run.steps.filter((s) => s.startsWith("flagged|"));
+    if (run.steps.at(-1)?.startsWith("embedded|")) run.embedUrl ??= sender.url ?? url;
     run.steps.push(sig);
     run.stepAt = Date.now();
     if (kind === "success") run.confirmation = confirmation(facts);
