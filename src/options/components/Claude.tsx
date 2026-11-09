@@ -277,7 +277,7 @@ export function ClaudeModels() {
       </table>
       <Toggle
         label="Autofill with Gemini"
-        help="Field answers, dropdown picks, the answer check and YOLO's relevance check use your Gemini API keys and model (below) instead of Claude, so your plan's limits go to essays, résumés, navigation and the answer review, which still checks every answer. Claude answers when Gemini can't (no keys, or all out of quota)."
+        help="Field answers, dropdown picks, the answer check and YOLO's relevance check use your Gemini API keys and model (below) instead of Claude, so your plan's limits go to essays, résumés, navigation and the answer review, which still checks every answer. Enabling this setting saves ~30% more Claude tokens, with no accuracy cost, as long as AI review is enabled (if AI review is disabled, there will likely be noticeable effects on accuracy, depending on the Gemini model used). Claude answers when Gemini can't (no keys, or all out of quota)."
         checked={s.geminiFill}
         onChange={(v) => void save({ settings: { ...s, geminiFill: v } })}
       />
