@@ -77,9 +77,11 @@ function parseTables(md: string, source: string): Listing[] {
   const out: Listing[] = [];
   let company = "";
   for (const cells of rows) {
-    if (cells.length < 4 || cells.join("").includes("🔒")) continue;
+    if (cells.length < 4) continue;
+    // Before the closed check: a closed row can name the company its "↳" rows below repeat.
     const name = cellText(cells[0]);
     company = name === "↳" ? company : name;
+    if (cells.join("").includes("🔒")) continue;
     const url = cells
       .slice(3)
       .join(" ")
