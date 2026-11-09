@@ -582,7 +582,32 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       ).decisions[0].intendedAnswer ?? "flag";
     const terms = ["Jan - Apr 2027 (4 months)", "Jan - Aug 2027 (8 months)", "Either"];
     expect(await one("Which co-op term are you applying for?", terms)).toBe("Either");
-    expect(await one("Which co-op term are you applying for?", terms.slice(0, 2))).toBe("flag");
+    // Without one: the longest that suits, else the posting's own.
+    expect(await one("Which co-op term are you applying for?", terms.slice(0, 2))).toBe("Jan - Aug 2027 (8 months)");
+    const posting = {
+      url: "",
+      company: "",
+      jobTitle: "",
+      location: "",
+      header: "",
+      text: "This is a 4-month co-op term.",
+    };
+    const named = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          field("o", {
+            label: "Which co-op term are you applying for?",
+            kind: "radio_group",
+            options: terms.slice(0, 2),
+          }),
+        ],
+        profile,
+        documents: [],
+        job: posting as never,
+      },
+    );
+    expect(named.decisions[0].intendedAnswer).toBe("Jan - Apr 2027 (4 months)");
     profile.coop.acceptableTermLengths = ["8 months"];
     expect(await one("Which co-op term are you applying for?", terms)).toBe("flag");
   });

@@ -1577,7 +1577,7 @@ describe("YOLO best guesses", () => {
     expect(yolo.decisions[0]).toMatchObject({ action: "fill", text: "No", sources: ["guess"], confidence: "medium" });
   });
 
-  it("guesses required fields and optional single choices, never opt-ins, optional text or blank options", async () => {
+  it("guesses required fields and optional questions that help, never opt-ins, fact boxes or blank options", async () => {
     const asked: string[][] = [];
     const gemini = {
       call: async (s: { system: string; payload: { fields?: { id: string }[]; items?: unknown[] } }) => {
@@ -1601,12 +1601,19 @@ describe("YOLO best guesses", () => {
         required: false,
       }),
       field("note", { kind: "textarea", label: "Anything else?", required: false }),
+      field("twitter", { kind: "text", label: "Twitter handle", required: false }),
+      field("teams", {
+        kind: "checkbox_group",
+        label: "Which teams interest you?",
+        options: ["Web", "ML"],
+        required: false,
+      }),
     ];
     await mapFields(
       { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
       { fields, profile: emptyProfile(), documents: [], job: null, yolo: true },
     );
-    expect(asked).toEqual([["deadline", "heard"]]);
+    expect(asked).toEqual([["deadline", "heard", "note", "teams"]]);
   });
 });
 

@@ -5,7 +5,7 @@ import { defaultSettings } from "../../src/shared/settings";
 import { normalize } from "../../src/shared/normalize";
 import { todayIso } from "../../src/shared/time";
 import type { FieldDescriptor, JobContext } from "../../src/shared/types";
-import { mapFields, validateDecisions, type ServiceCtx } from "../../src/background/services/mapFields";
+import { localDecisions, mapFields, validateDecisions, type ServiceCtx } from "../../src/background/services/mapFields";
 import { chooseOptions } from "../../src/background/services/chooseOptions";
 import { draftEssays } from "../../src/background/services/draftEssays";
 import { matchLearned } from "../../src/content/match/deterministic";
@@ -188,16 +188,84 @@ describe("screening thresholds", () => {
     expect(todayIso() > p.preferences.availableUntil).toBe(true);
   });
 
-  it("filters both single and multiple choice lengths against the minimum", () => {
+  it("filters both single and multiple choice lengths against the minimum, choosing the longest that suits", () => {
     const p = emptyProfile();
     p.coop.acceptableTermLengths = ["All"];
     const options = ["1 month", "2 months", "3 months", "4 months"];
+    expect(screeningDecision(field(term, { kind: "select", options }), p)).toMatchObject({ optionIndexes: [3] });
+    // The availability dates still bound it.
+    p.preferences.earliestStartDate = "2099-01-01";
+    p.preferences.availableUntil = "2099-04-01";
     expect(screeningDecision(field(term, { kind: "select", options }), p)).toMatchObject({ optionIndexes: [2] });
+    p.preferences.earliestStartDate = p.preferences.availableUntil = "";
     expect(screeningDecision(field(term, { kind: "checkbox_group", options }), p)).toMatchObject({
       optionIndexes: [2, 3],
     });
     p.coop.acceptableTermLengths = ["2 months"];
     expect(screeningDecision(field(term, { kind: "select", options }), p)).toMatchObject({ optionIndexes: [1] });
+  });
+
+  it("claims the larger of the experience the data shows and the requirement, never more", () => {
+    const p = emptyProfile();
+    const q = "How many years of experience do you have with React? We require at least 2 years.";
+    expect(screeningDecision(field(q), p)).toMatchObject({ text: "2", sources: [SCREENING_SOURCE] });
+    p.experience = [
+      {
+        ...p.experience[0],
+        title: "Developer",
+        company: "A",
+        description: "Built React apps",
+        startDate: "2020-01",
+        endDate: "2023-12",
+        current: false,
+      },
+      // Overlapping, and another skill's: counted once, and not at all.
+      {
+        ...p.experience[0],
+        title: "Intern",
+        company: "B",
+        description: "React and Go",
+        startDate: "2023-06",
+        endDate: "2023-12",
+        current: false,
+      },
+      {
+        ...p.experience[0],
+        title: "Analyst",
+        company: "C",
+        description: "SQL reports",
+        startDate: "2024-01",
+        endDate: "2025-12",
+        current: false,
+      },
+    ];
+    expect(screeningDecision(field(q), p)).toMatchObject({ text: "4", sources: ["experience"] });
+    expect(
+      screeningDecision(field(q, { kind: "select", options: ["1-2 years", "3-4 years", "5+ years"] }), p),
+    ).toMatchObject({
+      optionIndexes: [1],
+    });
+    // Never below the requirement.
+    expect(screeningDecision(field(q.replace("2 years", "5 years")), p)).toMatchObject({ text: "5" });
+  });
+
+  it("offers the longest internship term the profile and dates allow (Lever: 6 or 8 months)", () => {
+    const p = emptyProfile();
+    p.coop.acceptableTermLengths = ["All"];
+    p.preferences.earliestStartDate = "2099-01-01";
+    p.preferences.availableUntil = "2100-05-01";
+    const duration = field("What duration of an internship are you interested in?", {
+      kind: "radio_group",
+      options: ["6 months", "8 months"],
+    });
+    expect(localDecisions({ fields: [duration], profile: p, documents: [], job: null }).get("q")).toMatchObject({
+      optionIndexes: [1],
+    });
+    // Dates that leave only six months.
+    p.preferences.availableUntil = "2099-07-01";
+    expect(localDecisions({ fields: [duration], profile: p, documents: [], job: null }).get("q")).toMatchObject({
+      optionIndexes: [0],
+    });
   });
 
   it("leaves unconstrained experience questions and narrative essays with the existing mapper", () => {

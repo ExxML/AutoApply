@@ -54,13 +54,21 @@ describe("review guards (checkFix)", () => {
     expect(checkFix(fix({}), field({ status: "you" }), profile(), false, undefined)).toBeNull();
   });
 
-  it("keeps today's rule for optional fields: the data's answer or nothing", () => {
+  it("keeps the rule for optional fields: the data's answer, or a YOLO guess where it helps", () => {
     expect(checkFix(fix({}), field({}), profile(), false, undefined)?.answer).toBe("Ada");
     expect(checkFix(fix({ sources: [] }), field({}), profile(), false, undefined)).toBeNull();
+    // A name, contact detail, link or ID is never guessed.
     expect(checkFix(fix({ sources: ["guess"] }), field({}), profile(), true, undefined)).toBeNull();
-    // YOLO guesses optional single choices, as its best guesses do.
+    // YOLO guesses optional choices and short answers, as its best guesses do; manual mode never.
     const choice = field({ kind: "radio_group", options: ["Yes", "No"] });
     expect(checkFix(fix({ answer: "No", sources: ["guess"] }), choice, profile(), true, undefined)?.answer).toBe("No");
+    const why = field({ question: "What draws you to this team?", kind: "textarea" });
+    const reason = fix({ answer: "Building tools people use daily.", sources: ["guess"] });
+    expect(checkFix(reason, why, profile(), true, undefined)?.answer).toBe("Building tools people use daily.");
+    expect(checkFix(reason, why, profile(), false, undefined)).toBeNull();
+    expect(
+      checkFix(fix({ answer: "checked", sources: ["guess"] }), field({ kind: "checkbox" }), profile(), true, undefined),
+    ).toBeNull();
   });
 
   it("applies a policy-sourced correction of a term length the screening policy decides", () => {

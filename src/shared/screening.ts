@@ -70,17 +70,62 @@ export function hasExperienceMinimum(text: string): boolean {
   return /\bexperience\b/i.test(clean) && minimums(clean).length > 0;
 }
 
+/** The skill an experience question is about ("experience with React" → "react"). */
+const skillOf = (label: string) =>
+  /\b(?:experience(?: do you have)? (?:with|in|using)|(?:used|using))\s+([^?;\n]+)/i
+    .exec(label)?.[1]
+    ?.split(/[.,]|\b(?:the|this|our|role|position|at least|minimum)\b/i)[0]
+    .trim()
+    .toLowerCase();
+
+const monthIndex = (d: string) => {
+  const [y, m] = d.split("-").map(Number);
+  return y * 12 + (m || 1) - 1;
+};
+const RE_EXCLUDING_INTERNSHIPS = /\b(excluding|not including|other than|besides)\b[^?]*\b(internships?|co-?ops?)\b/i;
+
+/**
+ * The experience the data shows for a question, in months: the dated work and extracurricular entries that name its
+ * skill (all work when it names none), overlaps counted once. A floor: undated projects and prose aren't counted.
+ */
+function dataMonths(label: string, profile: Profile): number {
+  const skill = skillOf(label);
+  if (!skill && RE_EXCLUDING_INTERNSHIPS.test(label)) return 0;
+  const escaped = skill?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const named = escaped ? new RegExp(`(^|[^a-z0-9+#])${escaped}($|[^a-z0-9+#])`, "i") : null;
+  const entries = [
+    ...profile.experience.map((e) => ({ ...e, text: `${e.title} ${e.company} ${e.description}` })),
+    ...(named
+      ? profile.extracurriculars.map((e) => ({ ...e, text: `${e.role} ${e.organization} ${e.description}` }))
+      : []),
+  ];
+  const months = new Set<number>();
+  for (const e of entries) {
+    if (!e.startDate || (named && !named.test(e.text))) continue;
+    const end = monthIndex(e.current || !e.endDate ? todayIso() : e.endDate);
+    for (let m = monthIndex(e.startDate); m <= end; m++) months.add(m);
+  }
+  return months.size;
+}
+
+/** Months from the earliest start (or today) to the available-until date; Infinity without one, NaN when invalid. */
+export function availableMonths(prefs: Profile["preferences"]): number {
+  const { earliestStartDate, availableUntil: to } = prefs;
+  if (!to) return Infinity;
+  const today = todayIso();
+  const from = earliestStartDate && earliestStartDate > today ? earliestStartDate : today;
+  const [y1, m1, d1 = 1] = from.split("-").map(Number);
+  const [y2, m2, d2 = 1] = to.split("-").map(Number);
+  return Math.max(0, (y2 - y1) * 12 + m2 - m1 - (d2 < d1 ? 1 : 0));
+}
+
 /** A posting's requirement must name the subject of the question, not a different skill. */
 function jobMinimums(label: string, job: JobContext | null, kind: "experience" | "availability"): number[] {
   if (!job) return [];
   const sentences = defang(job.text || job.header || "").split(/[!?;\n]|\.(?:\s|$)/);
   if (kind === "availability")
     return sentences.filter((s) => /\b(internships?|terms?|duration|availab\w*)\b/i.test(s)).flatMap(minimums);
-  const subject = /\b(?:experience(?: do you have)? (?:with|in|using)|(?:used|using))\s+([^?;\n]+)/i
-    .exec(label)?.[1]
-    ?.split(/[.,]|\b(?:the|this|our|role|position|at least|minimum)\b/i)[0]
-    .trim()
-    .toLowerCase();
+  const subject = skillOf(label);
   if (!subject) return [];
   const values = sentences
     .filter((s) => s.toLowerCase().includes(subject) && /\bexperience\b/i.test(s))
@@ -148,22 +193,24 @@ export function screeningDecision(
         if (allowed.length !== lengths.length) return null;
       }
     }
-    const { earliestStartDate, availableUntil: to } = profile.preferences;
-    if (to) {
-      const today = todayIso();
-      const from = earliestStartDate && earliestStartDate > today ? earliestStartDate : today;
-      const [y1, m1, d1 = 1] = from.split("-").map(Number);
-      const [y2, m2, d2 = 1] = to.split("-").map(Number);
-      cap = Math.max(0, (y2 - y1) * 12 + m2 - m1 - (d2 < d1 ? 1 : 0));
-      if (!Number.isFinite(cap)) return screeningFlag(f.id, "Profile availability dates are invalid");
+    if (profile.preferences.availableUntil) {
+      cap = availableMonths(profile.preferences);
+      if (Number.isNaN(cap)) return screeningFlag(f.id, "Profile availability dates are invalid");
       sources.push("preferences.earliestStartDate", "preferences.availableUntil");
     }
+    // The most the profile allows: the longest acceptable length within the dates, else all the time they leave.
     if (allowed) {
       const fit = allowed.filter((n) => n <= cap);
       if (!fit.length) return screeningFlag(f.id, "Profile availability constraints conflict");
-      target = Math.min(...fit.filter((n) => n >= minimum));
-      if (!Number.isFinite(target)) target = Math.max(...fit);
-    } else target = Math.min(minimum, cap);
+      target = Math.max(...fit);
+    } else target = cap;
+  } else {
+    // The larger of what the data shows and the requirement, never more.
+    const shown = dataMonths(label, profile);
+    if (shown > minimum) {
+      target = shown;
+      sources.push("experience");
+    }
   }
   const meets = target >= minimum;
   const base = {
@@ -192,24 +239,28 @@ export function screeningDecision(
         const b = bounds(s, unit);
         if (!b || (meets && b.low < minimum) || b.low > cap) return [];
         if (allowed && !allowed.some((n) => n >= b.low && n <= b.high && n <= cap)) return [];
-        return b.high >= target ? [{ i, low: b.low }] : [];
+        // Availability: any option the profile allows, longest first. Experience: the bracket holding the amount.
+        return kind === "availability" ? [{ i, low: b.low }] : b.high >= target ? [{ i, low: b.low }] : [];
       })
-      .sort((a, b) => a.low - b.low);
+      .sort((a, b) => (kind === "availability" ? b.low - a.low : a.low - b.low));
     if (!fits.length) return screeningFlag(f.id, "No option meets screening and profile constraints");
     const picks =
       kind === "availability" && (f.multiple || f.kind === "multiselect" || f.kind === "checkbox_group")
-        ? fits.map((v) => v.i)
+        ? fits.map((v) => v.i).sort((a, b) => a - b)
         : [fits[0].i];
     return { ...base, optionIndexes: picks, intendedAnswer: picks.map((i) => f.options![i]).join(", ") };
   }
   if (negated) return null;
   if (f.kind === "checkbox") return { ...base, checked: meets };
+  // Open-ended availability (no end date) states the requirement; a partial year is rounded down, never up.
+  const months = Number.isFinite(target) ? target : minimum;
+  const years = months / 12;
   const text =
     /^(?:do|are|can|will|would|have)\b/i.test(label.trim()) && label.includes("?")
       ? meets
         ? "Yes"
         : "No"
-      : String(/year/i.test(unit) ? target / 12 : target);
+      : String(/year/i.test(unit) ? (Number.isInteger(years) ? years : Math.floor(years * 10) / 10) : months);
   if (f.maxLength && text.length > f.maxLength) return screeningFlag(f.id, "Screening answer exceeds field limit");
   if (["dropdown", "select", "typeahead"].includes(f.kind)) return { ...base, intendedAnswer: text, searchQuery: text };
   if (!["text", "number", "textarea", "contenteditable"].includes(f.kind)) return null;

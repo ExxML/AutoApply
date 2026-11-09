@@ -13,6 +13,7 @@ import {
   compactProfile,
   deniesNeededSponsorship,
   GUESS,
+  guessesOptional,
   jobCountry,
   localDecisions,
   mappingPayloadBase,
@@ -37,7 +38,6 @@ export interface ReviewInput {
   consents: { required: "accept" | "ask"; optional: "accept" | "decline" | "ask" };
 }
 
-const SINGLE_CHOICE = new Set<FieldKind>(["select", "radio_group", "dropdown"]);
 /** Kinds a fill can empty: text boxes, native selects and single boxes (FillOp "clear" / unchecked). */
 const CLEARABLE = new Set<FieldKind>([
   "text",
@@ -95,8 +95,8 @@ export function checkFix(
   const guess = fix.sources.includes(GUESS);
   const sourced = fix.sources.some((s) => s !== GUESS);
   if (!f.required) {
-    // Today's rule for optional fields: the data's answer, or nothing. YOLO also guesses single choices.
-    if (!sourced && !(yolo && guess && SINGLE_CHOICE.has(f.kind))) return null;
+    // Optional fields: the data's answer, or nothing; YOLO also guesses where that helps (guessesOptional).
+    if (!sourced && !(yolo && guess && guessesOptional({ kind: f.kind, label: question }))) return null;
   } else if (guess && !sourced && !yolo)
     // The user answers what the data doesn't (manual mode): the guess is only a suggestion.
     return { ...fix, verdict: "needs_user", answer, reason: fix.reason || "Not in your profile" };
@@ -181,7 +181,9 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
     requiredWithoutData: input.yolo
       ? 'best guess (add "guess" to sources); never ID, passport, tax, bank or card numbers: those are needs_user'
       : 'needs_user, with your best suggestion in answer and "guess" in sources',
-    optionalWithoutData: "leave_blank",
+    optionalWithoutData: input.yolo
+      ? 'best guess when it makes the application stronger, for a choice or a short answer built from true facts (add "guess" to sources); leave_blank for a single checkbox, a name, contact detail, link or ID, and anything only an invented fact would answer'
+      : "leave_blank",
     consents: {
       requiredAcknowledgements: input.consents.required === "accept" ? "accepted" : "the candidate decides: needs_user",
       optionalConsents: input.consents.optional,

@@ -22,8 +22,14 @@ import {
   regionCode,
   regionCountry,
 } from "../../shared/constants";
-import { plainDashes, RE_AI_TELL, trapLabel } from "../../shared/injection";
-import { hasExperienceMinimum, isScreeningQuestion, screeningDecision, SCREENING_SOURCE } from "../../shared/screening";
+import { defang, plainDashes, RE_AI_TELL, trapLabel } from "../../shared/injection";
+import {
+  availableMonths,
+  hasExperienceMinimum,
+  isScreeningQuestion,
+  screeningDecision,
+  SCREENING_SOURCE,
+} from "../../shared/screening";
 import { normalize } from "../../shared/normalize";
 import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
@@ -86,6 +92,19 @@ const flag = (fieldId: string, note: string, suggestion?: string): Decision => (
 
 const NOT_IN_PROFILE = "Not in your profile";
 const SINGLE_CHOICE = new Set<FieldKind>(["select", "radio_group", "dropdown"]);
+const OPTIONAL_CHOICE = new Set<FieldKind>([...SINGLE_CHOICE, "multiselect", "checkbox_group"]);
+const OPTIONAL_TEXT = new Set<FieldKind>(["text", "textarea", "number"]);
+/** Facts only the data can give: an optional box asking for one stays empty rather than guessed. */
+const RE_FACT_BOX =
+  /\b(names?|e-?mails?|phones?|address(es)?|urls?|links?|web ?sites?|profiles?|handles?|user ?names?|twitter|linkedin|github|portfolios?|ids?|numbers?)\b/i;
+
+/**
+ * An optional field YOLO answers with a best guess when that strengthens the application: a choice, or a short answer
+ * built from true facts. A single box stays unticked (an opt-in ticked "to be safe"), and a name, contact detail,
+ * link or ID stays empty.
+ */
+export const guessesOptional = (f: Pick<FieldDescriptor, "kind" | "label">) =>
+  OPTIONAL_CHOICE.has(f.kind) || (OPTIONAL_TEXT.has(f.kind) && !RE_FACT_BOX.test(f.label));
 const NOT_APPLICABLE = "N/A";
 /** The source YOLO's best-guess answers cite: made up for the application, logged for the user to review. */
 export const GUESS = "guess";
@@ -1168,10 +1187,12 @@ const monthsIn = (o: string) => Number(o.match(/\b(\d{1,2})[- ]?months?\b/i)?.[1
 /**
  * "Which work term lengths are you available for? (select all that apply)": each length among the profile's
  * acceptable ones ("All" for any). The AI ticked only the posting's own 8 months for a candidate open to all. Asked
- * for one, with two or more that suit, the list's "Either": JazzHR's got "Jan–Aug 2027 (8 months)".
+ * for one, with two or more that suit, the list's "Either": JazzHR's got "Jan–Aug 2027 (8 months)". Else, of lengths
+ * that suit and fit the availability dates, the one the posting names, else the longest: the strongest offer (Analytic
+ * Partners' "6 months" / "8 months" for a candidate open to any got the shorter).
  */
-function termLengthsDecision(f: FieldDescriptor, coop: Profile["coop"]): Decision | null {
-  const lengths = coop.acceptableTermLengths.map((t) => t.trim()).filter(Boolean);
+function termLengthsDecision(f: FieldDescriptor, profile: Profile, job: JobContext | null): Decision | null {
+  const lengths = profile.coop.acceptableTermLengths.map((t) => t.trim()).filter(Boolean);
   if (!f.options || !lengths.length) return null;
   // Bare lengths ("4 months", "8 months") answer any wording: Kepler's "indicate your availability for the internship".
   const bare = f.options.every((o) => /^\d{1,2}[- ]?months?$/i.test(o.trim()));
@@ -1188,13 +1209,27 @@ function termLengthsDecision(f: FieldDescriptor, coop: Profile["coop"]): Decisio
   const either = f.options.flatMap((o, i) =>
     /^(either|both|any|no preference|flexible|open to (either|any|both))\b/i.test(o.trim()) ? [i] : [],
   );
+  const cap = availableMonths(profile.preferences);
+  const single = (): number[] => {
+    if (!months.every((m) => m !== null)) return [];
+    const within = fit.filter((i) => months[i]! <= cap);
+    const sentences = defang(job?.text || job?.header || "").split(/[!?;\n]|\.(?:\s|$)/);
+    const named = new Set(
+      sentences
+        .filter((s) => /\b(internships?|co-?ops?|terms?|durations?|placements?)\b/i.test(s))
+        .flatMap((s) => [...s.matchAll(/\b(\d{1,2})[- ]?months?\b/gi)].map((m) => Number(m[1]))),
+    );
+    const stated = within.filter((i) => named.has(months[i]!));
+    const pool = stated.length ? stated : within;
+    return pool.length ? [pool.reduce((a, b) => (months[b]! > months[a]! ? b : a))] : [];
+  };
   const picks = isMulti(f)
     ? months.includes(null)
       ? []
       : fit
     : fit.length >= 2 && either.length === 1 && months.every((m, i) => m !== null || i === either[0])
       ? either
-      : [];
+      : single();
   if (!picks.length) return null;
   return {
     fieldId: f.id,
@@ -1202,7 +1237,10 @@ function termLengthsDecision(f: FieldDescriptor, coop: Profile["coop"]): Decisio
     optionIndexes: picks,
     intendedAnswer: picks.map((i) => f.options![i]).join(", "),
     confidence: "high",
-    sources: ["coop.acceptableTermLengths"],
+    sources: [
+      "coop.acceptableTermLengths",
+      ...(!isMulti(f) && Number.isFinite(cap) ? ["preferences.earliestStartDate", "preferences.availableUntil"] : []),
+    ],
   };
 }
 
@@ -2070,16 +2108,16 @@ async function guessFlagged(
   base: ReturnType<typeof mappingPayloadBase>,
   sent: (f: FieldDescriptor) => object,
 ): Promise<Decision[]> {
-  // What blocks submitting, and optional single-choice questions a recruiter may screen on ("Where did you first hear
-  // about this position?"). Optional boxes and text stay empty rather than guessed (an opt-in ticked "to be safe").
-  // A choice whose options read blank can't be guessed, only gambled: "1" for "a citizen of Iran or Cuba?".
+  // What blocks submitting, and optional questions whose answer can make the application stronger ("Where did you
+  // first hear about this position?", "Which teams interest you?"): see guessesOptional. Uploads, consents and
+  // policies never. A choice whose options read blank can't be guessed, only gambled: "1" for "a citizen of Iran or Cuba?".
   const flagged = fields.filter(
     (f, i) =>
       decisions[i].action === "flag" &&
       !aiUseDecision(f) &&
       !trapLabel(f.label) &&
       !decisions[i].sources?.includes(SCREENING_SOURCE) &&
-      (f.required || (SINGLE_CHOICE.has(f.kind) && !needsNoSource(f))) &&
+      (f.required || (guessesOptional(f) && !needsNoSource(f))) &&
       f.kind !== "file" &&
       !(f.options?.length && f.options.every((o) => !o.trim())),
   );
@@ -2235,7 +2273,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       attachedDecision(f, input.uploads) ??
       cohortDecision(f, input.profile.preferences) ??
       termsDecision(f, input.profile) ??
-      termLengthsDecision(f, input.profile.coop) ??
+      termLengthsDecision(f, input.profile, input.job) ??
       relocateAllDecision(f, input.profile.preferences) ??
       gpaDecision(f, input.profile.education) ??
       returnOfferDecision(f, input.profile) ??
