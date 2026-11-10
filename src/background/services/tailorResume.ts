@@ -213,6 +213,8 @@ export async function tailoredResume(
   store: Store,
   job: JobContext | null,
   serviceCtx: () => Promise<ServiceCtx | { error: { message: string } }>,
+  /** Skip the result kept for this job: the user asked to regenerate a failed one. */
+  fresh = false,
 ): Promise<TailoredDoc | { error: string }> {
   const [info, tex, settings, profile] = await Promise.all([
     store.get("tailorResume"),
@@ -234,7 +236,7 @@ export async function tailoredResume(
     (job?.text ?? "").slice(0, 4000),
     ...(onePage ? ["one page", own ? String(fallbackPages) : ""] : []),
   );
-  const cached = await session.get<TailoredDoc | { error: string }>(`tailored:${key}`);
+  const cached = !fresh && (await session.get<TailoredDoc | { error: string }>(`tailored:${key}`));
   if (cached) return cached;
   let p = inFlight.get(key);
   if (!p) {

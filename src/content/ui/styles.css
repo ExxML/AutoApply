@@ -191,6 +191,20 @@
   cursor: pointer;
   font-size: 12px;
 }
+/* a row whose tailored résumé or cover letter failed carries its Regenerate button */
+.needs li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.needs .btn {
+  flex: none;
+  width: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: var(--bg);
+}
 .needs button span,
 .files button span {
   color: var(--muted);

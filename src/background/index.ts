@@ -444,11 +444,11 @@ const handlers: Handlers = {
     return { ...r, usedModel: (await modelName(r.usedModel)) ?? r.usedModel };
   },
 
-  async TAILOR_RESUME({ groupId }, sender) {
+  async TAILOR_RESUME({ groupId, fresh }, sender) {
     const tab = await runTab(sender);
     const job = tab?.id !== undefined ? await getJobContext(tab.id) : null;
     const signal = groupSignal(sender, groupId);
-    const r = await tailoredResume(store, job, () => serviceCtx(signal, "write"));
+    const r = await tailoredResume(store, job, () => serviceCtx(signal, "write"), fresh);
     if ("error" in r) return { error: { kind: "other", message: r.error } };
     await yoloNote(sender, r.tailored ? `Résumé tailored: ${r.note}` : `Untailored résumé uploaded: ${r.note}`);
     return { meta: r.meta, tailored: r.tailored, note: r.note };
@@ -604,6 +604,11 @@ const handlers: Handlers = {
   },
 
   async FOCUS_FIELD(msg, sender) {
+    if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, msg, msg.frameId);
+    return { ok: true };
+  },
+
+  async REGEN_DOC(msg, sender) {
     if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, msg, msg.frameId);
     return { ok: true };
   },

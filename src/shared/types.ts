@@ -170,6 +170,8 @@ export interface NeedsYouItem {
   label: string;
   note: string;
   frameId?: number;
+  /** Its AI-made résumé or cover letter failed: the overlay offers Regenerate. */
+  regen?: true;
 }
 
 export interface FrameStatus {

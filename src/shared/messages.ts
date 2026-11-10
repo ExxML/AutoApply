@@ -120,7 +120,8 @@ export type Message =
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
   | { type: "COVER_LETTER_PDF"; question: string }
   /** The résumé to upload for the tab's job in AI tailor mode: tailored, else the untailored fallback. */
-  | { type: "TAILOR_RESUME"; groupId: string }
+  /** fresh: the user asked again, so a failure kept for this job is retried. */
+  | { type: "TAILOR_RESUME"; groupId: string; fresh?: boolean }
   /** Real (trusted) input through Chrome's debugger, in CSS pixels of the tab's viewport (background/yolo/realInput.ts). */
   | { type: "REAL_INPUT"; op: RealOp }
   // B → C (a YOLO run in a tab), B → offscreen host
@@ -165,6 +166,8 @@ export type Message =
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
   | { type: "STOP_FILL" }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
+  /** Regenerate a field's failed tailored résumé or cover letter (overlay, routed to its frame like FOCUS_FIELD). */
+  | { type: "REGEN_DOC"; frameId: number; fieldId: string }
   | { type: "TOGGLE_OVERLAY" }
   | { type: "READ_POSTING" }
   // popup → B
@@ -216,6 +219,7 @@ export interface Responses {
   TRIGGER_FILL: Ok;
   STOP_FILL: Ok;
   FOCUS_FIELD: Ok;
+  REGEN_DOC: Ok;
   TOGGLE_OVERLAY: Ok;
   TAB_STATUS: TabStatusResponse;
   ADD_KEY: Ok | Err;

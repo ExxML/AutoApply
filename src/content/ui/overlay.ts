@@ -24,6 +24,8 @@ export interface OverlayHandlers {
   onRetry(): void;
   onOpenSettings(): void;
   onFocus(item: NeedsYouItem): void;
+  /** Try a failed tailored résumé or cover letter again. */
+  onRegenerate(item: NeedsYouItem): void;
   onOpenDoc(id: string): void;
   /** The job details an AI-made upload was written from; null when no longer kept. */
   onJobInfo(id: string): Promise<JobBrief | null>;
@@ -181,7 +183,7 @@ export function createOverlay(h: OverlayHandlers) {
             el("span", { textContent: n.note }),
           );
           b.onclick = () => h.onFocus(n);
-          return el("li", {}, b);
+          return el("li", {}, b, ...(n.regen && !v.running ? [btn("Regenerate", () => h.onRegenerate(n))] : []));
         }),
       );
       files.replaceChildren(

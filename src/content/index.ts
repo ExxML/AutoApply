@@ -138,8 +138,8 @@ let usedModel: string | null = null;
 let resumeId: string | null = null;
 /** AI tailor: the résumé being tailored for this job, asked for once per fill (the background caches it per job). */
 let tailoring: Promise<Responses["TAILOR_RESUME"]> | null = null;
-/** Shown in the overlay when the untailored résumé had to be uploaded instead. */
-let resumeNotice = "";
+/** Fields whose tailored résumé or cover letter failed, and why: the overlay offers to regenerate them. */
+const regen = new Map<string, { kind: "resume" | "cover_letter"; note: string }>();
 let overlay: Overlay | null = null;
 /** Top frame: a triggered fill found no fields here, and no child frame reported any either. */
 let noForm = false;
@@ -190,9 +190,17 @@ function counts(): StatusCounts {
 
 function frameStatus(): FrameStatus {
   const needsYou: NeedsYouItem[] = [];
-  for (const [id, s] of states)
-    if (s.status === "needs" || s.status === "failed")
-      needsYou.push({ fieldId: id, label: handles.get(id)?.desc.label ?? "", note: s.note ?? "" });
+  for (const [id, s] of states) {
+    const bad = s.status === "needs" || s.status === "failed";
+    const r = s.userOwned || s.status === "working" ? undefined : regen.get(id);
+    if (bad || r)
+      needsYou.push({
+        fieldId: id,
+        label: handles.get(id)?.desc.label ?? "",
+        note: (bad ? s.note : r!.note) ?? "",
+        ...(r && { regen: true as const }),
+      });
+  }
   const docs = [...uploads].filter(([id]) => !states.get(id)?.userOwned).map(([, d]) => d);
   return {
     frameId: 0,
@@ -237,6 +245,10 @@ function renderOverlay() {
       n.frameId
         ? void send({ type: "FOCUS_FIELD", frameId: n.frameId, fieldId: n.fieldId }).catch(() => undefined)
         : focusField(n.fieldId),
+    onRegenerate: (n) =>
+      n.frameId
+        ? void send({ type: "REGEN_DOC", frameId: n.frameId, fieldId: n.fieldId }).catch(() => undefined)
+        : void regenerate(n.fieldId),
     onOpenDoc: (id) => void openDoc(id),
     onJobInfo: (id) => send({ type: "GET_DOC_JOB", id }).catch(() => null),
   });
@@ -266,7 +278,6 @@ function renderOverlay() {
           "Review your answers, then submit using this site's button. AutoApply will not submit this application.",
         config?.appliedBefore &&
           `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`,
-        resumeNotice,
       ]
         .filter(Boolean)
         .join(" · ") || undefined,
@@ -1193,8 +1204,10 @@ async function reviewPage(groupId: string, ctrl: AbortController): Promise<"none
   }
 }
 
-const requestTailoring = (groupId: string): Promise<Responses["TAILOR_RESUME"]> =>
-  send({ type: "TAILOR_RESUME", groupId }).catch((e: Error) => ({ error: { kind: "other", message: e.message } }));
+const requestTailoring = (groupId: string, fresh = false): Promise<Responses["TAILOR_RESUME"]> =>
+  send({ type: "TAILOR_RESUME", groupId, ...(fresh && { fresh }) }).catch((e: Error) => ({
+    error: { kind: "other", message: e.message },
+  }));
 
 /**
  * AI tailor: the résumé tailored for this job, uploaded once it is ready, so other fields fill meanwhile and this one
@@ -1204,11 +1217,16 @@ async function tailoredUpload(h: FieldHandle, groupId: string, ctrl: AbortContro
   setStatus(h, "working", "Tailoring your résumé…");
   const r = await (tailoring ??= requestTailoring(groupId));
   if (ctrl.signal.aborted || states.get(h.id)?.userOwned) return;
-  if (isErr(r)) return setStatus(h, "needs", r.error.message);
+  if (isErr(r)) {
+    regen.set(h.id, { kind: "resume", note: r.error.message });
+    return setStatus(h, "needs", r.error.message);
+  }
   if (!config.documentsIndex.some((d) => d.id === r.meta.id))
     config.documentsIndex = [...config.documentsIndex, r.meta];
-  resumeNotice = r.tailored ? "" : `Untailored résumé used: ${r.note}`;
-  if (r.tailored) aiDocs.add(r.meta.id);
+  if (r.tailored) {
+    regen.delete(h.id);
+    aiDocs.add(r.meta.id);
+  } else regen.set(h.id, { kind: "resume", note: `Untailored résumé used: ${r.note}` });
   const tooltip = r.tailored ? `AI-tailored résumé (${r.note})` : `Untailored résumé (${r.note})`;
   await doFill(h, { type: "file", documentId: r.meta.id }, "filled", tooltip, ctrl);
 }
@@ -1219,12 +1237,32 @@ async function coverLetter(h: FieldHandle, ctrl: AbortController) {
   const r = await send({ type: "COVER_LETTER_PDF", question: h.desc.label });
   if (isErr(r)) {
     rateLimited(r.error);
+    regen.set(h.id, { kind: "cover_letter", note: r.error.message });
     return setStatus(h, "needs", r.error.message);
   }
   config.documentsIndex = [...config.documentsIndex, r.meta];
+  regen.delete(h.id);
   aiDocs.add(r.meta.id);
   guesses.set(h.id, { q: h.desc.label, a: "A cover letter written for this job" });
   await doFill(h, { type: "file", documentId: r.meta.id }, "draft", "Generated cover letter", ctrl);
+}
+
+/** The overlay's Regenerate: the failed résumé tailoring or cover letter tried again, outside a fill so Stop ends it. */
+async function regenerate(id: string) {
+  const h = handles.get(id);
+  const r = regen.get(id);
+  if (!h || !r || running) return;
+  haltFill(false);
+  const me = (current = { groupId: crypto.randomUUID(), ctrl: new AbortController() });
+  try {
+    if (r.kind === "cover_letter") await coverLetter(h, me.ctrl);
+    else {
+      tailoring = requestTailoring(me.groupId, true);
+      await tailoredUpload(h, me.groupId, me.ctrl);
+    }
+  } finally {
+    if (current === me) current = null;
+  }
 }
 
 async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortController, mark: (k: string) => void) {
@@ -1531,6 +1569,9 @@ function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) =>
       break;
     case "FOCUS_FIELD":
       focusField(msg.fieldId);
+      break;
+    case "REGEN_DOC":
+      void regenerate(msg.fieldId);
       break;
     case "TOGGLE_OVERLAY":
       overlay?.toggle();
