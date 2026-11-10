@@ -355,7 +355,10 @@ const handlers: Handlers = {
       documentsIndex: s.documentsIndex,
       tailorReady: !!s.tailorResume,
       excluded,
-      selectedModel: await modelName(s.selectedModel),
+      // The model the fill will use, shown until MAP_FIELDS names it: Claude's unless Gemini fills (serviceCtx).
+      selectedModel: await modelName(
+        settings.aiProvider === "claude" && !(settings.geminiFill && pool.keys.length) ? null : s.selectedModel,
+      ),
       hasKeys: pool.keys.length > 0,
       overlayBottom: s.overlayPos[host] ?? null,
       appliedBefore: y ? undefined : await yoloApplied(sender.tab?.url ?? ""),
