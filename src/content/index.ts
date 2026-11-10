@@ -27,7 +27,7 @@ import type {
   StatusCounts,
   UploadedDoc,
 } from "../shared/types";
-import { extractJobContext, jobUrl, readPay } from "./jobContextExtract";
+import { extractJobContext, jobUrl, ldPosting, phenomPostingUrl, readPay } from "./jobContextExtract";
 import { deterministicValue, isFreeText, matchLearned, RE_CITY_FIELD, shoutedName } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
 import { harvestOptions } from "./fill/dropdown";
@@ -156,6 +156,8 @@ let hasGuessedAnswers = false;
 let yoloFatal: string | undefined;
 /** Résumés and cover letters uploaded per field, for the overlay to preview. */
 const uploads = new Map<string, UploadedDoc>();
+/** The posting an apply page that names no location is for (Phenom), read once. */
+let posting: { url: string; ctx: Promise<ReturnType<typeof ldPosting>> } | null = null;
 /** Documents the AI tailored or wrote for this job: the overlay offers the job details it was given. */
 const aiDocs = new Set<string>();
 /** Answers the AI made up on this page, for the run's log. */
@@ -753,6 +755,14 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
 
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
     const jc = extractJobContext();
+    const postingUrl = TOP && !jc.location ? phenomPostingUrl(location) : null;
+    if (postingUrl) {
+      // Once per posting: Phenom's later steps are the same page.
+      if (posting?.url !== postingUrl) posting = { url: postingUrl, ctx: fetchPosting(postingUrl) };
+      const p = await posting.ctx;
+      // The posting's description over the apply page's blurb.
+      if (p?.location) Object.assign(jc, { location: p.location, text: p.text || jc.text });
+    }
     if (TOP || jc.text) await send({ type: "SET_JOB_CONTEXT", ctx: jc });
     const mode = config.settings.resumeUpload;
     resumeId =
@@ -1404,6 +1414,13 @@ function answers(): Record<string, Guess> {
   }
   return out;
 }
+
+/** A posting's place and description from its HTML: one request, nothing rendered. */
+const fetchPosting = (url: string) =>
+  fetch(url, { credentials: "include", signal: AbortSignal.timeout(5000) })
+    .then((r) => (r.ok ? r.text() : ""))
+    .then((html) => (html ? ldPosting(new DOMParser().parseFromString(html, "text/html")) : null))
+    .catch(() => null);
 
 /** Gives the background a posting's description and pay, for the application's later pages. */
 async function sharePosting(doc: Document, loc: Location) {

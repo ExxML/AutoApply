@@ -3,7 +3,7 @@ import { setBody, stubLayout } from "./dom";
 import { consentPair, newScanState, onlyPair, scan, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
 import { RE_OPTIONAL_CONSENT } from "../../src/shared/constants";
-import { extractJobContext, payIn, readPay } from "../../src/content/jobContextExtract";
+import { extractJobContext, ldPosting, payIn, phenomPostingUrl, readPay } from "../../src/content/jobContextExtract";
 import { findOptionsContainer, snapshot } from "../../src/content/fill/dropdown";
 import { readValue } from "../../src/content/fill/verify";
 
@@ -850,6 +850,30 @@ describe("job context (§11.7)", () => {
     );
     expect(extractJobContext(doc, posting).text).toContain("Ship backend services in Kotlin");
     expect(readPay(doc, posting)).toEqual([{ min: 25, max: 32, period: "hour", currency: "CAD" }]);
+  });
+
+  it("finds the posting a Phenom apply page is for, and its location (Zimmer Biomet)", () => {
+    const at = (u: string) => phenomPostingUrl(new URL(u) as unknown as Location);
+    expect(at("https://careers.zimmerbiomet.com/us/en/apply?jobSeqNo=ZBUZBRUS13309EXTERNALENUS&step=3")).toBe(
+      "https://careers.zimmerbiomet.com/us/en/job/ZBUZBRUS13309EXTERNALENUS",
+    );
+    expect(at("https://careers.zimmerbiomet.com/us/en/job/ZBUZBRUS13309EXTERNALENUS")).toBeNull();
+    expect(at("https://boards.greenhouse.io/acme/jobs/1/apply")).toBeNull();
+    const ld = {
+      "@type": "JobPosting",
+      description: "&lt;p&gt;Build software.&lt;/p&gt;",
+      jobLocation: {
+        address: { addressCountry: "Canada", addressLocality: "Montreal", addressRegion: "Quebec" },
+      },
+    };
+    const similar = `<div class="job-location">Warsaw, Indiana, United States</div>`;
+    const page = (head: string) => new DOMParser().parseFromString(`${head}${similar}`, "text/html");
+    expect(ldPosting(page(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`))).toEqual({
+      location: "Montreal, Quebec, Canada",
+      text: "Build software.",
+    });
+    // An expired posting lists other jobs: none of theirs is taken.
+    expect(ldPosting(page(""))).toBeNull();
   });
 
   it("reads pay kept in list items without spaces between them (Recruitee)", () => {

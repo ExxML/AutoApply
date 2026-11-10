@@ -276,6 +276,26 @@ export function extractJobContext(doc: Document = document, loc: Location = loca
   };
 }
 
+/**
+ * The posting a Phenom apply page ("/us/en/apply?jobSeqNo=…") is for: the page names only the job's title, so
+ * Zimmer Biomet's Montreal co-op went to the model as a U.S. job (the "/us/en/" site).
+ */
+export function phenomPostingUrl(loc: Location): string | null {
+  const seq = new URLSearchParams(loc.search).get("jobSeqNo");
+  return seq && /\/apply\/?$/.test(loc.pathname)
+    ? `${loc.origin}${loc.pathname.replace(/apply\/?$/, "job/")}${encodeURIComponent(seq)}`
+    : null;
+}
+
+/**
+ * A fetched posting's place and description, from its JSON-LD alone: the rest of the page may show other jobs (an
+ * expired posting's "similar jobs").
+ */
+export function ldPosting(doc: Document): { location: string; text: string } | null {
+  const ld = jsonLdJobPosting(doc);
+  return ld && { location: ldLocation(ld), text: ld.description ? htmlToText(ld.description).slice(0, 8000) : "" };
+}
+
 // ---------- Pay ranges ----------
 
 /** A range in the units the answer uses (monthly pay as yearly), or null when it can't be someone's base pay. */

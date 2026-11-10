@@ -266,6 +266,26 @@ describe("reviewForm", () => {
     expect(calls[0].spec.payload).not.toHaveProperty("fieldIdsToReview");
   });
 
+  it("tells the review which country each work authorization question is about", async () => {
+    const verdicts = reply([
+      { fieldId: "f1", verdict: "ok" },
+      { fieldId: "f2", verdict: "ok" },
+    ]);
+    const { ctx, calls } = harness({ data: verdicts }, { data: verdicts });
+    const i = input([
+      field({ question: "Are you legally permitted to work in the country where this job is located?" }),
+      field({ id: "f2", question: "Email" }),
+    ]);
+    const countries = () =>
+      (calls.at(-1)!.spec.payload as { fields: { workCountry?: string }[] }).fields.map((f) => f.workCountry);
+    // No location (Zimmer Biomet's apply page): the candidate's own, not a guess from the site.
+    await reviewForm(ctx, i);
+    expect(countries()).toEqual(["canada", undefined]);
+    i.job = { url: "", title: "", company: "", jobTitle: "", text: "", location: "Dublin, Ireland", capturedAt: 0 };
+    await reviewForm(ctx, i);
+    expect(countries()).toEqual(["ireland", undefined]);
+  });
+
   it.each([false, true])("preserves profile-constrained screening answers in review (YOLO %s)", async (yolo) => {
     const question = "How many months are you available for an internship? Internships require at least 3 months.";
     const fields = [

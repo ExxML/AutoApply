@@ -111,10 +111,19 @@ export const GUESS = "guess";
 
 // A sponsorship question, not "active funding (e.g., grants, sponsorships)?" (Zoox).
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
-// Twitch: "would you be legally eligible to begin employment immediately?"; Airwallex: "the right to live and work".
-const RE_ELIGIBLE = /\beligible to (work|begin|start)\b|\bright to (live and )?work\b/i;
+/**
+ * Allowed to work there, asked without "authorized". Twitch: "would you be legally eligible to begin employment
+ * immediately?"; Airwallex: "the right to live and work"; Zimmer Biomet: "Do you currently hold a Visa or Work Permit
+ * for the country …?" (a citizen too). Not "able to work weekends?" or "allowed to work overtime?": "able" and
+ * "allowed" only with "legally" or a place.
+ */
+const RE_ELIGIBLE =
+  /\beligib\w* to (work|begin|start)\b|\bright to (live and )?work\b|\blegally (\w+ to )?work\b|\bentitled to work\b|\b(permitted|allowed) to work in\b|\b(can you|able to) work in (this|the|that) country\b|\b(hold|have)\b[^?]*\bwork permit\b/i;
 const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit)/i;
-const isWorkAuth = (label: string) => RE_WORK_AUTH.test(label) || RE_ELIGIBLE.test(label) || RE_SPONSOR_Q.test(label);
+const RE_CITIZEN = /\bcitizen(s|ship)?\b|\bnationals? of\b|\bpermanent resident|\bgreen card\b/i;
+/** A question whose answer depends on the country it is about: authorization, sponsorship, citizenship. */
+const isWorkAuth = (label: string) =>
+  RE_WORK_AUTH.test(label) || RE_ELIGIBLE.test(label) || RE_SPONSOR_Q.test(label) || RE_CITIZEN.test(label);
 // GitLab: "require sponsorship for a visa to remain in your current location?".
 const RE_RESIDENCE = /\b(reside|live|living|currently (located|based)|residence|current (location|country))\b/i;
 
@@ -336,8 +345,17 @@ export function jobCountry(location: string): string | undefined {
  * else the job's. The model mixed these up ("authorized in the country you reside?" → the job's country). With no
  * job country, a U.S. visa it names: Clever's "require sponsorship for employment visa status (e.g. H-1B visa
  * status)?" got "No" for a U.S. job whose page gave no parseable location.
+ * Given the `posting` and no one job country, the candidate's own when nothing says where the job is, or one of its
+ * places is there: unsure, the answer that keeps the application alive. Zimmer Biomet's apply page named no place and
+ * the model took its "/us/en/" site for a U.S. job: "authorized?" → No, "require sponsorship?" → Yes, for a Montreal
+ * co-op. A description, though, may say where ("based in Munich"): the model reads it.
  */
-export function workCountry(label: string, home: string, job: string | undefined): string | undefined {
+export function workCountry(
+  label: string,
+  home: string,
+  job: string | undefined,
+  posting?: Pick<JobContext, "location" | "text"> | null,
+): string | undefined {
   if (!isWorkAuth(label)) return undefined;
   const own = canonicalCountry(home) ?? normalize(home);
   // National Bank's "authorized to work in Canada if the position is located in Canada OR … in the USA if the position
@@ -348,8 +366,14 @@ export function workCountry(label: string, home: string, job: string | undefined
     pick ??
     countryIn(label) ??
     ((RE_RESIDENCE.test(label) ? own : job) || undefined) ??
-    (/\bH-?1-?B\b/.test(label) ? US : undefined)
+    (/\bH-?1-?B\b|\bgreen card\b/i.test(label) ? US : undefined) ??
+    (posting !== undefined && own && mayBeIn(own, posting) ? own : undefined)
   );
+}
+
+/** No location or description to say where the job is, or `own` among its places ("San Francisco, CA; Toronto, ON"). */
+function mayBeIn(own: string, posting: Pick<JobContext, "location" | "text"> | null): boolean {
+  return posting?.location ? posting.location.split(";").map(jobCountry).includes(own) : !posting?.text;
 }
 
 const SITES: [RegExp, string[]][] = [
@@ -596,20 +620,28 @@ function nationalityDecision(
  * "No" only if the profile holds no other citizenship: such lists were left blank. "Permanent resident status in a
  * country outside the US?" asks about every other country, and citizenship there counts: it was flagged.
  */
-function citizenDecision(f: FieldDescriptor, wa: Profile["workAuthorization"]): Decision | null {
+function citizenDecision(
+  f: FieldDescriptor,
+  country: string | undefined,
+  wa: Profile["workAuthorization"],
+): Decision | null {
   const pr = /\bpermanent resident|\bgreen card\b/i.test(f.label);
-  if (
-    !f.options ||
-    isMulti(f) ||
-    !(pr || /\bcitizen(s|ship)?\b|\bnationals? of\b/i.test(f.label)) ||
-    /\bnot\b|n['’]t\b/i.test(f.label)
-  )
-    return null;
+  if (!f.options || isMulti(f) || !RE_CITIZEN.test(f.label) || /\bnot\b|n['’]t\b/i.test(f.label)) return null;
   const yes = f.options.findIndex((o) => /^yes\b/i.test(o));
   const no = f.options.findIndex((o) => /^no\b/i.test(o));
   if (yes < 0 || no < 0) return null;
   const inLabel = countriesIn(f.label);
-  const named = inLabel.length ? inLabel : countriesIn(f.hint ?? "");
+  // Else the hint's, else the job's ("a citizen or permanent resident of the country where this job is located?").
+  const hinted = countriesIn(f.hint ?? "");
+  const named = inLabel.length ? inLabel : hinted.length ? hinted : country ? [country] : [];
+  // The one country it asks about: named alone in the label, else the job's ("Do you have a green card?").
+  const one = inLabel.length
+    ? inLabel.length === 1 && !/[;:]|,[^,]*,/.test(f.label)
+      ? inLabel[0]
+      : undefined
+    : hinted.length
+      ? undefined
+      : country;
   // "U.S. citizen or permanent resident?" also takes a green card.
   const holds = (status: string) => /citizen/i.test(status) || (pr && /permanent|resident|green card/i.test(status));
   let i: number;
@@ -619,8 +651,8 @@ function citizenDecision(f: FieldDescriptor, wa: Profile["workAuthorization"]): 
     if (others.some((e) => holds(e.status))) i = yes;
     else if (!pr && wa.noOtherCitizenship === "yes") i = no;
     else return null;
-  } else if (inLabel.length === 1 && !/[;:]|,[^,]*,/.test(f.label)) {
-    const status = entryFor(inLabel[0], wa.entries)?.status ?? "none";
+  } else if (one) {
+    const status = entryFor(one, wa.entries)?.status ?? "none";
     if (!status) return null;
     i = holds(status) ? yes : no;
   } else if (named.some((c) => holds(entryFor(c, wa.entries)?.status ?? ""))) i = yes;
@@ -2232,7 +2264,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
   const home = input.profile.personal.address.country;
   const job = input.job?.location ? jobCountry(input.job.location) : undefined;
   const pay = payTarget(input.profile.preferences.desiredCompensation, input.pays ?? [], job);
-  const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job)]));
+  const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job, input.job)]));
   const months = experienceMonths(input.profile.experience);
   const jobExperienceMinimum = hasExperienceMinimum(input.job?.text || input.job?.header || "");
   // "Years of experience (excluding internships)": EA's got "Between 1 and 2 Years" for internships alone.
@@ -2249,7 +2281,8 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       schoolEmailDecision(f) ??
       exerciseDecision(f) ??
       clearanceDecision(f, job, input.profile) ??
-      currentStatusDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
+      // Not the candidate's own country for an unknown job's: the question it follows up may name one.
+      currentStatusDecision(f, workCountry(f.label, home, job), input.profile.workAuthorization.entries) ??
       workAuthDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       needsSponsorshipDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
       nationalityDecision(f, countries.get(f.id), input.profile.workAuthorization.entries) ??
@@ -2282,7 +2315,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       durationDecision(f, input.profile.preferences) ??
       compensationDecision(f, pay) ??
       ageDecision(f, input.profile.personal.dateOfBirth) ??
-      citizenDecision(f, input.profile.workAuthorization) ??
+      citizenDecision(f, countries.get(f.id), input.profile.workAuthorization) ??
       roleCountryDecision(f, job) ??
       appliedOfficeDecision(f, input.job?.location, input.profile.preferences) ??
       countryDecision(f, home) ??
@@ -2308,7 +2341,7 @@ export async function mapFields(
   const job = input.job?.location ? jobCountry(input.job.location) : undefined;
   const pay = payTarget(input.profile.preferences.desiredCompensation, input.pays ?? [], job);
   const base = mappingPayloadBase(input, pay);
-  const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job)]));
+  const countries = new Map(input.fields.map((f) => [f.id, workCountry(f.label, home, job, input.job)]));
   const local = localDecisions(input);
   // A follow-up to a question answered here: the model can't see that answer (Etched's "If you answered other:" was
   // skipped after work authorization got "Other (please explain below)").

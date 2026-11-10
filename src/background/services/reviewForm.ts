@@ -77,7 +77,7 @@ export function checkFix(
   f: ReviewField,
   profile: Profile,
   yolo: boolean,
-  job: string | undefined,
+  posting: JobContext | null | undefined,
 ): ReviewFix | null {
   if (f.locked || f.status === "you" || f.status === "edited") return null;
   if (RE_SENSITIVE_LABEL.test(f.question) || trapLabel(f.question)) return null;
@@ -117,8 +117,9 @@ export function checkFix(
   )[0];
   if (evidence.action === "flag" && evidence.note === "Not in your profile")
     return yolo ? null : { ...fix, verdict: "needs_user", answer, reason: evidence.note };
-  const home = profile.personal.address.country;
-  if (deniesNeededSponsorship(d, answer, workCountry(question, home, job), profile.workAuthorization.entries))
+  const job = posting?.location ? jobCountry(posting.location) : undefined;
+  const country = workCountry(question, profile.personal.address.country, job, posting ?? null);
+  if (deniesNeededSponsorship(d, answer, country, profile.workAuthorization.entries))
     return { ...fix, verdict: "needs_user", answer, reason: "Sponsorship needed in this country" };
   if (wrongSiteLink(question, answer, fix.sources)) return null;
   // A choice's answer must be one of its options: "British Columbia" for a list of US states is no answer. Not a
@@ -210,7 +211,11 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
       today: todayIso(),
       desiredCompensationForThisJob: base.desiredCompensationForThisJob,
       policy,
-      fields: input.fields,
+      // The country each work authorization question is about, as the first pass decided it.
+      fields: input.fields.map((f) => {
+        const c = workCountry(f.question, input.profile.personal.address.country, job, input.job);
+        return c ? { ...f, workCountry: c } : f;
+      }),
       page: input.page,
     },
     schema: REVIEW_SCHEMA,
@@ -267,7 +272,7 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
       f,
       input.profile,
       input.yolo,
-      job,
+      input.job,
     );
     if (fix) {
       let policy = original.get(f.id);
@@ -298,7 +303,7 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
             f,
             input.profile,
             input.yolo,
-            job,
+            input.job,
           );
       } else if ((policy?.action === "skip" && fix.answer !== "") || policy?.action === "consent") fix = null;
     }

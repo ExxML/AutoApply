@@ -783,8 +783,13 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     await ask("", either);
     await ask("San Francisco, CA", either);
     await ask("Lisbon", either);
+    // Nothing says where the job is (Zimmer Biomet's apply page), or one of its places is home: the candidate's own.
+    // A place the code can't read, or only other countries: the model reads it.
+    await ask("", "Are you legally authorized to work in the country in which the job is located?");
+    await ask("Remote", "Will you require sponsorship?");
+    await ask("London, UK; San Francisco, CA", "Will you require sponsorship?");
     expect(sent.map((f) => f.workCountry)).toEqual([
-      undefined,
+      "canada",
       "united states",
       "canada",
       "canada",
@@ -796,7 +801,22 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "canada",
       "united states",
       "canada",
+      "canada",
+      undefined,
+      undefined,
     ]);
+    // A description may say where ("based in Munich"): the model reads it.
+    sent.length = 0;
+    await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [field("f0", { label: "Will you require sponsorship?", kind: "contenteditable" })],
+        profile,
+        documents: [],
+        job: { url: "", title: "", company: "", jobTitle: "", text: "This role is based in Munich.", capturedAt: 0 },
+      },
+    );
+    expect(sent.map((f) => f.workCountry)).toEqual([undefined]);
 
     // Yes/no questions with a known country are answered from the profile, not asked.
     profile.workAuthorization.entries = [
@@ -864,6 +884,60 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(sent.map((f) => f.id)).toEqual([
       "Do you not require sponsorship?",
       "Please describe your right to work in Ireland.",
+    ]);
+
+    // Zimmer Biomet's Phenom apply page names no location: the candidate's own country, not the "/us/en/" site's.
+    const zb = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [
+          yn("Are you legally authorized to work in the country in which the job is located?"),
+          yn("Do you currently hold a Visa or Work Permit for the country where this position is located?"),
+          yn(
+            "Will you now or in the future require sponsorship from Zimmer Biomet to continue to work in the country in which the job is located?",
+          ),
+          // The same question in other words.
+          yn("Are you legally permitted to work in the country where this job is located?"),
+          yn("Are you legally entitled to work in the country where the role is based?"),
+          yn("Can you work in this country without restrictions?"),
+          yn("Are you able to provide proof of eligibility to work?"),
+          yn("Are you a citizen or permanent resident of the country where this job is located?"),
+          // A green card is American; working weekends is no authorization question.
+          yn("Do you have a green card?"),
+          yn("Are you able to work weekends?"),
+          yn("Are you allowed to work overtime?"),
+        ],
+        profile: {
+          ...profile,
+          workAuthorization: {
+            ...profile.workAuthorization,
+            entries: [{ ...profile.workAuthorization.entries[0], status: "Citizen" }],
+          },
+        },
+        documents: [],
+        job: {
+          url: "https://careers.zimmerbiomet.com/us/en/apply?jobSeqNo=X",
+          title: "",
+          company: "",
+          jobTitle: "",
+          text: "",
+          header: "UNITED STATES",
+          capturedAt: 0,
+        },
+      },
+    );
+    expect(zb.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
+      "Yes",
+      "Yes",
+      "No",
+      "Yes",
+      "Yes",
+      "Yes",
+      "Yes",
+      "Yes",
+      "No",
+      "flag",
+      "flag",
     ]);
   });
 
