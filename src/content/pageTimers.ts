@@ -2,7 +2,7 @@
 // widget's search debounce or next-page loader would stall a fill the user left running in the background. While a
 // fill runs there, short timers are also fired by the content script's unthrottled sleep (fill/events.ts); the
 // page's own timer stays as the fallback. Outside a fill, or in a visible tab, nothing changes.
-// YOLO's hidden host (an offscreen document's frame) throttles timers the same way while reporting itself visible.
+// YOLO's hidden host (an offscreen document's frame) can throttle timers the same way while reporting itself visible.
 // The page's own functions are replaced only while a fill runs (in the host, from the start: its pages need them as
 // they load): bot checks (CAPTCHAs) take a patched built-in for a sign of automation.
 const ao = location.ancestorOrigins;
@@ -29,19 +29,33 @@ document.addEventListener("autoapply-fill-end", () => {
 const pending = new Map<string, () => void>();
 const set = window.setTimeout;
 const clear = window.clearTimeout;
+/**
+ * When one of the host page's own short timers last ran over 250 ms late. Chrome 156 runs them on time there, so
+ * each relayed timer is a round trip through the extension (its pages and service worker) for nothing: a busy page
+ * sent thousands a second and froze the popup. Relayed only around a late one, in case Chrome throttles it again.
+ */
+let lateAt = -Infinity;
 
 patch("setTimeout", function (handler: TimerHandler, ms = 0, ...args: unknown[]) {
   if (!filling || !(document.hidden || inHost) || typeof handler !== "function" || ms >= 1000)
     return set(handler, ms, ...args);
+  let done = false;
   const run = () => {
     pending.delete(key);
-    clear(id); // whichever fires first cancels the other
+    if (done) return; // whichever fires first; the page's own timer still measures how late it runs
+    done = true;
     (handler as (...a: unknown[]) => void)(...args);
   };
-  const id = set(run, ms);
+  const t0 = performance.now();
+  const id = set(() => {
+    if (performance.now() - t0 > ms + 250) lateAt = performance.now();
+    run();
+  }, ms);
   const key = String(id);
-  pending.set(key, run);
-  document.dispatchEvent(new CustomEvent("autoapply-timer", { detail: `${key}:${ms}` }));
+  if (document.hidden || performance.now() - lateAt < 10_000) {
+    pending.set(key, run);
+    document.dispatchEvent(new CustomEvent("autoapply-timer", { detail: `${key}:${ms}` }));
+  }
   return id;
 });
 
@@ -91,7 +105,7 @@ if (inHost) {
   const watches = new Set<Watch>();
   let checking = false;
   const check = () => {
-    if (checking) return;
+    if (checking || !watches.size) return; // no timer per DOM change while nothing is observed
     checking = true;
     window.setTimeout(() => {
       checking = false;

@@ -19,3 +19,22 @@ test("anti-clickjacking's hidden body shows in the host frame", () => {
   document.dispatchEvent(new Event("DOMContentLoaded"));
   expect(document.getElementById("antiClickjack")).toBeNull();
 });
+
+test("the host page's short timers are relayed to the extension only around one that ran late", async () => {
+  const asked: string[] = [];
+  document.addEventListener("autoapply-timer", (e) => asked.push((e as CustomEvent<string>).detail));
+  document.dispatchEvent(new Event("autoapply-fill-start"));
+  await new Promise((r) => setTimeout(r, 20));
+  expect(asked).toEqual([]); // on time: each would be a round trip through the extension for nothing
+  // Held up past 250 ms, as Chrome's throttling would.
+  const late = new Promise((r) => setTimeout(r, 10));
+  for (const until = performance.now() + 300; performance.now() < until; );
+  await late;
+  const ran: number[] = [];
+  const id = setTimeout(() => ran.push(1), 50);
+  expect(asked).toEqual([`${id}:50`]);
+  document.dispatchEvent(new CustomEvent("autoapply-timer-fire", { detail: String(id) }));
+  await new Promise((r) => setTimeout(r, 80));
+  expect(ran).toEqual([1]); // relayed and the page's own timer: it runs once
+  document.dispatchEvent(new Event("autoapply-fill-end"));
+});

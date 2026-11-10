@@ -3,7 +3,7 @@
 import { RE_FORBIDDEN_CLICK } from "../../shared/constants";
 import { send } from "../../shared/messages";
 import { collapse } from "../../shared/normalize";
-import { throttled } from "../yolo/frame";
+import { IN_HOST, throttled } from "../yolo/frame";
 
 let fillingNow = false;
 export const isFilling = () => fillingNow;
@@ -27,16 +27,21 @@ export function dispatching<T>(fn: () => T): T {
   }
 }
 
-const timeout = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** When one of this frame's own sleeps in the YOLO host last woke over 250 ms late (see pageTimers.ts). */
+let lateAt = -Infinity;
 // A hidden tab's timers wake at most once a second, so after a tab switch a fill would crawl. The service worker's
-// timers are not throttled, and its reply reaches the hidden tab at once.
+// timers are not throttled, and its reply reaches the hidden tab at once. The host's frame asks it only around a
+// late wake: Chrome runs its timers on time now, and a round trip per sleep only loads the extension.
 export const sleep = (ms: number): Promise<void> =>
-  throttled()
-    ? send({ type: "SLEEP", ms }).then(
-        () => undefined,
-        () => timeout(ms),
-      )
-    : timeout(ms);
+  new Promise((resolve) => {
+    const t0 = performance.now();
+    setTimeout(() => {
+      if (performance.now() - t0 > ms + 250) lateAt = performance.now();
+      resolve();
+    }, ms);
+    if (document.hidden || (IN_HOST && performance.now() - lateAt < 10_000))
+      send({ type: "SLEEP", ms }).then(() => resolve(), () => undefined);
+  });
 
 let scrollHolds = 0;
 /** Stops the page's own scripts from scrolling while fn runs (see scrollLock.ts). */

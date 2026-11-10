@@ -1,5 +1,5 @@
-// Where this frame is. YOLO's hidden host is an offscreen document: Chrome renders no frames there and wakes its
-// timers once a second, like a background tab's, though the page reports itself visible.
+// Where this frame is. YOLO's hidden host is an offscreen document: Chrome renders no frames there, though the page
+// reports itself visible. It once woke its timers once a second, like a background tab's (Chrome 156 doesn't).
 const ao = location.ancestorOrigins;
 // runtime?: undefined where this script landed without live extension bindings (main() then bails).
 export const IN_HOST = !!ao?.length && ao[ao.length - 1] === `chrome-extension://${chrome.runtime?.id}`;
