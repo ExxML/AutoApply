@@ -28,7 +28,7 @@ import { locationMatches, rejectReason, titleMatches } from "../../src/backgroun
 import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { connectGmail, extract, feedTexts, GmailAuthError, gmailToken, siteOf } from "../../src/background/yolo/gmail";
 import { letterText, LINES_PER_PAGE, textLines, textPdf, wrap } from "../../src/background/yolo/pdf";
-import { ONE_PAGE_WORDS } from "../../src/shared/constants";
+import { ONE_PAGE_WORDS, topLevelUrl } from "../../src/shared/constants";
 import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
 import { applied, discover, inQueueOrder, RETRY } from "../../src/background/yolo/discover";
 import { credit, overdue, woke, type Run } from "../../src/background/yolo/runner";
@@ -112,6 +112,16 @@ describe("job keys", () => {
     expect(namesPosting("https://career4.successfactors.com/careers?company=acuitybrands")).toBe(false);
     expect(namesPosting("https://careers.acuityinc.com/job/Brossard-Intern/1433678100/?ats=successfactors")).toBe(true);
     expect(namesPosting(qc("1"))).toBe(true);
+  });
+
+  it("opens an iCIMS page's own frame as its mobile view in a tab", () => {
+    const u = new URL(topLevelUrl("https://campuscanada-amd.icims.com/jobs/90305/login?_gl=x&in_iframe=1"));
+    expect(u.pathname).toBe("/jobs/90305/login");
+    expect([u.searchParams.get("in_iframe"), u.searchParams.get("mobile"), u.searchParams.get("needsRedirect")]).toEqual(
+      [null, "true", "false"],
+    );
+    expect(topLevelUrl("https://careers.amd.com/jobs/90305?icims=1")).toBe("https://careers.amd.com/jobs/90305?icims=1");
+    expect(topLevelUrl("https://job-boards.greenhouse.io/x/jobs/1")).toBe("https://job-boards.greenhouse.io/x/jobs/1");
   });
 
   it("matches a company page's gh_jid to the Greenhouse board's job", () => {

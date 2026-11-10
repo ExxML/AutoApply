@@ -1,7 +1,7 @@
 // One YOLO run at a time: a queued job (or a page read for discovery) loaded in a host and driven by the content
 // script inside it (src/content/yolo), which reports each step and the outcome. The run lives in session storage, so
 // a service-worker restart mid-application loses nothing but in-memory waiters.
-import { CAPTCHA_WAIT_MS, EMAIL_WAIT_MS } from "../../shared/constants";
+import { CAPTCHA_WAIT_MS, EMAIL_WAIT_MS, topLevelUrl } from "../../shared/constants";
 import type { YoloResult } from "../../shared/messages";
 import { createStorage, session } from "../../shared/storage";
 import type { Guess, QueueItem, SubmissionReview } from "../../shared/yolo";
@@ -94,7 +94,7 @@ export async function start(
     ...(resumeKey ? { resumeKey } : {}),
     ...(review ? { reviewPolicy: review.policy, reviewKey: review.key, reviewTab: review.tab } : {}),
   };
-  const url = mode === "apply" ? applyUrl(item.url) : item.url;
+  const url = mode !== "apply" ? item.url : host === "frame" ? applyUrl(item.url) : topLevelUrl(applyUrl(item.url));
   // Saved before the page loads: its driver says hello as soon as it starts.
   await saveRun(run);
   // Survives a browser restart, which loses the run: the job goes back in the queue (index.ts initYolo).

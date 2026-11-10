@@ -78,6 +78,24 @@ export const ATS_PATH_REQUIREMENTS: Record<string, RegExp> = {
   "adp.com": /recruit/i,
 };
 
+/**
+ * An address to open as a tab's own page. A desktop iCIMS page wraps its content in a frame of its own, and that
+ * frame's address (`in_iframe=1`) opened on its own redirects back to the wrapper: AMD's runs looped there. Its mobile
+ * view shows the content in the page itself.
+ */
+export function topLevelUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    if (!/(^|\.)icims\.com$/i.test(u.hostname) || !/^\/jobs\//i.test(u.pathname)) return raw;
+    u.searchParams.delete("in_iframe");
+    u.searchParams.set("mobile", "true");
+    u.searchParams.set("needsRedirect", "false");
+    return u.toString();
+  } catch {
+    return raw;
+  }
+}
+
 export function isAtsHost(host: string, path: string): boolean {
   const h = host.toLowerCase();
   return ATS_HOSTS.some(

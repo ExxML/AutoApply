@@ -1,7 +1,7 @@
 // YOLO's driver: runs in the page a YOLO run loaded and takes it from posting to confirmation, one step at a time
 // (Apply → account → each form page → Submit). A step that loads a new document ends this script there; the new
 // page's driver asks the background where the run stands and carries on.
-import { CAPTCHA_SELF_CLEAR_MS, CAPTCHA_WAIT_MS } from "../../shared/constants";
+import { CAPTCHA_SELF_CLEAR_MS, CAPTCHA_WAIT_MS, topLevelUrl } from "../../shared/constants";
 import { send, type PageFacts, type StepKind, type YoloResult } from "../../shared/messages";
 import type { NavReply } from "../../background/gemini/schemas";
 import { collapse } from "../../shared/normalize";
@@ -322,7 +322,8 @@ export async function drive(deps: DriverDeps) {
           }
           sessionStorage.setItem("autoapply-embedded", JSON.stringify([...seen, src].slice(-10)));
           await deps.posting();
-          location.href = src;
+          // In the hidden host the form loads inside its frame, as embedded; a tab's page is its own top.
+          location.href = IN_HOST ? src : topLevelUrl(src);
           return;
         }
         case "verify": {
