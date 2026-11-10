@@ -453,7 +453,7 @@ export const PROFILE_GROUPS: GroupSpec[] = [
       t(
         "referral.howDidYouHearDefault",
         "How did you hear about us (default)",
-        "e.g. LinkedIn, School job board. Matched to the closest option.",
+        "e.g. LinkedIn, School job board. Picked when a form lists it; otherwise (or if empty) a common option such as Company website or Job board, not a referral, without flagging it for review.",
       ),
       t(
         "referral.referrerName",

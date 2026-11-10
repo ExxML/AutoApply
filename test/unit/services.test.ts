@@ -1517,7 +1517,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "Character Careers Page",
       "Riot Games Website",
       "Company Website",
-      "flag",
+      "External Job Board",
       "Other",
       "Supabase platform / Newsletter",
       "skip",
@@ -1542,8 +1542,117 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     );
     expect(r.decisions[0]).toMatchObject({ action: "fill", intendedAnswer: "LinkedIn", searchQuery: "LinkedIn" });
     expect(r.decisions[0].optionIndexes).toBeUndefined();
-    // A native select has no hidden levels: the model decides.
-    expect(r.decisions[1].action).toBe("flag");
+    // A native select has no hidden levels: the plain category, unflagged.
+    expect(r.decisions[1]).toMatchObject({ action: "fill", intendedAnswer: "Job Board" });
+  });
+
+  it("answers a yes/no referral question No when the profile names no referrer, in YOLO too", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => {
+          asked.push(f.id);
+          return { fieldId: f.id, action: "fill", intendedAnswer: "Yes", optionIndexes: [0], confidence: "high" };
+        });
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const yn = ["Yes", "No"];
+    const ask = (id: string, label: string, options = yn, kind: FieldDescriptor["kind"] = "radio_group") =>
+      field(id, { label, kind, options, required: true });
+    const fields = [
+      ask("a", "Were you referred by a current employee?"),
+      ask("b", "Have you been referred to this position?", ["Yes", "No, I applied directly"], "select"),
+      ask("c", "Did an employee refer you?", yn, "dropdown"),
+      ask("d", "Is this an employee referral?"),
+      ask("e", "Did you hear about this role from one of our employees?"),
+      ask("f", "Referral"),
+      // Not asking whether they were referred, or not plain yes/no.
+      ask("g", "Have you previously applied or been referred?"),
+      ask("h", "Would you like to learn about our employee referral program?"),
+      ask("i", "May we refer you to other open positions?"),
+      ask("j", "Were you referred?", ["Yes", "No", "No, but I know someone here"]),
+      ask("k", "Were you referred by a current employee?", ["Employee", "Job board"]),
+      ask("l", "If you were referred, did the referrer work with you?"),
+    ];
+    const run = async (referrer: string, yolo = false) => {
+      const profile = emptyProfile();
+      profile.referral.referrerName = referrer;
+      asked.length = 0;
+      const r = await mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null, yolo },
+      );
+      return Object.fromEntries(r.decisions.map((d) => [d.fieldId, d.intendedAnswer ?? d.action]));
+    };
+    const no = { a: "No", b: "No, I applied directly", c: "No", d: "No", e: "No", f: "No" };
+    expect(await run("")).toMatchObject(no);
+    expect(asked).toEqual(["g", "h", "i", "j", "k", "l"]);
+    expect(await run("", true)).toMatchObject(no);
+    // A named referrer: the model decides, as before.
+    await run("Jane Doe");
+    expect(asked).toEqual(fields.map((f) => f.id));
+  });
+
+  it("leaves an optional yes/no 'from an employee?' blank for a company-website source, as before", async () => {
+    const gemini = { call: async () => ({}) } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.referral.howDidYouHearDefault = "Company website";
+    const label = "Did you hear about this role from an employee?";
+    const r = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: [field("e", { label, kind: "radio_group", options: ["Yes", "No"], required: false })],
+        profile,
+        documents: [],
+        job: null,
+      },
+    );
+    expect(r.decisions[0].action).toBe("skip");
+  });
+
+  it("picks a common plain option for how they heard when none is the profile's", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => {
+          asked.push(f.id);
+          return { fieldId: f.id, action: "flag", confidence: "low" };
+        });
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const ask = (id: string, options: string[], label = "How did you hear about us?") =>
+      field(id, { label, kind: "radio_group", options, required: true });
+    const fields = [
+      ask("site", ["Employee referral", "Company website", "Online job board", "Other"]),
+      ask("named", ["Friend", "LinkedIn Jobs", "Indeed"]),
+      ask("board", ["Career fair", "Social media", "Indeed", "Job board"]),
+      ask("plain", ["Recruiter", "Podcast", "Other (please specify)"]),
+      ask("odd", ["Employee referral", "Career fair", "Other"]),
+      ask("yesno", ["Yes", "No"], "Did you hear about this role from an employee?"),
+    ];
+    const run = (heard: string) => {
+      const profile = emptyProfile();
+      profile.referral.howDidYouHearDefault = heard;
+      asked.length = 0;
+      return mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+    };
+    const answers = async (heard: string) => (await run(heard)).decisions.map((d) => d.intendedAnswer ?? d.action);
+    // The yes/no one is a referral question: "No" with no referrer (see referredDecision).
+    expect(await answers("LinkedIn")).toEqual([
+      "Online job board",
+      "LinkedIn Jobs",
+      "Job board",
+      "Podcast",
+      "flag",
+      "No",
+    ]);
+    expect(asked).toEqual(["odd"]);
+    expect(await answers("")).toEqual(["Company website", "LinkedIn Jobs", "Job board", "Podcast", "flag", "No"]);
   });
 
   it("answers in-office questions from the profile's work arrangement and relocation", async () => {

@@ -123,6 +123,37 @@ export const RE_CONSENT =
 /** Consent that is not needed to apply: future/other roles, talent pools, marketing. */
 /** A job board as where someone heard of a job (the profile's "How did you hear" source). */
 export const RE_JOB_BOARD = /\b(linkedin|indeed|glassdoor|handshake|simplify|ziprecruiter|wellfound|angel ?list)\b/i;
+/** A question asking how they heard of the job. */
+export const RE_HEARD_Q = /\b(hear|heard|learn(ed)?) (about|of)\b|\bbrought you to\b/i;
+// How they heard: options that claim a person, event or tie, or ask for more ("Other", "please specify").
+const RE_HEARD_ODD =
+  /^other\b|\b(referr\w*|employees?|colleagues?|friends?|family|recruit\w*|agency|staffing|events?|fairs?|conferences?|meetups?|hackathons?|former|previous(ly)?|alumn\w*|contacted|specify)\b/i;
+const HEARD_SITE = /\b(web ?site|careers? (page|site|portal))\b/i;
+const HEARD_BOARD = /\bjob ?(boards?|sites?|postings?|search)\b|\bonline (job|posting|ad)/i;
+const HEARD_ONLINE = /\b(internet|online|search engine|google)\b/i;
+const HEARD_SOCIAL = /\bsocial\b/i;
+/**
+ * How they heard, when no option is the profile's source (or it has none): the one naming it ("LinkedIn Jobs" for
+ * LinkedIn), else the most usual plain answer (a job board first for a job board), else the first that claims nothing
+ * odd. It hardly sways a hire, so never a referral, event or "Other" to explain. -1: none, or a yes/no question.
+ */
+export function commonHeardIndex(options: string[], heard: string): number {
+  if (options.some((o) => /^(yes|no)\b/i.test(o.trim()))) return -1;
+  const words = normalize(heard);
+  const order = RE_JOB_BOARD.test(heard)
+    ? [HEARD_BOARD, RE_JOB_BOARD, HEARD_SOCIAL, HEARD_SITE, HEARD_ONLINE]
+    : [HEARD_SITE, HEARD_BOARD, RE_JOB_BOARD, HEARD_ONLINE, HEARD_SOCIAL];
+  const tests = [
+    (o: string) => !!words && ` ${normalize(o)} `.includes(` ${words} `),
+    ...order.map((re) => (o: string) => re.test(o)),
+    () => true,
+  ];
+  for (const t of tests) {
+    const i = options.findIndex((o) => !!normalize(o) && !RE_HEARD_ODD.test(o) && t(o));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
 export const RE_OPTIONAL_CONSENT =
   /\b(future|other|additional|similar|relevant)\b(\s+\w+){0,2}\s+(opportunit\w*|openings|vacancies)|considered for (other|future)|talent (community|pool|network)|job alerts?|newsletter|marketing (e-?mails?|communications?|messages|materials)|unsubscribe|keep me (informed|updated|posted)|text messag\w*|\btext (you|me)\b|\bsms\b|alerts? for (similar|new|other|relevant|future) (jobs?|roles?|positions?|openings)|stay (up to date|in touch|informed|connected)\b|\b(retain|retention)\b[^.]*\b(additional|further|extra|extended|longer)\b/i;
 /** Opt-in to AI notetakers or recorded interviews: answered from the profile, not as a consent. Not "transcript". */

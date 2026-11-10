@@ -1634,7 +1634,7 @@ describe("YOLO best guesses", () => {
       field("heard", {
         kind: "radio_group",
         label: "Where did you first hear about this position?",
-        options: ["Newsletter", "Colleague"],
+        options: ["Employee referral", "Colleague"],
         required: false,
       }),
       field("note", { kind: "textarea", label: "Anything else?", required: false }),

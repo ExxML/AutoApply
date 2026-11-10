@@ -1,5 +1,5 @@
 // §14 fill dispatcher: picks the right strategy per kind; dropdowns/typeaheads run strictly one at a time.
-import { RE_JOB_BOARD } from "../../shared/constants";
+import { RE_HEARD_Q, RE_JOB_BOARD, commonHeardIndex } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 import type { DocumentMeta } from "../../shared/types";
 import { localMatch, localMatchAll } from "../match/localMatch";
@@ -42,7 +42,6 @@ export interface EngineDeps {
   signal: AbortSignal;
 }
 
-const RE_HEARD_Q = /\b(hear|heard|learn(ed)?) (about|of)\b|\bbrought you to\b/i;
 /** A list whose label says to take its "Other" when the answer isn't on it. */
 const RE_PICK_OTHER = /\b(select|choose|pick)\s+["“']?other\b/i;
 
@@ -194,6 +193,9 @@ async function dispatchKind(h: FieldHandle, op: FillOp, deps: EngineDeps): Promi
         const boards = options.filter((o) => /\bjob ?(boards?|sites?)\b/i.test(o));
         if (boards.length === 1) texts = boards;
       }
+      // Else a common plain answer, not the AI chooser: how they heard hardly sways a hire, so it is never flagged.
+      const common = !texts && RE_HEARD_Q.test(h.desc.label) ? commonHeardIndex(options, answerOf(op)) : -1;
+      if (common >= 0) texts = [options[common]];
       if (!texts) {
         const idx = await deps.choose(h, answerOf(op), options);
         texts = idx?.length ? idx.map((i) => options[i]) : null;

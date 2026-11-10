@@ -1,5 +1,11 @@
 // §14.5 custom dropdowns: open, harvest (incl. virtualized lists), select, verify, sync hidden select.
-import { OPTION_SELECTORS, RE_NO_OPTIONS, RE_PLACEHOLDER_OPTION } from "../../shared/constants";
+import {
+  OPTION_SELECTORS,
+  RE_HEARD_Q,
+  RE_NO_OPTIONS,
+  RE_PLACEHOLDER_OPTION,
+  commonHeardIndex,
+} from "../../shared/constants";
 import { collapse, normalize } from "../../shared/normalize";
 import type { FieldHandle } from "../scan/fields";
 import { deepQueryAll, shadowOf } from "../scan/traverse";
@@ -422,16 +428,19 @@ async function pickOne(h: FieldHandle, text: string, within?: string): Promise<b
   if (index < 0) return false;
   // A category that opened its own list (Workday's "How Did You Hear About Us?") is no pick, and keys pressed now
   // land in that list: a UBC student got "WaterlooWorks".
+  // A plain how-they-heard category (not "Employee Referral" › names) takes a pick even with no answer to look for.
+  const heard = RE_HEARD_Q.test(h.desc.label) && commonHeardIndex([text], "") === 0;
   // Workday replaces its popup to show the category's own list.
-  const box = c.isConnected ? c : within ? await waitFor(() => findOptionsContainer(h, pre), 1500) : null;
+  const box = c.isConnected ? c : within || heard ? await waitFor(() => findOptionsContainer(h, pre), 1500) : null;
   const now = box && isVisible(box) ? optionElements(box) : null;
   if (now && (now.length !== listed.length || now.some((o, i) => o !== listed[i]))) {
     // Unless it was picked for an answer it lists, else its one or "Other" choice: GM's "Internet Job Board / Job
-    // Search" › "Other", for LinkedIn.
-    if (!within) return false;
+    // Search" › "Other", for LinkedIn. With neither, a common plain one for how they heard ("Indeed").
+    if (!within && !heard) return false;
     const sub =
-      now.find((o) => normalize(optText(o)) === normalize(within)) ??
-      (now.length === 1 ? now[0] : now.find((o) => /^other\b/i.test(optText(o))));
+      (within ? now.find((o) => normalize(optText(o)) === normalize(within)) : undefined) ??
+      (now.length === 1 ? now[0] : now.find((o) => /^other\b/i.test(optText(o)))) ??
+      (heard ? now[commonHeardIndex(now.map(optText), within ?? "")] : undefined);
     if (!sub) return false;
     const pick = optText(sub);
     realClick(sub);

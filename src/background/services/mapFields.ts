@@ -19,6 +19,8 @@ import {
   RE_ENTRY_SECTION,
   RE_INTERVIEW_RECORDING,
   RE_JOB_BOARD,
+  RE_OPTIONAL_CONSENT,
+  commonHeardIndex,
   regionCode,
   regionCountry,
 } from "../../shared/constants";
@@ -190,11 +192,12 @@ const heardOther = (f: FieldDescriptor, answer: string) => RE_HEARD.test(f.label
  * the model picked Supabase's "Other online job boards".
  */
 function heardDecision(f: FieldDescriptor, heard: string, company = ""): Decision | null {
-  if (!f.options || !heard || !RE_HEARD.test(f.label)) return null;
+  if (!f.options || !RE_HEARD.test(f.label)) return null;
   const site = /\b(web ?site|careers? (page|site))\b/i.test(heard);
   const siteish = (o: string) => /\b(web ?site|careers? (page|site|portal))\b|\w\.(com|io|ai|co)\b/i.test(o);
   let hits = f.options.flatMap((o, i) =>
-    normalize(o) === normalize(heard) || (site && siteish(o) && !/^other\b|\bjob ?(board|site)|social|blog/i.test(o))
+    (heard && normalize(o) === normalize(heard)) ||
+    (site && siteish(o) && !/^other\b|\bjob ?(board|site)|social|blog/i.test(o))
       ? [i]
       : [],
   );
@@ -227,12 +230,41 @@ function heardDecision(f: FieldDescriptor, heard: string, company = ""): Decisio
       confidence: "high",
       sources: ["referral"],
     };
-  if (hits.length !== 1) return null;
+  if (hits.length > 1) return null;
+  // None is the profile's source: a common plain answer, never flagged (it hardly sways a hire).
+  if (!hits.length) hits = [commonHeardIndex(f.options, heard)].filter((i) => i >= 0);
+  if (!hits.length) return null;
   return {
     fieldId: f.id,
     action: "fill",
     optionIndexes: hits,
     intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["referral"],
+  };
+}
+
+// Asks whether someone referred them ("Were you referred by a current employee?", "Did an employee refer you?").
+const RE_REFERRED_Q =
+  /\b(were|was|been|get|got) (you )?referred\b|\breferred (by|you)\b|\bdid (an?|any|some)\w* (\w+ ){0,3}refer you\b|\b(is this|an?) (employee )?referral\b|\bemployee referral\b|^(employee )?referral\W*$|\bhear(d)? (about|of)\b[^?]*\bfrom (an?|our|one of our) (current )?(employees?|team members?|staff members?)\b/i;
+// Not a referral program, other or future roles, or a question folding in others ("previously applied or referred?").
+const RE_REFERRED_NOT =
+  /^if\b|\b(program|bonus|other|future|additional|similar|previous(ly)?|applied|relatives?|family|related to)\b|\brefer (an?|someone|others|friends?)\b/i;
+
+/**
+ * Referred, as yes/no, for a profile naming no referrer: "No". The model might guess "Yes" for the stronger
+ * application, a claim the candidate can't back.
+ */
+function referredDecision(f: FieldDescriptor, referrer: string): Decision | null {
+  if (referrer.trim() || !f.options || !RE_REFERRED_Q.test(f.label) || RE_REFERRED_NOT.test(f.label)) return null;
+  if (RE_OPTIONAL_CONSENT.test(f.label) || !f.options.some((o) => /^yes\b/i.test(o.trim()))) return null;
+  const no = f.options.flatMap((o, i) => (/^no\b/i.test(o.trim()) ? [i] : []));
+  if (no.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: no,
+    intendedAnswer: f.options[no[0]],
     confidence: "high",
     sources: ["referral"],
   };
@@ -2409,7 +2441,9 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       contactEmployerDecision(f, input.profile.experience) ??
       statusDecision(f, input.profile.workAuthorization.entries) ??
       otherStatusDecision(f, input.fields, local, countries, input.profile.workAuthorization.entries) ??
-      degreeStatusDecision(f, input.profile.education);
+      degreeStatusDecision(f, input.profile.education) ??
+      // Last: only fields no other rule answers (an optional "from an employee?" heardDecision leaves blank stays so).
+      referredDecision(f, input.profile.referral.referrerName);
     if (d) local.set(f.id, d);
   }
   return local;

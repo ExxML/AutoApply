@@ -240,6 +240,25 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(picked).toBe("");
   });
 
+  it("takes a common plain option in a how-they-heard category's own list, never a referral's", async () => {
+    const run = async (category: string, within?: string) => {
+      const { h, ul } = select2(`<li role="option">${category}</li><li role="option">Company Website</li>`);
+      h.desc.label = "How did you hear about us?";
+      ul.addEventListener("click", (e) => {
+        const t = (e.target as Element).textContent!;
+        if (t === category)
+          ul.innerHTML = `<li role="option">Career Fair</li><li role="option">Indeed</li><li role="option">Monster</li>`;
+        else h.el.textContent = t;
+      });
+      // The shown text is the widget's to check (fillDropdown's last step), as for GM's "Other": only the pick here.
+      const r = await fillDropdown(h, [category], within);
+      return [r.outcome === "failed", h.el.textContent];
+    };
+    expect(await run("Job Board", "LinkedIn")).toEqual([false, "Indeed"]);
+    expect(await run("Job Board")).toEqual([false, "Indeed"]);
+    expect(await run("Employee Referral")).toEqual([true, "Select…"]);
+  });
+
   it("a list too long to harvest is searched from its popup search box", async () => {
     const { h, ul } = select2(`<li role="option">Aalto University</li><li role="option">Loading more results…</li>`);
     ul.insertAdjacentHTML("beforebegin", `<input type="search" aria-controls="res" hidden>`);
