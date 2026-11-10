@@ -1405,6 +1405,64 @@ function currentStudentDecision(f: FieldDescriptor, education: Profile["educatio
   return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
 }
 
+const RE_DEGREE_STATUS =
+  /\b(degree|education(al)?|diploma|program(me)?|stud(y|ies)|qualification)\s+(completion\s+)?status\b|\bstatus\s+of\s+(your\s+|this\s+|the\s+)?(degree|education|diploma|program(me)?|studies|qualification)\b/i;
+const RE_ONGOING_OPTION =
+  /\bin[- ]?progress\b|\bongoing\b|\bpursuing\b|\bcurrently\b|\benrolled\b|\battending\b|\bexpected\b|\banticipated\b|\bworking (toward|on)\b/i;
+const RE_DONE_OPTION = /\b(completed?|graduated|finished|conferred|awarded|obtained|earned|attained)\b/i;
+const RE_NOT_DONE_OPTION =
+  /\b(not|never|un|in|non)[- ]?(yet )?(complete|completed|finished|graduated)\b|\b(did not|didn't|withdr[ae]wn?|discontinued|dropped)\b/i;
+
+/** "done" or "ongoing" for an education entry; undefined when neither is certain. */
+function degreeState(e: Profile["education"][number], today: string): "done" | "ongoing" | undefined {
+  const dates = [e.startDate, e.endDate, e.expectedGraduation];
+  if (dates.some((d) => d && !/^\d{4}-\d\d/.test(d))) return undefined;
+  const month = (d: string) => d.slice(0, 7);
+  // Admitted but not started: neither "in progress" nor "uncompleted" (started, then left) is true.
+  if (e.startDate && month(e.startDate) > today) return undefined;
+  const end = e.endDate ? month(e.endDate) : "";
+  if (end && end <= today) return e.currentlyEnrolled === "yes" ? undefined : "done";
+  if (!e.startDate && e.currentlyEnrolled !== "yes") return undefined;
+  const grad = end || (e.expectedGraduation ? month(e.expectedGraduation) : "");
+  return e.currentlyEnrolled === "yes" || grad > today ? "ongoing" : undefined;
+}
+
+/**
+ * "Degree Status" among completion options ("Completed", "In-Progress", "Uncompleted"), from the education entry's
+ * start, end, expected graduation and enrollment: left to the model, it rested on the model reading those right.
+ * Options that don't sort into exactly one completed and one ongoing choice (full-time/part-time) stay with the model.
+ */
+function degreeStatusDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
+  const section = RE_ENTRY_SECTION.exec(f.section ?? "");
+  const scopedEdu = !!section && /education/i.test(section[1]);
+  const bare = scopedEdu && /^(degree\s+)?status\??$/i.test(f.label.trim());
+  if (!f.options || isMulti(f) || (!RE_DEGREE_STATUS.test(f.label) && !bare)) return null;
+  // A named level or "highest" asks about one degree, maybe one not in the profile: the model matches it.
+  if (/\b(highest|bachelor\w*|master\w*|ph\.?\s?d|doctora\w*|mba|associate\w*|high school|secondary)\b/i.test(f.label))
+    return null;
+  const today = todayIso().slice(0, 7);
+  const entries = scopedEdu ? [education[(Number(section![2]) || 1) - 1]].filter(Boolean) : education;
+  const states = new Set(entries.map((e) => degreeState(e, today)));
+  const state = states.size === 1 ? [...states][0] : undefined;
+  if (!state) return null;
+  const quit =
+    /\b(did not|didn't|withdr[ae]wn?|discontinued|dropped|never)\b|\bnot (currently |yet )?(enrolled|attending|pursuing|in[- ]?progress)\b/i;
+  const hits = f.options.flatMap((o, i) => {
+    const ongoing = RE_ONGOING_OPTION.test(o) && !quit.test(o);
+    const done = RE_DONE_OPTION.test(o) && !RE_NOT_DONE_OPTION.test(o) && !ongoing;
+    return (state === "done" ? done : ongoing) ? [i] : [];
+  });
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["education"],
+  };
+}
+
 /**
  * "How soon could you start?" among ranges ("2 weeks or less", "8 - 12 weeks", "more than 12 weeks"), counted from
  * today to the profile's earliest start date. Enable's got "more than 12 weeks" for a start 10 weeks away. Asked in
@@ -2350,7 +2408,8 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       notWorkingDecision(f, input.profile.experience) ??
       contactEmployerDecision(f, input.profile.experience) ??
       statusDecision(f, input.profile.workAuthorization.entries) ??
-      otherStatusDecision(f, input.fields, local, countries, input.profile.workAuthorization.entries);
+      otherStatusDecision(f, input.fields, local, countries, input.profile.workAuthorization.entries) ??
+      degreeStatusDecision(f, input.profile.education);
     if (d) local.set(f.id, d);
   }
   return local;

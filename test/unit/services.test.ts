@@ -1795,6 +1795,73 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect((await run()).decisions.map((d) => d.action)).toEqual(["flag"]);
   });
 
+  it("answers degree status from the education entry's dates and enrollment", async () => {
+    const asked: string[] = [];
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const fields = s.payload.fields ?? [];
+        asked.push(...fields.map((f) => f.id));
+        return {
+          data: { decisions: fields.map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" })) },
+          usedModel: "m",
+          keyLabel: "k",
+        };
+      },
+    } as unknown as Gemini;
+    const y = new Date().getFullYear();
+    const profile = emptyProfile();
+    const school = { ...profile.education[0], startDate: `${y - 2}-09`, expectedGraduation: `${y + 2}-05` };
+    const fields = [
+      field("a", { label: "Degree Status", kind: "radio_group", options: ["Completed", "uncompleted", "In-Progress"] }),
+      field("b", {
+        label: "What is the status of your degree?",
+        kind: "dropdown",
+        options: ["Graduated", "Did not complete", "Currently enrolled", "Not yet started"],
+      }),
+      {
+        ...field("c", {
+          label: "Status",
+          kind: "dropdown",
+          options: ["Complete", "Expected to complete", "Incomplete"],
+        }),
+        section: "Education 1",
+      },
+      // Not completion options, a named degree, or a bare "Status" outside an education entry: the model decides.
+      field("d", { label: "Education status", kind: "dropdown", options: ["Full-time", "Part-time"] }),
+      field("e", { label: "Master's degree status", kind: "dropdown", options: ["Completed", "In progress"] }),
+      field("f", { label: "Status", kind: "dropdown", options: ["Completed", "In progress"] }),
+    ];
+    const run = async () => {
+      asked.length = 0;
+      const { decisions } = await mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        { fields, profile, documents: [], job: null },
+      );
+      return decisions.map((d) => (d.action === "fill" ? d.intendedAnswer : d.action));
+    };
+
+    profile.education = [{ ...school, currentlyEnrolled: "yes" }];
+    expect(await run()).toEqual(["In-Progress", "Currently enrolled", "Expected to complete", "flag", "flag", "flag"]);
+    expect(asked).toEqual(["d", "e", "f"]);
+    // Not enrolled, but graduating later: still in progress.
+    profile.education = [{ ...school, currentlyEnrolled: "" }];
+    expect((await run()).slice(0, 3)).toEqual(["In-Progress", "Currently enrolled", "Expected to complete"]);
+    // Finished.
+    profile.education = [{ ...school, endDate: `${y - 1}-04`, currentlyEnrolled: "no" }];
+    expect((await run()).slice(0, 3)).toEqual(["Completed", "Graduated", "Complete"]);
+    // Starts later (admitted, not begun), or a past end while still enrolled: the model decides.
+    profile.education = [{ ...school, startDate: `${y + 1}-09`, currentlyEnrolled: "yes" }];
+    expect((await run()).slice(0, 3)).toEqual(["flag", "flag", "flag"]);
+    profile.education = [{ ...school, endDate: `${y - 1}-04`, currentlyEnrolled: "yes" }];
+    expect((await run()).slice(0, 3)).toEqual(["flag", "flag", "flag"]);
+    // Schools that disagree leave an unnumbered question to the model; a numbered entry answers from its own.
+    profile.education = [
+      { ...school, currentlyEnrolled: "yes" },
+      { ...school, endDate: `${y - 1}-04`, currentlyEnrolled: "no" },
+    ];
+    expect((await run()).slice(0, 3)).toEqual(["flag", "flag", "Expected to complete"]);
+  });
+
   it("answers remote-work basics and English fluency", async () => {
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
