@@ -377,7 +377,16 @@ export async function drive(deps: DriverDeps) {
                 ),
               2000,
             );
-            if (item) press(item);
+            if (item) {
+              // Its item can post first ("Please wait…" in Celestica's menu, then off to SuccessFactors' sign-in a few
+              // seconds later): reading the page meanwhile pressed the menu again until the loop guard stopped it.
+              const [href, inputs] = [location.href, deepQueryAll("input,select,textarea").length];
+              press(item);
+              await waitFor(
+                () => leaving || location.href !== href || deepQueryAll("input,select,textarea").length !== inputs,
+                15_000,
+              );
+            }
           }
           if (!(await changed(before, 20_000))) {
             const n = await navigateOn(`Pressing "${labelOf(b)}" on the posting changed nothing`, facts, before);
