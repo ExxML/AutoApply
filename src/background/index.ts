@@ -329,7 +329,7 @@ type Handlers = { [T in Message["type"]]?: Handler<T> };
 
 const handlers: Handlers = {
   async GET_RUNTIME_CONFIG({ yolo }, sender) {
-    const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "overlayPos", "tailorResume"]);
+    const s = await store.getMany(["profile", "documentsIndex", "selectedModel", "tailorResume"]);
     const host = hostOf(sender.tab?.url ?? sender.url);
     const y = yolo ? await yoloOverrides(sender) : null;
     const excluded = !y && isExcluded(host);
@@ -360,7 +360,6 @@ const handlers: Handlers = {
         settings.aiProvider === "claude" && !(settings.geminiFill && pool.keys.length) ? null : s.selectedModel,
       ),
       hasKeys: pool.keys.length > 0,
-      overlayBottom: s.overlayPos[host] ?? null,
       appliedBefore: y ? undefined : await yoloApplied(sender.tab?.url ?? ""),
     };
   },
@@ -596,13 +595,6 @@ const handlers: Handlers = {
   // The overlay's Stop: this tab's frames only, never another tab's fill or a YOLO run's.
   async BROADCAST_STOP(_msg, sender) {
     if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "STOP_FILL" });
-    return { ok: true };
-  },
-
-  async SET_OVERLAY_POS({ host, bottom }) {
-    const overlayPos = await store.get("overlayPos");
-    overlayPos[host] = bottom;
-    await store.set({ overlayPos });
     return { ok: true };
   },
 

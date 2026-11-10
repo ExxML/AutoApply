@@ -89,6 +89,7 @@
 .fab {
   position: fixed;
   right: 16px;
+  bottom: 16px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -117,6 +118,7 @@
 .panel {
   position: fixed;
   right: 16px;
+  bottom: 16px;
   width: 320px;
   max-height: 70vh;
   display: flex;
@@ -134,8 +136,6 @@
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
-  cursor: ns-resize;
-  user-select: none;
 }
 .head b {
   flex: 1;

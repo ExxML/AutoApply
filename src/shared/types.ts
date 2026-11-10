@@ -241,7 +241,6 @@ export interface RuntimeConfig {
   excluded: boolean;
   selectedModel: string | null;
   hasKeys: boolean;
-  overlayBottom: number | null;
   /** YOLO already submitted an application for this posting (shown as a warning, if the user wants it). */
   appliedBefore?: { at: number; url: string };
 }

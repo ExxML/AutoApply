@@ -1,4 +1,4 @@
-// §16.1 overlay panel (top frame only): collapsed 44 px button, expandable status panel, draggable vertically.
+// §16.1 overlay panel (top frame only): collapsed 44 px button, expandable status panel, fixed bottom-right.
 import { ellipsize } from "../../shared/normalize";
 import type { ApiError, JobBrief, NeedsYouItem, StatusCounts, UploadedDoc } from "../../shared/types";
 import { el, onOutsideClick, uiLayer } from "./root";
@@ -24,7 +24,6 @@ export interface OverlayHandlers {
   onRetry(): void;
   onOpenSettings(): void;
   onFocus(item: NeedsYouItem): void;
-  onMove(bottom: number): void;
   onOpenDoc(id: string): void;
   /** The job details an AI-made upload was written from; null when no longer kept. */
   onJobInfo(id: string): Promise<JobBrief | null>;
@@ -66,9 +65,8 @@ const pendingOf = (c: StatusCounts) =>
 
 const DONE_PIN_MS = 1500; // how long the panel stays open after a run finishes
 
-export function createOverlay(h: OverlayHandlers, initialBottom: number | null) {
+export function createOverlay(h: OverlayHandlers) {
   const layer = uiLayer();
-  let bottom = initialBottom ?? 16;
   let expanded = false;
   let running = false;
   let pinnedUntil = 0;
@@ -136,7 +134,6 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
   layer.append(fab, panel);
 
   const render = () => {
-    fab.style.bottom = panel.style.bottom = `${bottom}px`;
     fab.style.display = expanded ? "none" : "";
     panel.style.display = expanded ? "" : "none";
   };
@@ -152,29 +149,6 @@ export function createOverlay(h: OverlayHandlers, initialBottom: number | null) 
   fab.onclick = () => expand(true);
   close.onclick = collapse;
   onOutsideClick(panel, () => expanded && collapse());
-
-  // Drag the header (or the button) vertically along the right edge.
-  const drag = (handle: HTMLElement) =>
-    handle.addEventListener("pointerdown", (e) => {
-      if ((e.target as HTMLElement).closest(".icon")) return;
-      const startY = e.clientY;
-      const start = bottom;
-      let moved = false;
-      const move = (ev: PointerEvent) => {
-        const next = Math.max(8, Math.min(innerHeight - 60, start - (ev.clientY - startY)));
-        if (Math.abs(next - bottom) > 2) moved = true;
-        bottom = next;
-        render();
-      };
-      const up = () => {
-        removeEventListener("pointermove", move, true);
-        removeEventListener("pointerup", up, true);
-        if (moved) h.onMove(bottom);
-      };
-      addEventListener("pointermove", move, true);
-      addEventListener("pointerup", up, true);
-    });
-  drag(head);
   render();
 
   return {

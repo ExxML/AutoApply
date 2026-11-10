@@ -29,8 +29,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 ## Storage
 
 - zod 4 removed `.deepPartial()`. Every profile/settings leaf has a `.catch(default)` instead, so parsing a partial or partly invalid object yields a full object with defaults; this replaces `ProfileSchema.deepPartial()` for §10.9 and makes all storage reads tolerant leaf-by-leaf.
-- Content scripts never access `chrome.storage` at all (strongest form of §18.5). Everything they need comes from `GET_RUNTIME_CONFIG`; the few writes they need go through messages (`SET_OVERLAY_POS`, `LEARNED_USED`). `storage.ts` has a per-context allow-list (`background`, `options`, `popup`); the popup cannot read `apiKeys` and gets key health from `TAB_STATUS`.
-- Overlay position per host is stored in an extra local key `overlayPos: Record<host, number>`.
+- Content scripts never access `chrome.storage` at all (strongest form of §18.5). Everything they need comes from `GET_RUNTIME_CONFIG`; the few writes they need go through messages (`LEARNED_USED`). `storage.ts` has a per-context allow-list (`background`, `options`, `popup`); the popup cannot read `apiKeys` and gets key health from `TAB_STATUS`.
 
 ## Messages (additions to §17)
 
@@ -90,7 +89,7 @@ Choices made where PROMPT.md was silent or where the environment forced a deviat
 ## UI
 
 - Badge tooltips use the native `title` attribute on the pill. For essays, "Save as reusable answer" is offered by clicking the purple pill (a native tooltip cannot hold a link); it opens the same learning card.
-- The overlay's vertical position is stored per host as a bottom offset (`overlayPos`).
+- The overlay is fixed at the bottom-right corner; it can't be dragged.
 - Setup-wizard progress lives in the URL (`#/setup/1…4`), so steps can be skipped and resumed; a step shows ✓ when done.
 - "Reset everything" uses an inline three-click confirmation instead of browser dialogs.
 - Only PDFs can be the primary résumé (text extraction is PDF-only); DOCX/TXT files can still be uploaded and attached.

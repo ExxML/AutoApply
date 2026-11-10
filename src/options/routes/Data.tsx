@@ -22,7 +22,6 @@ const CARRIED = [
   "modelCatalog",
   "modelListFetchedAt",
   "modelCapabilities",
-  "overlayPos",
   "yoloQueue",
   "yoloInFlight",
   "yoloSourceCheck",

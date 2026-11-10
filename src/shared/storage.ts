@@ -12,7 +12,7 @@ import {
   YoloStateSchema,
 } from "./yolo";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const ThinkingSchema = z.union([
   z.object({ kind: z.literal("level"), value: z.enum(["minimal", "low", "high"]) }),
@@ -120,7 +120,6 @@ export const LOCAL_SCHEMAS = {
   /** The models Claude Code offers the user's sign-in, in its order (background CLAUDE_MODELS). */
   claudeModels: list(ClaudeModelSchema),
   claudeModelsFetchedAt: z.number().catch(0),
-  overlayPos: rec(z.number()),
   yolo: YoloSchema,
   yoloState: YoloStateSchema.catch(() => YoloStateSchema.parse({})),
   /** Every application YOLO made and every one the user submitted after a fill: what is never applied to twice. */
@@ -268,6 +267,8 @@ export async function migrate(): Promise<void> {
   });
   // v4: every job not in Applications can be queued; the old every-job-looked-at memory would still block them.
   await chrome.storage.local.remove("yoloSeen");
+  // v5: the overlay no longer moves, so the per-host positions it saved are dead.
+  await chrome.storage.local.remove("overlayPos");
 }
 
 // ---------- chrome.storage.session (background only) ----------

@@ -160,7 +160,6 @@ export type Message =
   | { type: "SLEEP"; ms: number }
   | { type: "BROADCAST_FILL"; rerun: boolean }
   | { type: "BROADCAST_STOP" }
-  | { type: "SET_OVERLAY_POS"; host: string; bottom: number }
   | { type: "OPEN_OPTIONS"; hash: string }
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
@@ -213,7 +212,6 @@ export interface Responses {
   SLEEP: Ok;
   BROADCAST_FILL: Ok;
   BROADCAST_STOP: Ok;
-  SET_OVERLAY_POS: Ok;
   OPEN_OPTIONS: Ok;
   TRIGGER_FILL: Ok;
   STOP_FILL: Ok;

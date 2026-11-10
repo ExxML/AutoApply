@@ -223,27 +223,23 @@ function renderOverlay() {
   const error =
     lastError ?? (childError ? { kind: "other", message: childError } : !frames.length && noForm ? NO_FORM : null);
   if (!frames.length && !error && !reviewContext) return;
-  overlay ??= createOverlay(
-    {
-      onRerun: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
-      // Every frame of this tab only: a form in an iframe fills in its own frame. Never a YOLO run's page.
-      onStop: () => {
-        if (yolo) return;
-        stop();
-        void send({ type: "BROADCAST_STOP" }).catch(() => undefined);
-      },
-      onRetry: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
-      onOpenSettings: () => void send({ type: "OPEN_OPTIONS", hash: "/ai" }).catch(() => undefined),
-      onFocus: (n) =>
-        n.frameId
-          ? void send({ type: "FOCUS_FIELD", frameId: n.frameId, fieldId: n.fieldId }).catch(() => undefined)
-          : focusField(n.fieldId),
-      onMove: (bottom) => void send({ type: "SET_OVERLAY_POS", host: HOST, bottom }).catch(() => undefined),
-      onOpenDoc: (id) => void openDoc(id),
-      onJobInfo: (id) => send({ type: "GET_DOC_JOB", id }).catch(() => null),
+  overlay ??= createOverlay({
+    onRerun: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
+    // Every frame of this tab only: a form in an iframe fills in its own frame. Never a YOLO run's page.
+    onStop: () => {
+      if (yolo) return;
+      stop();
+      void send({ type: "BROADCAST_STOP" }).catch(() => undefined);
     },
-    config?.overlayBottom ?? null,
-  );
+    onRetry: () => void send({ type: "BROADCAST_FILL", rerun: true }).catch(() => undefined),
+    onOpenSettings: () => void send({ type: "OPEN_OPTIONS", hash: "/ai" }).catch(() => undefined),
+    onFocus: (n) =>
+      n.frameId
+        ? void send({ type: "FOCUS_FIELD", frameId: n.frameId, fieldId: n.fieldId }).catch(() => undefined)
+        : focusField(n.fieldId),
+    onOpenDoc: (id) => void openDoc(id),
+    onJobInfo: (id) => send({ type: "GET_DOC_JOB", id }).catch(() => null),
+  });
   const total: StatusCounts = {
     total: 0,
     filled: 0,
