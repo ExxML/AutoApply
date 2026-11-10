@@ -113,13 +113,20 @@ export const GUESS = "guess";
 const RE_SPONSOR_Q = /\b(requir|need)\w*\b[^?]*\bsponsor|\bsponsor\w*\b[^?]*\b(visa|immigration|employment|work)\b/i;
 /**
  * Allowed to work there, asked without "authorized". Twitch: "would you be legally eligible to begin employment
- * immediately?"; Airwallex: "the right to live and work"; Zimmer Biomet: "Do you currently hold a Visa or Work Permit
- * for the country …?" (a citizen too). Not "able to work weekends?" or "allowed to work overtime?": "able" and
- * "allowed" only with "legally" or a place.
+ * immediately?"; Airwallex: "the right to live and work". Not "able to work weekends?" or "allowed to work
+ * overtime?": "able" and "allowed" only with "legally" or a place.
  */
 const RE_ELIGIBLE =
-  /\beligib\w* to (work|begin|start)\b|\bright to (live and )?work\b|\blegally (\w+ to )?work\b|\bentitled to work\b|\b(permitted|allowed) to work in\b|\b(can you|able to) work in (this|the|that) country\b|\b(hold|have)\b[^?]*\bwork permit\b/i;
+  /\beligib\w* to (work|begin|start)\b|\bright to (live and )?work\b|\blegally (\w+ to )?work\b|\bentitled to work\b|\b(permitted|allowed) to work in\b|\b(can you|able to) work in (this|the|that) country\b/i;
 const RE_WORK_AUTH = /\b(authori[sz]|visa\b|work permit)/i;
+/**
+ * Holding a visa or work permit now, of no named type (Zimmer Biomet: "Do you currently hold a Visa or Work Permit for
+ * the country …?"). Not "have you ever been denied a visa?", "a passport and visa to travel?", "any visa
+ * restrictions?" or "a visa sponsor?"; "Do you hold an H-1B / OPT visa?" asks which one, for the model.
+ */
+const RE_PERMIT =
+  /\b(hold|have|possess)( an?| any)?( valid| current)?( [\w-]+)? (visa|work permit)\b(?!\s*(restriction|requirement|sponsor|status|type|application|interview)s?\b)/i;
+const RE_VISA_TYPE = /\b([A-Z]{1,2}-?\d[A-Z]?|OPT|CPT|TN|PGWP)\b/;
 const RE_CITIZEN = /\bcitizen(s|ship)?\b|\bnationals? of\b|\bpermanent resident|\bgreen card\b/i;
 /** A question whose answer depends on the country it is about: authorization, sponsorship, citizenship. */
 const isWorkAuth = (label: string) =>
@@ -512,9 +519,11 @@ function workAuthDecision(
     return null;
   const sponsor = RE_SPONSOR_Q.test(f.label);
   const authorized = /authori[sz]ed/i.test(f.label) || RE_ELIGIBLE.test(f.label);
+  // Asked alone: "authorized, or do you hold a work permit?" still asks whether they may work there.
+  const permit = !sponsor && !authorized && RE_PERMIT.test(f.label) && !RE_VISA_TYPE.test(f.label);
   // "Authorized … without requiring sponsorship?" (Funnel): yes only if authorized and needing none.
   const without = authorized && /\bwithout\b[^?]*\bsponsor/i.test(f.label);
-  if (!without && (sponsor === authorized || (authorized && /sponsor/i.test(f.label)))) return null;
+  if (!permit && !without && (sponsor === authorized || (authorized && /sponsor/i.test(f.label)))) return null;
   const only = (re: RegExp) => {
     const hits = (f.options ?? []).flatMap((o, i) => (re.test(o) ? [i] : []));
     return hits.length === 1 ? hits[0] : -1;
@@ -527,12 +536,14 @@ function workAuthDecision(
   const yes = only(/^yes\b/i) >= 0 ? only(/^yes\b/i) : sponsor && when >= 0 ? when : only(/^yes\W*$/i);
   const no = only(/^no\b/i);
   if (!text && (yes < 0 || no < 0)) return null;
-  // No entry for the country: not authorized there, so sponsorship needed.
+  // No entry for the country: not authorized there, so sponsorship needed (and no visa or permit held).
   const says = !e
     ? [sponsor ? "yes" : "no"]
-    : sponsor
-      ? [e.requiresSponsorshipNow, ...(/future/i.test(f.label) ? [e.requiresSponsorshipFuture] : [])]
-      : [e.authorized];
+    : permit
+      ? [holdsPermit(e)]
+      : sponsor
+        ? [e.requiresSponsorshipNow, ...(/future/i.test(f.label) ? [e.requiresSponsorshipFuture] : [])]
+        : [e.authorized];
   const flip = (s: string) => (s === "yes" ? "no" : s === "no" ? "yes" : s);
   const all = !e
     ? ["no"]
@@ -557,6 +568,16 @@ function workAuthDecision(
   if (text) return { ...base, text: answer ? "Yes" : "No" };
   const i = answer ? yes : no;
   return { ...base, optionIndexes: [i], intendedAnswer: f.options![i] };
+}
+
+/**
+ * Whether an entry's right to work rests on a visa or work permit: a citizen or permanent resident holds neither. A
+ * permit is checked first ("Open work permit (spouse of a Canadian citizen)"); a blank or other status says nothing.
+ */
+function holdsPermit(e: Profile["workAuthorization"]["entries"][number]): string {
+  if (e.authorized !== "yes") return e.authorized;
+  if (/\b(visa|permit)\b/i.test(e.status) || RE_VISA_TYPE.test(e.status)) return "yes";
+  return /\bcitizen|\bpermanent residen(t|ce)\b|\bPR\b|\bgreen card\b/i.test(e.status) ? "no" : "";
 }
 
 /**

@@ -928,7 +928,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     );
     expect(zb.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual([
       "Yes",
-      "Yes",
+      "No",
       "No",
       "Yes",
       "Yes",
@@ -939,6 +939,70 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "flag",
       "flag",
     ]);
+  });
+
+  it("answers whether a visa or work permit is held from the status the right to work rests on", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const ask = async (
+      status: string,
+      label: string,
+      authorized: "yes" | "no" | "" = "yes",
+      location = "Toronto, ON, Canada",
+    ) => {
+      const profile = emptyProfile();
+      profile.workAuthorization.entries = [
+        {
+          country: "Canada",
+          authorized,
+          status,
+          requiresSponsorshipNow: "no",
+          requiresSponsorshipFuture: "no",
+          notes: "",
+        },
+      ];
+      const r = await mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        {
+          fields: [field("f", { label, kind: "select", options: ["Yes", "No"] })],
+          profile,
+          documents: [],
+          job: { url: "", title: "", company: "", jobTitle: "", text: "", location, capturedAt: 0 },
+        },
+      );
+      return r.decisions[0].intendedAnswer ?? r.decisions[0].action;
+    };
+    const zb = "Do you currently hold a Visa or Work Permit for the country where this position is located?";
+    // A citizen or permanent resident holds neither.
+    expect(await ask("Citizen", zb)).toBe("No");
+    expect(await ask("Permanent resident", zb)).toBe("No");
+    expect(await ask("Work permit", zb)).toBe("Yes");
+    expect(await ask("Study permit (co-op eligible)", zb)).toBe("Yes");
+    expect(await ask("Open work permit (spouse of a Canadian citizen)", zb)).toBe("Yes");
+    // A blank or other status says nothing.
+    expect(await ask("", zb)).toBe("flag");
+    expect(await ask("Refugee claimant", zb)).toBe("flag");
+    expect(await ask("", zb, "no")).toBe("No");
+    // No entry for the job's country: not allowed to work there.
+    expect(await ask("Citizen", zb, "yes", "Dublin, Ireland")).toBe("No");
+    // Which visa, or whether they may work there at all: not this question.
+    expect(await ask("Work permit", "Do you hold an H-1B visa?", "yes", "San Francisco, CA")).toBe("flag");
+    // About a visa, not holding one.
+    for (const label of [
+      "Have you ever been denied a visa?",
+      "Do you have any visa restrictions?",
+      "Do you have a valid passport and visa to travel internationally?",
+      "Do you have a visa sponsor?",
+    ])
+      expect(await ask("Work permit", label)).toBe("flag");
+    expect(await ask("Work permit", "Do you hold a valid Canadian work permit?")).toBe("Yes");
+    expect(await ask("Citizen", "Are you authorized to work in Canada, or do you hold a valid work permit?")).toBe(
+      "Yes",
+    );
   });
 
   it("picks the 'need sponsorship' status where the profile has no authorization", async () => {
