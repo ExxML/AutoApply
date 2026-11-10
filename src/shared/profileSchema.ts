@@ -55,6 +55,7 @@ export const WorkAuthEntrySchema = o({
 export const EducationSchema = o({
   school: s(),
   degree: s(),
+  degreeLevel: z.enum(["", "diploma", "associate", "bachelor", "master", "doctorate"]).catch(""),
   major: s(),
   minor: s(),
   startDate: s(),

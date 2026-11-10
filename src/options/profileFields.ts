@@ -158,6 +158,20 @@ export const PROFILE_GROUPS: GroupSpec[] = [
         fields: [
           t("school", "School", "Full name, e.g. University of British Columbia."),
           t("degree", "Degree", "e.g. Bachelor of Science."),
+          {
+            k: "select",
+            path: "degreeLevel",
+            label: "Degree level",
+            help: "Answers “What level of degree are you pursuing?”.",
+            options: [
+              ["", "Unset"],
+              ["diploma", "Diploma / certificate"],
+              ["associate", "Associate"],
+              ["bachelor", "Bachelor's"],
+              ["master", "Master's"],
+              ["doctorate", "Doctorate (PhD)"],
+            ],
+          },
           t("major", "Major", "Your main field of study."),
           t("minor", "Minor", "Optional."),
           t("startDate", "Start", "When you started.", "month"),

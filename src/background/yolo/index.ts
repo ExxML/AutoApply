@@ -328,8 +328,9 @@ async function relevance(items: Listing[]): Promise<Set<number>> {
         payload: {
           queries: yolo.queries,
           candidate: compactProfile({
-            education: p.education.map(({ degree, major, expectedGraduation, yearLevel }) => ({
+            education: p.education.map(({ degree, degreeLevel, major, expectedGraduation, yearLevel }) => ({
               degree,
+              degreeLevel,
               major,
               expectedGraduation,
               yearLevel,

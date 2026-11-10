@@ -1389,6 +1389,8 @@ function currentStudentDecision(f: FieldDescriptor, education: Profile["educatio
     /\b(ph\.?d|doctora\w*|master'?s|mba|graduate (school|program|degree|studies))\b/i.test(f.label) &&
     !/\b(bachelor'?s?|undergrad\w*|college)\b/i.test(f.label);
   const inGraduate = (e: Profile["education"][number]) =>
+    e.degreeLevel === "master" ||
+    e.degreeLevel === "doctorate" ||
     /\b(master|ph\.?d|doctor\w*|m\.?sc|mba|m\.?eng|m\.?a\.?s?c?)\b/i.test(e.degree);
   if (graduate && education.some(inGraduate)) return null;
   const enrolled = graduate

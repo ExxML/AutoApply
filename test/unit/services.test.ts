@@ -1790,6 +1790,9 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect((await run()).decisions.map((d) => d.intendedAnswer)).toEqual(["No, I have not attended graduate school"]);
     profile.education[0].degree = "Master of Science";
     expect((await run()).decisions.map((d) => d.action)).toEqual(["flag"]);
+    // The degree level alone marks a graduate program when the degree name doesn't say it.
+    profile.education[0] = { ...profile.education[0], degree: "Computer Science", degreeLevel: "doctorate" };
+    expect((await run()).decisions.map((d) => d.action)).toEqual(["flag"]);
   });
 
   it("answers remote-work basics and English fluency", async () => {
