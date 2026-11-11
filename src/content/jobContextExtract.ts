@@ -60,6 +60,7 @@ interface JobPosting {
   description?: string;
   baseSalary?: MonetaryAmount | MonetaryAmount[];
   title?: string;
+  datePosted?: string;
   hiringOrganization?: { name?: string } | string;
   jobLocation?: { address?: string | PostalAddress } | { address?: string | PostalAddress }[];
   jobLocationType?: string;

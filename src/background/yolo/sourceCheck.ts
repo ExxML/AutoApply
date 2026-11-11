@@ -23,7 +23,7 @@ const on = (y: Yolo, g: SourceGroup) =>
       ? y.careerSites.length > 0
       : g === "jobright"
         ? y.jobright.length > 0
-        : y.boards.includes(g);
+        : g !== "added" && y.boards.includes(g);
 
 const rank = (l: SourceLevel) => SOURCE_LEVELS.indexOf(l);
 

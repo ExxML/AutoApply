@@ -143,6 +143,8 @@ export type Message =
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
   /** A job the user applied to outside AutoApply, entered on the Applications page. */
   | { type: "YOLO_ADD_APPLICATION"; job: { url: string; company: string; title: string } }
+  /** Jobs the user queues by hand, from Applications > Queued jobs; `postedAt` as the posting's page gives it. */
+  | { type: "YOLO_QUEUE_ADD"; jobs: { url: string; company: string; title: string; postedAt?: number }[] }
   | { type: "YOLO_FORGET"; key: string }
   | { type: "YOLO_FORGET_FAILED" }
   | { type: "YOLO_GMAIL_CONNECT" }
@@ -284,6 +286,8 @@ export interface Responses {
   YOLO_RESUME_PENDING: { ok: true; queued: number } | Err;
   YOLO_MARK_SUBMITTED: Ok | Err;
   YOLO_ADD_APPLICATION: Ok | Err;
+  /** `skipped`: the links not queued, each with why. */
+  YOLO_QUEUE_ADD: { ok: true; added: number; skipped: { url: string; reason: string }[] } | Err;
   YOLO_FORGET: Ok;
   YOLO_FORGET_FAILED: { ok: true; forgotten: number } | Err;
   YOLO_GMAIL_CONNECT: Ok | Err;

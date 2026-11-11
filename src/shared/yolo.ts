@@ -13,11 +13,15 @@ export const BOARDS = ["linkedin", "indeed", "glassdoor", "ziprecruiter"] as con
 export type Board = (typeof BOARDS)[number];
 
 /** Where a queued job was found, as the queue order ranks it. */
-export const SOURCE_GROUPS = ["careers", "feeds", ...BOARDS, "jobright"] as const;
+/** "added": a job the user queued by hand (its `source` too). */
+export const SOURCE_GROUPS = ["careers", "feeds", ...BOARDS, "jobright", "added"] as const;
 export type SourceGroup = (typeof SOURCE_GROUPS)[number];
 /** How queued jobs are ordered (within a source, when sources are ranked). */
 export const QUEUE_SORTS = ["newest", "oldest", "foundFirst", "foundLast", "random"] as const;
 export type QueueSort = (typeof QUEUE_SORTS)[number];
+/** Where jobs the user queues by hand go: "order" ranks them like any other (yolo/discover.ts inQueueOrder). */
+export const ADDED_PLACEMENTS = ["front", "order", "end"] as const;
+export type AddedPlacement = (typeof ADDED_PLACEMENTS)[number];
 
 /** The most YOLO applies to in one batch, and so the most applications' debug logs worth keeping. */
 export const MAX_BATCH_APPLICATIONS = 500;
@@ -49,6 +53,7 @@ export const SOURCE_NAMES: Record<SourceGroup, string> = {
   glassdoor: "Glassdoor",
   ziprecruiter: "ZipRecruiter",
   jobright: "Jobright",
+  added: "Queued by you",
 };
 
 export function hasReviewRules(r: SubmissionReview): boolean {
@@ -78,6 +83,7 @@ const base = z.object({
   queueSort: z.enum(QUEUE_SORTS).catch("newest"),
   /** Ranks jobs by `sourceOrder` before `queueSort`. */
   queueBySource: b(false),
+  addedPlacement: z.enum(ADDED_PLACEMENTS).catch("front"),
   // Groups added since the order was saved go last, so they can be moved.
   sourceOrder: z
     .array(z.enum(SOURCE_GROUPS))

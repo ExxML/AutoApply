@@ -715,6 +715,52 @@ main:has(.applications-table-scroll) {
 .queue-panel-footer .btn {
   flex-shrink: 0;
 }
+.queue-panel-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.queue-add {
+  flex-shrink: 0;
+  max-height: 50dvh;
+  overflow-y: auto;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.queue-add > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.queue-add textarea {
+  width: 100%;
+  resize: vertical;
+}
+.queue-add .help,
+.queue-add .row {
+  margin: 8px 0 0;
+}
+.queue-add-placement {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+.queue-add-details,
+.queue-add-skipped {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+.queue-add-details li + li {
+  margin-top: 12px;
+}
+.queue-add-details input {
+  flex: 1 1 140px;
+  width: auto;
+}
 .logs {
   max-height: 60vh;
   overflow: auto;

@@ -3,6 +3,7 @@
 import type { Message, Responses, YoloResult } from "../../shared/messages";
 import { RE_APPLIED, SLEPT_MS } from "../../shared/constants";
 import { isTailoredDoc, resumeProblem } from "../../shared/resumeMode";
+import { collapse } from "../../shared/normalize";
 import { createStorage, session } from "../../shared/storage";
 import type { AiTask } from "../../shared/settings";
 import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
@@ -54,6 +55,7 @@ import {
 } from "./gmail";
 import { closeFrame, openTab } from "./host";
 import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "./jobKey";
+import { findOnEmployerBoard } from "./careers";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
 import { letterText, textPdf } from "./pdf";
@@ -1026,6 +1028,75 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     await updateQueue((q) => q.filter((i) => i.key !== key && i.listing !== key && i.alt !== alt));
     void pump();
     return { ok: true };
+  },
+
+  async YOLO_QUEUE_ADD({ jobs }) {
+    const now = Date.now();
+    const [apps, yolo, employerBoards, run] = await Promise.all([
+      store.get("applications"),
+      store.get("yolo"),
+      store.get("employerBoards"),
+      getRun(),
+    ]);
+    // A copy: discovery writes the cache back at its end, and would overwrite this.
+    const known = { ...employerBoards };
+    const boards = new Map<string, Listing[] | null>();
+    const skipped: { url: string; reason: string }[] = [];
+    const items: { item: QueueItem; pasted: string }[] = [];
+    for (const job of jobs) {
+      const [company, title] = [collapse(job.company), collapse(job.title)];
+      const skip = (reason: string) => void skipped.push({ url: job.url, reason });
+      let url = job.url.trim();
+      // A site root or shared apply page would read as "already applied" for every job on that site.
+      if (!/^https?:\/\//i.test(url) || !namesPosting(url)) {
+        skip("Not a link to one job posting");
+        continue;
+      }
+      if (!company || !title) {
+        skip("Needs its company and job title");
+        continue;
+      }
+      const listing = jobKey(url);
+      const board = /^(linkedin|indeed|glassdoor|ziprecruiter):/.exec(listing)?.[1];
+      // As discovery does: applied to on the employer's own posting. Only LinkedIn shows the run no way there.
+      if (board) {
+        const l = { url, company, title, location: "", source: board };
+        const own = await findOnEmployerBoard(fetcher, l, known, boards).catch(() => null);
+        if (own) url = own;
+        else if (board === "linkedin") {
+          skip("LinkedIn doesn't link to the employer's site: add the employer's own posting link");
+          continue;
+        }
+      }
+      const key = jobKey(url);
+      const alt = altKey(company, title);
+      if (applied(apps, key, alt, yolo.reapplyManual) || applied(apps, listing, "", yolo.reapplyManual))
+        skip("Already in Applications");
+      else if (
+        run?.mode === "apply" &&
+        [run.item.key, run.item.listing, run.item.alt].some((k) => k && [key, listing, alt].includes(k))
+      )
+        skip("YOLO is applying to it now");
+      else {
+        const posted = job.postedAt && job.postedAt > 0 && job.postedAt <= now ? job.postedAt : now;
+        const item = { key, alt, listing, url, company, title, location: "", postedAt: posted, addedAt: now };
+        items.push({ item: { ...item, source: "added", sourceGroups: ["added"] }, pasted: job.url });
+      }
+    }
+    let added = 0;
+    await updateQueue((q) => {
+      const have = new Set(q.flatMap((i) => [i.key, i.alt, i.listing]).filter(Boolean));
+      const adding = items.flatMap(({ item: i, pasted }) => {
+        const ids = [i.key, i.alt, i.listing].filter(Boolean);
+        if (ids.some((k) => have.has(k))) return (skipped.push({ url: pasted, reason: "Already queued" }), []);
+        ids.forEach((k) => have.add(k));
+        return [i];
+      });
+      added = adding.length;
+      return [...q, ...adding];
+    });
+    if (added) void pump();
+    return { ok: true, added, skipped };
   },
 
   async YOLO_FORGET({ key }) {

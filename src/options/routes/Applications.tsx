@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { namesPosting } from "../../background/yolo/jobKey";
-import { jsonLdJobPosting } from "../../content/jobContextExtract";
 import { send } from "../../shared/messages";
-import { collapse, normalize } from "../../shared/normalize";
+import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
-import { isPendingApplication, type Application } from "../../shared/yolo";
+import { isPendingApplication, SOURCE_NAMES, type Application } from "../../shared/yolo";
+import { readPosting } from "../posting";
 import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
 import { SourceCheck } from "../components/SourceCheck";
@@ -24,24 +24,6 @@ function download(f: { name: string; base64?: string; text?: string }) {
   const url = URL.createObjectURL(new Blob([data], { type: f.base64 ? "application/pdf" : "text/plain" }));
   Object.assign(document.createElement("a"), { href: url, download: f.name }).click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/**
- * A posting's company and job title, from the JSON-LD job boards and ATSs publish for search engines (Greenhouse,
- * Lever, Ashby, Workday, LinkedIn): empty where the page has none. Sent without the user's cookies.
- */
-export async function readPosting(url: string): Promise<{ company: string; title: string }> {
-  try {
-    const r = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(10_000) });
-    // Its JSON-LD blocks alone: parsing the whole page logs a CSP violation for each inline event handler in it.
-    const blocks = r.ok ? (await r.text()).match(/<script[^>]*application\/ld\+json[^>]*>[\s\S]*?<\/script>/gi) : null;
-    const ld = blocks && jsonLdJobPosting(new DOMParser().parseFromString(blocks.join(""), "text/html"));
-    const org = ld?.hiringOrganization;
-    const text = (s: unknown) => (typeof s === "string" ? collapse(s).slice(0, 200) : "");
-    return { company: text(typeof org === "string" ? org : org?.name), title: text(ld?.title) };
-  } catch {
-    return { company: "", title: "" };
-  }
 }
 
 export function Applications() {
@@ -394,7 +376,7 @@ export function Applications() {
                     {a.mode === "manual" || a.submittedBy === "user" ? " (by you)" : ""}
                     {a.reason && <div class="muted">{a.reason}</div>}
                   </td>
-                  <td class="muted">{a.source}</td>
+                  <td class="muted">{a.source === "added" ? SOURCE_NAMES.added : a.source}</td>
                   <td class="application-actions-cell">
                     <div
                       class="application-actions"

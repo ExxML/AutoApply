@@ -1601,7 +1601,10 @@ describe("queue order", () => {
     expect(order({ queueBySource: true, sourceOrder: ["feeds", "linkedin", "careers"] })).toEqual([1, 3, 4, 2]);
     expect(order({ queueSort: "oldest" }, [...jobs, { source: "indeed", postedAt: RETRY, addedAt: 5 }])[0]).toBe(RETRY);
     // An order saved before a source existed gains it at the end.
-    expect(YoloSchema.parse({ sourceOrder: ["feeds", "careers"] }).sourceOrder.slice(-1)).toEqual(["jobright"]);
+    expect(YoloSchema.parse({ sourceOrder: ["feeds", "careers"] }).sourceOrder.slice(-2)).toEqual([
+      "jobright",
+      "added",
+    ]);
   });
 });
 

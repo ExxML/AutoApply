@@ -116,6 +116,9 @@ export function inQueueOrder<T extends Ranked>(items: T[], y: Yolo, now = Date.n
     foundLast: (a, b) => found(b) - found(a),
     random: () => 0,
   };
+  // Jobs the user queued go first or last, earliest queued first, unless they follow the order like the rest.
+  const pin = (i: Ranked) =>
+    i.source !== "added" || y.addedPlacement === "order" ? 0 : y.addedPlacement === "front" ? -1 : 1;
   const out = items.slice();
   // Shuffled first, then a stable sort keeps the shuffle within each source.
   if (y.queueSort === "random")
@@ -126,6 +129,8 @@ export function inQueueOrder<T extends Ranked>(items: T[], y: Yolo, now = Date.n
   return out.sort(
     (a, b) =>
       +(b.postedAt === RETRY) - +(a.postedAt === RETRY) ||
+      pin(a) - pin(b) ||
+      (pin(a) ? found(a) - found(b) : 0) ||
       (y.queueBySource ? rank(a) - rank(b) : 0) ||
       within[y.queueSort](a, b),
   );

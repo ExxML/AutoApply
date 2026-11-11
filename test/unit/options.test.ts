@@ -78,7 +78,7 @@ describe("add an application by its link", () => {
   const serve = (body: string, ok = true) =>
     (globalThis.fetch = (async () => new Response(body, { status: ok ? 200 : 404 })) as typeof fetch);
   it("reads the company and title from the posting's JSON-LD, else leaves them empty", async () => {
-    const { readPosting } = await import("../../src/options/routes/Applications");
+    const { readPosting } = await import("../../src/options/posting");
     const real = globalThis.fetch;
     try {
       serve(page(`{"@type":"JobPosting","title":" Security  Engineer ","hiringOrganization":{"name":"Ramp"}}`));
@@ -88,6 +88,8 @@ describe("add an application by its link", () => {
       });
       serve(page(`{"@graph":[{"@type":"JobPosting","title":"Intern","hiringOrganization":"Acme"}]}`));
       expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "Acme", title: "Intern" });
+      serve(page(`{"@type":"JobPosting","title":"Intern","hiringOrganization":"Acme","datePosted":"2026-11-01"}`));
+      expect((await readPosting("https://x.com/jobs/1")).postedAt).toBe(Date.parse("2026-11-01"));
       serve("<html><title>Careers</title></html>");
       expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "", title: "" });
       serve(page(`{"@type":"JobPosting","title":"Intern","hiringOrganization":"Acme"}`), false);
@@ -97,5 +99,16 @@ describe("add an application by its link", () => {
     } finally {
       globalThis.fetch = real;
     }
+  });
+});
+
+describe("queue jobs by their links", () => {
+  it("reads one link per line, once each, and a LinkedIn search's job as its posting", async () => {
+    const { pastedLinks } = await import("../../src/options/components/QueuedJobs");
+    expect(
+      pastedLinks(
+        " https://jobs.lever.co/a/1\n\nhttps://jobs.lever.co/a/1 https://www.linkedin.com/jobs/search/?keywords=x&currentJobId=42\n",
+      ),
+    ).toEqual(["https://jobs.lever.co/a/1", "https://www.linkedin.com/jobs/view/42/"]);
   });
 });

@@ -7,23 +7,19 @@ import { formatDateTime } from "../../shared/time";
 import {
   BOARDS,
   MAX_BATCH_APPLICATIONS,
+  SOURCE_NAMES,
+  type AddedPlacement,
   type Board,
   type QueueSort,
-  type SourceGroup,
   type Yolo as YoloConfig,
 } from "../../shared/yolo";
+import { PLACEMENT_NAMES } from "../components/QueuedJobs";
 
 const BOARD_NAMES: Record<Board, string> = {
   linkedin: "LinkedIn",
   indeed: "Indeed",
   glassdoor: "Glassdoor",
   ziprecruiter: "ZipRecruiter",
-};
-const SOURCE_NAMES: Record<SourceGroup, string> = {
-  careers: "Company career sites",
-  feeds: "GitHub job lists",
-  ...BOARD_NAMES,
-  jobright: "Jobright",
 };
 const SORT_NAMES: [QueueSort, string][] = [
   ["newest", "Newest posted first"],
@@ -82,6 +78,13 @@ function QueueOrder(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => voi
           ))}
         </ol>
       )}
+      <SelectInput
+        label="Jobs you queue"
+        help="Where jobs you add under Applications › Queued jobs go. Jobs YOLO must retry still run first."
+        value={y.addedPlacement}
+        options={PLACEMENT_NAMES}
+        onChange={(v) => set({ addedPlacement: v as AddedPlacement })}
+      />
     </div>
   );
 }
