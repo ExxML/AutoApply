@@ -37,6 +37,19 @@ export function Applications() {
   const [busy, setBusy] = useState("");
   const [forgetting, setForgetting] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [added, setAdded] = useState({ url: "", company: "", title: "" });
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const addApplication = async (e: Event) => {
+    e.preventDefault();
+    if (adding) return;
+    setAdding(true);
+    setAddError("");
+    await send({ type: "YOLO_ADD_APPLICATION", job: added })
+      .then((r) => ("error" in r ? setAddError(r.error.message) : setAdded({ url: "", company: "", title: "" })))
+      .catch(() => setAddError("Couldn't add it. Try again."))
+      .finally(() => setAdding(false));
+  };
   const failedCount = apps?.filter((a) => a.status === "failed").length ?? 0;
   const pendingCount = apps?.filter(isPendingApplication).length ?? 0;
   const resumePending = async () => {
@@ -98,8 +111,8 @@ export function Applications() {
         <QueuedJobs queue={queue} />
       </div>
       <p class="intro">
-        Every application YOLO made, and the ones you submitted yourself after a fill: none of these are applied to
-        again.
+        Every application YOLO made, the ones you submitted yourself after a fill, and the ones you added: none of these
+        are applied to again.
       </p>
       <ApplicationSummary applications={apps} batchAt={yoloState?.batchAt ?? 0} />
       {pending > 0 && (
@@ -112,6 +125,35 @@ export function Applications() {
         </p>
       )}
       <SourceCheck />
+      <details class="add-application">
+        <summary>Add an application you submitted yourself</summary>
+        <form class="row" onSubmit={(e) => void addApplication(e)}>
+          {(
+            [
+              ["url", "Job posting link", "url"],
+              ["company", "Company", "text"],
+              ["title", "Job title", "text"],
+            ] as const
+          ).map(([k, label, type]) => (
+            <input
+              type={type}
+              required
+              placeholder={label}
+              aria-label={label}
+              value={added[k]}
+              onInput={(e) => setAdded({ ...added, [k]: e.currentTarget.value })}
+            />
+          ))}
+          <button type="submit" class="btn small primary" disabled={adding}>
+            {adding ? "Adding…" : "Add"}
+          </button>
+        </form>
+        {addError && (
+          <p role="alert" class="err">
+            {addError}
+          </p>
+        )}
+      </details>
       <div class="row">
         <input
           type="search"

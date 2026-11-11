@@ -243,8 +243,11 @@ export interface RuntimeConfig {
   excluded: boolean;
   selectedModel: string | null;
   hasKeys: boolean;
-  /** YOLO already submitted an application for this posting (shown as a warning, if the user wants it). */
-  appliedBefore?: { at: number; url: string };
+  /**
+   * YOLO already submitted an application for this posting, or the user added it to Applications by hand (`byYou`):
+   * shown as a warning, if the user wants it.
+   */
+  appliedBefore?: { at: number; url: string; byYou?: boolean };
 }
 
 export type ApiErrorKind = "allKeysExhausted" | "noKey" | "noModel" | "modelGone" | "blocked" | "badOutput" | "other";

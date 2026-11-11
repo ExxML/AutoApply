@@ -468,13 +468,13 @@ export function Yolo() {
       <div class="form">
         <Toggle
           label="Re-apply to jobs I submitted myself"
-          help="Off: YOLO skips jobs you applied to after an AutoApply fill."
+          help="Off: YOLO skips jobs you applied to after an AutoApply fill. Jobs you add on the Applications page are always skipped."
           checked={y.reapplyManual}
           onChange={(reapplyManual) => set({ reapplyManual })}
         />
         <Toggle
-          label="Warn me on jobs YOLO applied to"
-          help="When you fill a posting YOLO already submitted, the AutoApply panel says so."
+          label="Warn me on jobs already applied to"
+          help="When you fill a posting YOLO already submitted, or one you added on the Applications page, the AutoApply panel says so."
           checked={y.warnOnYoloApplied}
           onChange={(warnOnYoloApplied) => set({ warnOnYoloApplied })}
         />

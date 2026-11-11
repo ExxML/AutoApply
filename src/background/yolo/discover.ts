@@ -83,12 +83,15 @@ export interface DiscoverDeps {
   now?: number;
 }
 
-/** Already applied: always for YOLO's own attempts, and for the user's submissions unless re-applying is allowed. */
+/**
+ * Already applied: always for YOLO's own attempts and jobs the user added by hand, and for the user's submissions
+ * after a fill unless re-applying is allowed.
+ */
 export function applied(apps: Application[], key: string, alt: string, reapplyManual: boolean): boolean {
   return apps.some(
     (a) =>
       (a.key === key || (!!alt && a.alt === alt)) &&
-      (a.mode === "yolo" || (a.status === "submitted" && !reapplyManual)),
+      (a.mode === "yolo" || a.mode === "added" || (a.status === "submitted" && !reapplyManual)),
   );
 }
 

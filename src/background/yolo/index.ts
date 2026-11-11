@@ -782,13 +782,13 @@ export async function yoloOverrides(sender: chrome.runtime.MessageSender): Promi
 }
 
 /** For the warning on a manual fill: YOLO's submission for this posting, if any. */
-export async function yoloApplied(url: string): Promise<{ at: number; url: string } | undefined> {
+export async function yoloApplied(url: string): Promise<{ at: number; url: string; byYou?: boolean } | undefined> {
   if (!yolo.warnOnYoloApplied || !url) return;
   const key = jobKey(url);
   const a = (await store.get("applications")).find(
-    (x) => x.mode === "yolo" && x.status === "submitted" && x.key === key,
+    (x) => (x.mode === "yolo" || x.mode === "added") && x.status === "submitted" && x.key === key,
   );
-  return a && { at: a.at, url: a.doneUrl || a.url };
+  return a && { at: a.at, url: a.doneUrl || a.url, byYou: a.mode === "added" };
 }
 
 /** The job a YOLO run's page applies to and the steps it took, for the navigator; null for other pages. */
@@ -985,6 +985,46 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   },
 
   async YOLO_FORGET_FAILED() {
+  async YOLO_ADD_APPLICATION({ job }) {
+    const [url, company, title] = [job.url.trim(), job.company.trim(), job.title.trim()];
+    const fail = (message: string) => ({ error: { kind: "other" as const, message } });
+    // A site root or shared apply page would read as "already applied" for every job on that site.
+    if (!/^https?:\/\//i.test(url) || !namesPosting(url)) return fail("Enter the link to the job posting itself.");
+    if (!company || !title) return fail("Enter the company and job title.");
+    const key = jobKey(url);
+    const alt = altKey(company, title);
+    let exists = false;
+    await updateApplications((apps) => {
+      exists = apps.some((a) => a.key === key);
+      if (exists) return apps;
+      const a: Application = {
+        key,
+        alt,
+        url,
+        company,
+        title,
+        location: "",
+        source: "Added by you",
+        doneUrl: "",
+        mode: "added",
+        status: "submitted",
+        submittedBy: "user",
+        reason: "",
+        guesses: [],
+        notes: [],
+        at: Date.now(),
+      };
+      return [...apps, a];
+    });
+    if (exists) return fail("This job is already in Applications: use its Mark submitted button if it isn't marked.");
+    // YOLO applying to it right now would submit it a second time.
+    const run = await getRun();
+    if (run?.mode === "apply" && (run.item.key === key || run.item.alt === alt)) await end(run.id);
+    await updateQueue((q) => q.filter((i) => i.key !== key && i.listing !== key && i.alt !== alt));
+    void pump();
+    return { ok: true };
+  },
+
     let failed: Application[] = [];
     // Use the current history and serialize with submissions so their records cannot be lost.
     await updateApplications((apps) => {

@@ -710,6 +710,7 @@ describe("verification emails", () => {
     expect(extract(html, "link", [siteOf("jobs.other.com")])).toBeNull();
     // A click tracker hides where it leads: only its Verify button, never its other links or an unknown host's.
     const tracked = `<a href="https://u1.ct.sendgrid.net/ls/click?upn=aaa">Unsubscribe</a>
+    expect(applied([a("added", "submitted")], "k", "", true)).toBe(true); // added by hand: never re-applied
       <a href="https://evil.example/c/xyz"><b>Confirm email</b></a>
       <a href="https://u1.ct.sendgrid.net/ls/click?upn=bbb"><span>Verify my email</span></a>`;
     expect(extract(tracked, "link", ["acme.com"])).toBe("https://u1.ct.sendgrid.net/ls/click?upn=bbb");

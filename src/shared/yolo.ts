@@ -162,7 +162,8 @@ export const ApplicationSchema = QueueItemSchema.omit({
 }).extend({
   /** The confirmation page a submission ended on. */
   doneUrl: z.string().catch(""),
-  mode: z.enum(["yolo", "manual"]).catch("yolo"),
+  /** "manual": submitted by the user after an AutoApply fill. "added": entered by hand on the Applications page. */
+  mode: z.enum(["yolo", "manual", "added"]).catch("yolo"),
   status: z.enum(["submitted", "needs", "failed", "skipped", "review"]).catch("failed"),
   review: z
     .object({

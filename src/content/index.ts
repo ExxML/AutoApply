@@ -277,7 +277,9 @@ function renderOverlay() {
         reviewContext &&
           "Review your answers, then submit using this site's button. AutoApply will not submit this application.",
         config?.appliedBefore &&
-          `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`,
+          (config.appliedBefore.byYou
+            ? `You already applied to this job (added to Applications on ${new Date(config.appliedBefore.at).toLocaleDateString()})`
+            : `YOLO already applied to this job on ${new Date(config.appliedBefore.at).toLocaleDateString()}`),
       ]
         .filter(Boolean)
         .join(" · ") || undefined,

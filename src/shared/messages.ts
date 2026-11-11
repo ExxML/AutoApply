@@ -139,6 +139,8 @@ export type Message =
   | { type: "YOLO_RESUME"; key: string }
   | { type: "YOLO_RESUME_PENDING" }
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
+  /** A job the user applied to outside AutoApply, entered on the Applications page. */
+  | { type: "YOLO_ADD_APPLICATION"; job: { url: string; company: string; title: string } }
   | { type: "YOLO_FORGET"; key: string }
   | { type: "YOLO_FORGET_FAILED" }
   | { type: "YOLO_GMAIL_CONNECT" }
@@ -276,6 +278,7 @@ export interface Responses {
   YOLO_RESUME: Ok | Err;
   YOLO_RESUME_PENDING: { ok: true; queued: number } | Err;
   YOLO_MARK_SUBMITTED: Ok | Err;
+  YOLO_ADD_APPLICATION: Ok | Err;
   YOLO_FORGET: Ok;
   YOLO_FORGET_FAILED: { ok: true; forgotten: number } | Err;
   YOLO_GMAIL_CONNECT: Ok | Err;
