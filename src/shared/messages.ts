@@ -118,6 +118,8 @@ export type Message =
   | { type: "YOLO_REVIEW_MARK_SUBMITTED"; key: string }
   | { type: "YOLO_CREDENTIAL"; site: string; create: boolean }
   | { type: "YOLO_WAIT_EMAIL"; since: number; want: "link" | "code" }
+  /** A background tab's run met a CAPTCHA that didn't pass by itself: the user is asked to solve it there. */
+  | { type: "YOLO_CAPTCHA" }
   | { type: "COVER_LETTER_PDF"; question: string }
   /** The résumé to upload for the tab's job in AI tailor mode: tailored, else the untailored fallback. */
   /** fresh: the user asked again, so a failure kept for this job is retried. */
@@ -265,6 +267,7 @@ export interface Responses {
   YOLO_REVIEW_MARK_SUBMITTED: Ok | Err;
   YOLO_CREDENTIAL: { email: string; password: string; created: boolean } | null;
   YOLO_WAIT_EMAIL: { link?: string; code?: string } | Err;
+  YOLO_CAPTCHA: Ok;
   COVER_LETTER_PDF: { meta: DocumentMeta } | Err;
   /** `note`: why the untailored résumé was used (or a short summary of the tailoring). */
   TAILOR_RESUME: { meta: DocumentMeta; tailored: boolean; note: string } | Err;

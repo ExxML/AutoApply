@@ -305,16 +305,16 @@ export async function drive(deps: DriverDeps) {
         case "success":
           return result({ status: "submitted", doneUrl: location.href, guesses: deps.guesses() });
         case "captcha":
-          // In a visible tab the run waits for the challenge to clear. In a background tab, a check
-          // that passes by itself (Cloudflare's "Verifying…") gets a moment first.
-          if (!hello.visible) {
-            if (await waitFor(() => !captchaShown(), CAPTCHA_SELF_CLEAR_MS)) continue;
-            return needs("CAPTCHA");
-          }
-          // Everything else first, so the user only has the challenge left to do.
+          // Everything else first, so the user only has the challenge left to do (BambooHR's and JazzHR's
+          // checkbox sits on the form itself). A check that passes by itself (Cloudflare's "Verifying…") gets a
+          // moment first. Never solved by YOLO: in a tab the run waits for the user, then carries on.
           if (facts.fields) await fill();
-          await waitFor(() => !captchaShown(), CAPTCHA_WAIT_MS);
-          continue;
+          if (await waitFor(() => !captchaShown(), CAPTCHA_SELF_CLEAR_MS)) continue;
+          // The hidden frame can't be shown to anyone.
+          if (IN_HOST) return needs("CAPTCHA");
+          if (!hello.visible) await send({ type: "YOLO_CAPTCHA" });
+          if (await waitFor(() => !captchaShown(), CAPTCHA_WAIT_MS)) continue;
+          return needs(`The CAPTCHA wasn't solved within ${CAPTCHA_WAIT_MS / 60_000} minutes`);
         case "blocked":
           return result({ status: "blocked", reason: "The site's bot check stopped it" });
         case "closed":

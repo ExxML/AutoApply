@@ -166,6 +166,8 @@ const fetcher = (url: string, init?: RequestInit) => fetch(url, init);
 /** How long discovery waits on the user to clear Indeed's bot check before going on without Indeed. */
 const INDEED_WAIT_MS = 10 * 60e3;
 const INDEED_NOTE = "yolo-indeed";
+/** A background tab's run waits on the user to solve a CAPTCHA; cleared at its next step. */
+const CAPTCHA_NOTE = "yolo-captcha";
 const INDEED_PAUSE = "Waiting for you to tick Indeed's bot check in the tab YOLO opened";
 /** The tab YOLO opened on Indeed for the user to clear its bot check in; Indeed's next blocked search reuses it. */
 let indeedTabId: number | undefined;
@@ -544,6 +546,7 @@ export async function recoverLost() {
  * refused, re-queued on a quota stop, else logged.
  */
 async function finish(run: Run, r: YoloResult) {
+  if (run.steps.at(-1)?.startsWith("captcha|")) void chrome.notifications.clear(CAPTCHA_NOTE);
   if (run.reviewTab && run.tabId !== undefined && (r.status === "needs" || r.status === "failed") && !r.retryAt) {
     await holdForReview(run, "needs", r.reason);
     return;
@@ -1147,6 +1150,11 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     // The page reloads to retry a submission flagged as spam: its steps repeat from the start, only the flags count.
     if (kind === "flagged") run.steps = run.steps.filter((s) => s.startsWith("flagged|"));
     if (run.steps.at(-1)?.startsWith("embedded|")) run.embedUrl ??= sender.url ?? url;
+    // Time spent waiting on a CAPTCHA (the user's) doesn't count toward the run's time limit.
+    if (run.steps.at(-1)?.startsWith("captcha|")) {
+      run.startedAt += Date.now() - run.stepAt;
+      void chrome.notifications.clear(CAPTCHA_NOTE);
+    }
     run.steps.push(sig);
     run.stepAt = Date.now();
     if (kind === "success") run.confirmation = confirmation(facts);
@@ -1182,7 +1190,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       refused: /^(signin|signup|reset)$/.test(kind) && refused(facts),
       // Turned down as a bot each time (a visible tab, the user's browser, usually passes), or already sent: the
       // user's to finish, never a failure.
-      ...(stop ? { stop, needs: kind === "flagged" || !!run.confirming } : {}),
+      ...(stop ? { stop, needs: kind === "flagged" || kind === "captcha" || !!run.confirming } : {}),
     };
   },
 
@@ -1255,6 +1263,17 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       return a && { ...a, created: false };
     }
     return { ...(await createAccount(site, await accountEmail())), created: true };
+  },
+
+  async YOLO_CAPTCHA(_, sender) {
+    const run = await getRun();
+    if (fromRun(run, sender) && run.host === "tab")
+      notify(
+        CAPTCHA_NOTE,
+        "AutoApply needs you",
+        `${run.item.company} – ${run.item.title}: solve the CAPTCHA (click here to open it). YOLO carries on after.`,
+      );
+    return { ok: true };
   },
 
   async YOLO_WAIT_EMAIL({ since, want }, sender) {
@@ -1421,6 +1440,11 @@ export function initYolo(d: YoloDeps) {
     else if (id === INDEED_NOTE && indeedTabId !== undefined)
       void chrome.tabs
         .update(indeedTabId, { active: true })
+        .then((t) => t && chrome.windows.update(t.windowId, { focused: true }))
+        .catch(() => undefined);
+    else if (id === CAPTCHA_NOTE)
+      void getRun()
+        .then((run) => (run?.tabId === undefined ? undefined : chrome.tabs.update(run.tabId, { active: true })))
         .then((t) => t && chrome.windows.update(t.windowId, { focused: true }))
         .catch(() => undefined);
     else if (id === "yolo-gmail")

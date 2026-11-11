@@ -1697,6 +1697,12 @@ describe("run watchdog", () => {
     expect(overdue(run("visible", "captcha"), 25 * min)).toMatchObject({ reason: "The CAPTCHA wasn't solved" });
   });
 
+  it("gives a background tab the CAPTCHA wait too, but not the hidden frame", () => {
+    expect(overdue(run("tab", "captcha"), 20 * min)).toBeNull();
+    expect(overdue(run("tab", "captcha"), 25 * min)).toMatchObject({ reason: "The CAPTCHA wasn't solved" });
+    expect(overdue(run("frame", "captcha"), 15 * min)).toMatchObject({ status: "blocked" });
+  });
+
   it("still ends stalled or overlong runs", () => {
     expect(overdue(run("visible", "form"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
     expect(overdue(run("frame", "form"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });

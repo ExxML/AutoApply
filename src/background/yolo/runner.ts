@@ -1,7 +1,7 @@
 // One YOLO run at a time: a queued job (or a page read for discovery) loaded in a host and driven by the content
 // script inside it (src/content/yolo), which reports each step and the outcome. The run lives in session storage, so
 // a service-worker restart mid-application loses nothing but in-memory waiters.
-import { CAPTCHA_WAIT_MS, EMAIL_WAIT_MS, topLevelUrl } from "../../shared/constants";
+import { CAPTCHA_SELF_CLEAR_MS, CAPTCHA_WAIT_MS, EMAIL_WAIT_MS, topLevelUrl } from "../../shared/constants";
 import type { YoloResult } from "../../shared/messages";
 import { createStorage, session } from "../../shared/storage";
 import type { Guess, QueueItem, SubmissionReview } from "../../shared/yolo";
@@ -147,11 +147,12 @@ export function resolveScrape(run: Run, r: YoloResult) {
 export function overdue(run: Run, now = Date.now(), limitMs = RUN_MS): YoloResult | null {
   const blocked = run.host === "frame" ? "blocked" : "failed";
   if (!run.helloAt && now - run.startedAt > HELLO_MS) return { status: blocked, reason: "The page didn't load" };
-  // A visible tab waits on the user: a CAPTCHA step gets the driver's whole wait, and the run no time limit.
+  // A tab waits on the user: a CAPTCHA step gets the driver's whole wait (and its moment to pass by itself), and the
+  // run no time limit meanwhile. A visible tab has none at all.
   const visible = run.host === "visible";
-  const captcha = visible && run.steps.at(-1)?.startsWith("captcha|");
+  const captcha = run.host !== "frame" && run.steps.at(-1)?.startsWith("captcha|");
   // A verification step waits on the inbox without stepping.
-  const wait = captcha ? CAPTCHA_WAIT_MS : run.steps.at(-1)?.startsWith("verify|") ? EMAIL_WAIT_MS : 0;
+  const wait = captcha ? CAPTCHA_SELF_CLEAR_MS + CAPTCHA_WAIT_MS : run.steps.at(-1)?.startsWith("verify|") ? EMAIL_WAIT_MS : 0;
   if (now - run.stepAt > wait + STEP_MS) {
     // The hidden frame went quiet before any form (Qualcomm's apply page never loaded there; a tab's did): nothing
     // was filled or sent yet, so a tab retry can't apply twice.
@@ -159,7 +160,7 @@ export function overdue(run: Run, now = Date.now(), limitMs = RUN_MS): YoloResul
       return { status: "blocked", reason: "The page stopped responding" };
     return { status: "failed", reason: captcha ? "The CAPTCHA wasn't solved" : "No progress for 3 minutes" };
   }
-  if (!visible && now - run.startedAt > limitMs)
+  if (!visible && !captcha && now - run.startedAt > limitMs)
     return { status: "failed", reason: `Took over ${Math.round(limitMs / 60_000)} minutes` };
   return null;
 }

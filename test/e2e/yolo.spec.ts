@@ -269,16 +269,23 @@ test("refills a site's fixed work slots from the profile and empties the one pas
   );
 });
 
-test("pauses for a CAPTCHA after retrying in a background tab", async ({ sw, page }) => {
+test("waits in a background tab for the user to solve a CAPTCHA, then submits", async ({ context, sw }) => {
   test.setTimeout(120_000);
   await seed(sw, { caps: true });
-  void page;
   await queue(sw, `${BASE}yolo-captcha.html`);
-  await outcome(sw).toBe("needs");
-  const [a] = await storage<Application[]>(sw, "applications");
-  expect(a.reason).toBe("CAPTCHA");
   // The hidden frame met the bot check: the site's later jobs start in a tab.
-  expect(await storage(sw, "yoloTabHosts")).toEqual(["localhost"]);
+  await expect.poll(() => storage(sw, "yoloTabHosts"), { timeout: 60_000 }).toEqual(["localhost"]);
+  await expect.poll(() => context.pages().find((p) => p.url().includes("yolo-captcha")), { timeout: 30_000 }).toBeTruthy();
+  const tab = context.pages().find((p) => p.url().includes("yolo-captcha"))!;
+  // The form is filled first, so the challenge is all that's left for the user.
+  await expect(tab.locator("#fn")).not.toHaveValue("", { timeout: 60_000 });
+  await expect
+    .poll(() => sw.evaluate(async () => Object.keys(await chrome.notifications.getAll())), { timeout: 40_000 })
+    .toContain("yolo-captcha");
+  expect((await storage<Application[] | undefined>(sw, "applications")) ?? []).toEqual([]);
+  // The user solves it: the run carries on by itself.
+  await tab.evaluate(() => document.querySelector("iframe")?.remove());
+  await outcome(sw).toBe("submitted");
 });
 
 test("hands a DataDome CAPTCHA to the user instead of failing the hidden run", async ({ sw, page }) => {
@@ -286,9 +293,10 @@ test("hands a DataDome CAPTCHA to the user instead of failing the hidden run", a
   await seed(sw, { caps: true });
   void page;
   await queue(sw, `${BASE}yolo-datadome-captcha.html`);
-  await outcome(sw).toBe("needs");
-  const [a] = await storage<Application[]>(sw, "applications");
-  expect(a.reason).toBe("CAPTCHA");
+  await expect
+    .poll(() => sw.evaluate(async () => Object.keys(await chrome.notifications.getAll())), { timeout: 90_000 })
+    .toContain("yolo-captcha");
+  expect((await storage<Application[] | undefined>(sw, "applications")) ?? []).toEqual([]);
 });
 
 test("stops at the batch size", async ({ sw, page }) => {
