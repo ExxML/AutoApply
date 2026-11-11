@@ -6,6 +6,7 @@ import { collapse } from "../../shared/normalize";
 
 const RE_BLOCKED =
   /just a moment|verify(ing)? (that )?you are (a )?human|access denied|attention required|unusual traffic|are you a robot|request unsuccessful|you have been blocked/i;
+const RE_HARD_BLOCKED = /access denied|request unsuccessful|you have been blocked/i;
 const RE_CLOSED =
   /no longer (accepting|available|open|active)|(job|position|posting|role|requisition|opening) (has been |is )?(closed|filled|expired|removed|unavailable)|(page|job) (you('re| are) looking for )?(can'?t|cannot|could not) be found|(page|job) you('re| are) looking for (doesn'?t|does not|no longer) exists?|\b(page|job) not found\b|this job has expired/i;
 const RE_VERIFY =
@@ -46,7 +47,10 @@ function stepKind(f: PageFacts, hidden: boolean): StepKind {
     (RE_APPLIED.test(f.text) || /\/(thanks|thank-you|confirmation|success|submitted)\b/i.test(f.path))
   )
     return "success";
-  if (f.text.length < 2000 && (RE_BLOCKED.test(f.text) || RE_BLOCKED.test(f.title))) return "blocked";
+  // In a tab, a challenge page ("Just a moment…", "Verify you are human") is the user's to pass, like a widget; a
+  // block page is no check anyone can pass.
+  if (f.text.length < 2000 && (RE_BLOCKED.test(f.text) || RE_BLOCKED.test(f.title)))
+    return hidden || RE_HARD_BLOCKED.test(`${f.title} ${f.text}`) ? "blocked" : "captcha";
   if (f.fields < 2 && RE_CLOSED.test(f.text)) return "closed";
   if (!f.fields && !f.onward && RE_FLAGGED.test(f.text)) return hidden ? "blocked" : "flagged";
   // Only a page the run can't get past otherwise: a code box, a "check your inbox" page with little else, or Workday's

@@ -304,17 +304,22 @@ export async function drive(deps: DriverDeps) {
       switch (kind) {
         case "success":
           return result({ status: "submitted", doneUrl: location.href, guesses: deps.guesses() });
-        case "captcha":
-          // Everything else first, so the user only has the challenge left to do (BambooHR's and JazzHR's
-          // checkbox sits on the form itself). A check that passes by itself (Cloudflare's "Verifying…") gets a
-          // moment first. Never solved by YOLO: in a tab the run waits for the user, then carries on.
-          if (facts.fields) await fill();
-          if (await waitFor(() => !captchaShown(), CAPTCHA_SELF_CLEAR_MS)) continue;
-          // The hidden frame can't be shown to anyone.
+        case "captcha": {
+          // Never solved by YOLO: in a tab the run waits for the user, then carries on. Everything else first, so
+          // they only have the challenge left to do (BambooHR's and JazzHR's checkbox sits on the form itself); not
+          // in the hidden frame, which can't show it to anyone.
+          if (facts.fields && !IN_HOST) await fill();
+          const page = snapshot();
+          // A widget's challenge goes once solved; a challenge page (Cloudflare's "Just a moment…") changes.
+          const cleared = () => (facts.captcha ? !captchaShown() : snapshot() !== page);
+          // A check that passes by itself (Cloudflare's "Verifying…") gets a moment first.
+          if (await waitFor(cleared, CAPTCHA_SELF_CLEAR_MS)) continue;
           if (IN_HOST) return needs("CAPTCHA");
           if (!hello.visible) await send({ type: "YOLO_CAPTCHA" });
-          if (await waitFor(() => !captchaShown(), CAPTCHA_WAIT_MS)) continue;
+          // A visible tab waits again; the step loop guard ends it, as the user's.
+          if ((await waitFor(cleared, CAPTCHA_WAIT_MS)) || hello.visible) continue;
           return needs(`The CAPTCHA wasn't solved within ${CAPTCHA_WAIT_MS / 60_000} minutes`);
+        }
         case "blocked":
           return result({ status: "blocked", reason: "The site's bot check stopped it" });
         case "closed":

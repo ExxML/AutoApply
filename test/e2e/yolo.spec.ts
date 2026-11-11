@@ -288,6 +288,14 @@ test("waits in a background tab for the user to solve a CAPTCHA, then submits", 
   await outcome(sw).toBe("submitted");
 });
 
+test("waits out a challenge page in a background tab instead of failing", async ({ sw, page }) => {
+  test.setTimeout(120_000);
+  await seed(sw, { caps: true });
+  void page;
+  await queue(sw, `${BASE}yolo-challenge.html`);
+  await outcome(sw).toBe("submitted");
+});
+
 test("hands a DataDome CAPTCHA to the user instead of failing the hidden run", async ({ sw, page }) => {
   test.setTimeout(120_000);
   await seed(sw, { caps: true });

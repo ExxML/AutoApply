@@ -47,7 +47,11 @@ describe("YOLO page kinds", () => {
     // Workday's, for a posting taken down.
     setBody(`<p>Introduce Yourself</p><p>The page you are looking for doesn't exist.</p>`);
     expect(classify(0)).toBe("closed");
+    // A challenge page: the user's to pass in a tab, the tab retry's from the hidden frame. A block page: neither.
     setBody(`<h1>Just a moment...</h1>`);
+    expect(classify(0)).toBe("captcha");
+    expect(classify(0, true)).toBe("blocked");
+    setBody(`<h1>Sorry, you have been blocked</h1><p>Attention Required!</p>`);
     expect(classify(0)).toBe("blocked");
     // Ashby's bot score turned it down and left no form: load the page again.
     setBody(
