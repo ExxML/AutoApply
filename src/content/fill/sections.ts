@@ -181,6 +181,37 @@ export async function addEntries(want: EntryCounts, signal: AbortSignal): Promis
   return saveButtons().filter((b) => !before.has(b));
 }
 
+/**
+ * Opens the entries the site marks invalid in their summary tiles, so their missing fields get filled: Oracle's
+ * imported education ("Fields to fix: 1", its Degree unset) blocked the application until edited. Only a tile with no
+ * controls of its own and an "Edit" button; resolves with the Save buttons of the editors that opened (for saveEntries).
+ */
+export async function editInvalidEntries(signal: AbortSignal): Promise<HTMLElement[]> {
+  const saves = saveButtons();
+  // Not one being edited already: its editor's Save is inside.
+  const tiles = deepQueryAll('[class*="invalid" i],[aria-invalid="true"],[data-profile-item-invalid="true"]').filter(
+    (t) =>
+      !t.matches("input,select,textarea,button") &&
+      !t.querySelector("input,select,textarea") &&
+      !saves.some((s) => t.contains(s)) &&
+      isVisible(t),
+  );
+  const edits = [
+    ...new Set(tiles.flatMap((t) => deepQueryAll(BUTTONS, t).filter((b) => /^edit$/i.test(textOf(b)) && isVisible(b)))),
+  ].slice(0, 10);
+  if (!edits.length) return [];
+  const before = new Set(saveButtons());
+  await holdScroll(async () => {
+    for (const b of edits) {
+      if (signal.aborted || !b.isConnected) break;
+      const editors = saveButtons().length;
+      dispatching(() => b.click());
+      await waitFor(() => saveButtons().length > editors, 3000);
+    }
+  });
+  return saveButtons().filter((b) => !before.has(b));
+}
+
 // ---------- résumé entries a site's parser wrote (YOLO) ----------
 export type EntryKind = "experience" | "education";
 export interface Entry {

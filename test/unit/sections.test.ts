@@ -1,6 +1,13 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { addEntries, expandSections, resumeEntries, saveEntries, trimEntries } from "../../src/content/fill/sections";
+import {
+  addEntries,
+  editInvalidEntries,
+  expandSections,
+  resumeEntries,
+  saveEntries,
+  trimEntries,
+} from "../../src/content/fill/sections";
 import { newScanState, scan } from "../../src/content/scan/fields";
 import type { EntryCounts } from "../../src/shared/types";
 
@@ -201,6 +208,33 @@ describe("entry editors with their own Save (SmartRecruiters)", () => {
     // A second fill finds the saved entries and adds no more.
     expect(await addEntries({ ...none, experience: 2 }, new AbortController().signal)).toEqual([]);
     expect(document.querySelectorAll(".title")).toHaveLength(0);
+  });
+});
+
+describe("entries the site marks invalid (Oracle's imported profile)", () => {
+  it("opens an invalid tile's editor through its Edit, and returns that editor's Save", async () => {
+    const tile = (cls: string) =>
+      `<article class="apply-flow-profile-item-tile ${cls}"><div role="group" aria-label="Computer Science University of British Columbia">
+        <span>Computer Science</span><span>Fields to fix: 1</span><button aria-label="Edit"></button><button aria-label="Delete"></button></div></article>`;
+    setBody(`<h2>Education</h2>${tile("apply-flow-profile-item-tile--invalid")}${tile("")}
+      <div class="input-row input-row--invalid"><label for="x">City</label><input id="x"><button>Edit</button></div>
+      <button>Next</button>`);
+    const edited: number[] = [];
+    document.querySelectorAll("article").forEach((a, i) =>
+      a.querySelector("button")!.addEventListener("click", () => {
+        edited.push(i);
+        a.insertAdjacentHTML(
+          "beforeend",
+          `<div><div role="radiogroup" aria-label="Degree"></div><button>Save</button></div>`,
+        );
+      }),
+    );
+    let fieldEdits = 0;
+    document.querySelector(".input-row button")!.addEventListener("click", () => fieldEdits++);
+    const saves = await editInvalidEntries(new AbortController().signal);
+    // Only the invalid tile, never a field row or the valid one.
+    expect([edited, fieldEdits, saves.map((b) => b.textContent)]).toEqual([[0], 0, ["Save"]]);
+    expect(await editInvalidEntries(new AbortController().signal)).toEqual([]);
   });
 });
 

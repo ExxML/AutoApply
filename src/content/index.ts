@@ -34,7 +34,15 @@ import { harvestOptions, ui5Host } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
 import { dispatching, haltFill, isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
-import { addEntries, expandSections, resumeEntries, saveEntries, trimEntries, type EntryKind } from "./fill/sections";
+import {
+  addEntries,
+  editInvalidEntries,
+  expandSections,
+  resumeEntries,
+  saveEntries,
+  trimEntries,
+  type EntryKind,
+} from "./fill/sections";
 import { readValue } from "./fill/verify";
 import {
   consentPair,
@@ -748,6 +756,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
     await expandSections(ctrl.signal);
     if (yolo) await trimEntries(config.entryCounts, oursIn, ctrl.signal);
     unsaved.push(...(await addEntries(config.entryCounts, ctrl.signal)));
+    unsaved.push(...(await editInvalidEntries(ctrl.signal)));
     const all = rescan();
     mark("scan");
     const targets = all.filter((h) => {
