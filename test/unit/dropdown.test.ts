@@ -220,6 +220,37 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(await fillDropdown(h, ["Computer Science"])).toEqual({ outcome: "ok", shown: "Computer Science" });
   });
 
+  it("picks a Workday prompt's school worded with a leading 'The' (Intel)", async () => {
+    setBody(`<div><label for="sch">School or University</label><div data-automation-id="multiSelectContainer" tabindex="-1">
+        <div data-automation-id="multiselectInputContainer"><input id="sch" placeholder="Search" enterkeyhint="search"></div></div></div>`);
+    const h = scan(newScanState()).handles.find((x) => x.desc.label === "School or University")!;
+    const input = h.searchInput!;
+    let popup: HTMLElement | null = null;
+    const show = (rows: string[]) => {
+      popup?.remove();
+      popup = document.createElement("div");
+      popup.setAttribute("role", "listbox");
+      popup.innerHTML = rows
+        .map((t) => `<div role="option"><div data-automation-id="promptOption">${t}</div></div>`)
+        .join("");
+      document.body.append(popup);
+    };
+    input.addEventListener("click", () => show(["No Items."]));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") popup?.remove();
+      if (e.key === "Enter")
+        setTimeout(() => show(["The University of British Columbia", "University of Northern British Columbia"]), 100);
+    });
+    document.addEventListener("click", (e) => {
+      const label = (e.target as Element).closest?.('[data-automation-id="promptOption"]');
+      if (!label) return;
+      input.insertAdjacentHTML("afterend", `<div>${label.textContent}</div>`);
+      popup?.remove();
+    });
+    expect(await fillDropdown(h, ["University of British Columbia"])).toMatchObject({ outcome: "ok" });
+    expect(h.container.textContent).toContain("The University of British Columbia");
+  });
+
   it("searches a Workday prompt for how they heard when its list shows only categories", async () => {
     setBody(`<div><label for="src">How Did You Hear About Us?</label><div data-automation-id="multiSelectContainer">
       <div data-automation-id="multiselectInputContainer"><input id="src" placeholder="Search" enterkeyhint="search">

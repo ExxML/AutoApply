@@ -62,6 +62,11 @@ export function localMatch(answer: string, options: string[]): number | null {
   if (!a) return null;
   const exact = options.map((o, i) => (normalize(o) === a ? i : -1)).filter((i) => i >= 0);
   if (exact.length) return exact.length === 1 ? exact[0] : null;
+  // Worded with a leading "The": Intel's Workday lists "The University of British Columbia" (beside "University of
+  // Northern British Columbia"), and the AI's pick, seconds later, never took.
+  const bare = (s: string) => normalize(s).replace(/^the /, "");
+  const t = unique(options, bare, bare(answer));
+  if (t !== null) return t;
   // The one option qualifying the answer: "Chinese (Mandarin)" for Mandarin, on lists naming no plain "Mandarin".
   const q = unique(options, qualified, a);
   if (q !== null) return q;

@@ -418,13 +418,15 @@ async function pickOne(h: FieldHandle, text: string, within?: string): Promise<b
   if (shows(h, text)) return true;
   let c = await openDropdown(h);
   if (!c) return false;
-  const match = (t: string) => normalize(t) === normalize(text);
-  let el = optionElements(c).find((o) => match(optText(o)));
+  // Exactly, else but for a leading "The": Intel's Workday search lists "The University of British Columbia".
+  const bare = (t: string) => normalize(t).replace(/^the /, "");
+  const exact = (t: string) => normalize(t) === normalize(text);
+  const match = (t: string) => exact(t) || bare(t) === bare(text);
+  const find = (box: HTMLElement) =>
+    optionElements(box).find((o) => exact(optText(o))) ?? optionElements(box).find((o) => match(optText(o)));
+  let el = find(c);
   const search = searchBoxOf(h, c);
-  if (!el && search)
-    ({ box: c, hit: el } = await searchList(h, c, search, text, (b) =>
-      optionElements(b).find((o) => match(optText(o))),
-    ));
+  if (!el && search) ({ box: c, hit: el } = await searchList(h, c, search, text, find));
   if (!el) {
     const all = await collectOptions(c, h.el, match);
     const k = all && [...all.keys()].find(match);

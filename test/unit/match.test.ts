@@ -26,6 +26,14 @@ describe("localMatch (§13.3)", () => {
     expect(localMatch("Native", ["Native", "1 year", "3 years"])).toBe(0);
     expect(localMatch("Fluent", ["Yes", "No"])).toBeNull();
   });
+  it("matches an option worded with a leading 'The' (Intel's Workday schools)", () => {
+    const schools = ["The University of British Columbia", "University of Northern British Columbia"];
+    expect(localMatch("University of British Columbia", schools)).toBe(0);
+    expect(localMatch("The University of British Columbia", ["University of British Columbia"])).toBe(0);
+    // Both wordings listed: the exact one; two bare matches: none.
+    expect(localMatch("University of Toronto", ["The University of Toronto", "University of Toronto"])).toBe(1);
+    expect(localMatch("Other", ["The Other", "the other"])).toBeNull();
+  });
   it("returns null for the relocation trap — that goes to the AI", () => {
     expect(localMatch("yes", ["I am willing to relocate", "I am not willing to relocate"])).toBeNull();
     expect(localMatch("Yes", ["I will not require sponsorship", "I will require sponsorship"])).toBeNull();
