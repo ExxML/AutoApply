@@ -24,11 +24,49 @@ function unique(options: string[], key: (s: string) => string | null, target: st
   return hits.length === 1 ? hits[0] : null;
 }
 
+/** A name an option qualifies in parentheses: "Mandarin" in "Chinese (Mandarin)". */
+const qualified = (o: string) => normalize(/\(([^()]+)\)\s*$/.exec(o)?.[1] ?? "") || null;
+
+/** Language proficiency, highest first; longer wordings before the ones they contain ("lower intermediate"). */
+const PROFICIENCY: RegExp[] = [
+  /\b(native|mother tongue|first language|bilingual)\b/,
+  /\b(fluent|fluency)\b/,
+  /\b(advanced|full professional|expert)\b/,
+  /\bupper intermediate\b/,
+  /\b(professional working|proficient)\b/,
+  /\blower intermediate\b/,
+  /\b(intermediate|conversational)\b/,
+  /\b(limited working|elementary)\b/,
+  /\b(basic|beginner|novice)\b/,
+];
+const proficiency = (s: string) => {
+  const t = normalize(s);
+  return t.split(" ").length > 5 ? -1 : PROFICIENCY.findIndex((re) => re.test(t));
+};
+
+/**
+ * A level the options don't word: the highest they offer at or below it. "Native" on Teck's Basic … Fluent scale is
+ * Fluent. Only on a scale (two or more levels listed); an answer no level names matches nothing.
+ */
+function proficiencyMatch(answer: string, options: string[]): number | null {
+  const want = proficiency(answer);
+  const levels = options.map(proficiency);
+  if (want < 0 || levels.filter((l) => l >= 0).length < 2) return null;
+  let best: number | null = null;
+  for (const [i, l] of levels.entries()) if (l >= want && (best === null || l < levels[best])) best = i;
+  return best !== null && levels.filter((l) => l === levels[best!]).length === 1 ? best : null;
+}
+
 export function localMatch(answer: string, options: string[]): number | null {
   const a = normalize(answer);
   if (!a) return null;
   const exact = options.map((o, i) => (normalize(o) === a ? i : -1)).filter((i) => i >= 0);
   if (exact.length) return exact.length === 1 ? exact[0] : null;
+  // The one option qualifying the answer: "Chinese (Mandarin)" for Mandarin, on lists naming no plain "Mandarin".
+  const q = unique(options, qualified, a);
+  if (q !== null) return q;
+  const p = proficiencyMatch(answer, options);
+  if (p !== null) return p;
   // "No" must never resolve to Norway (ISO code NO).
   if (a !== "yes" && a !== "no") {
     const c = unique(options, canonicalCountry, canonicalCountry(answer));

@@ -11,6 +11,21 @@ import { stubLayout } from "./dom";
 beforeAll(stubLayout);
 
 describe("localMatch (§13.3)", () => {
+  it("matches a language its option qualifies, and a proficiency level the scale doesn't word", () => {
+    // SuccessFactors (Teck): "Mandarin" is listed as "Chinese (Mandarin)"; Level runs Basic … Fluent, no "Native".
+    expect(localMatch("Mandarin", ["Chinese (Cantonese)", "Chinese (Mandarin)", "English"])).toBe(1);
+    expect(localMatch("Mandarin", ["Chinese (Mandarin)", "Mandarin (Simplified)"])).toBe(0);
+    const level = ["Basic", "Lower Intermediate", "Intermediate", "Advanced", "Fluent"];
+    expect(localMatch("Native", level)).toBe(4);
+    expect(localMatch("Conversational", level)).toBe(2);
+    expect(localMatch("Advanced", ["Native or bilingual", "Full professional", "Limited working"])).toBe(1);
+    // The highest offered at or below the level, never above it.
+    expect(localMatch("Native", ["Beginner", "Intermediate"])).toBe(1);
+    expect(localMatch("Basic", ["Intermediate", "Fluent"])).toBeNull();
+    // Not a scale, or not a level: unchanged.
+    expect(localMatch("Native", ["Native", "1 year", "3 years"])).toBe(0);
+    expect(localMatch("Fluent", ["Yes", "No"])).toBeNull();
+  });
   it("returns null for the relocation trap — that goes to the AI", () => {
     expect(localMatch("yes", ["I am willing to relocate", "I am not willing to relocate"])).toBeNull();
     expect(localMatch("Yes", ["I will not require sponsorship", "I will require sponsorship"])).toBeNull();
