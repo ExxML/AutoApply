@@ -100,6 +100,12 @@ const hostOf = (u: string) => new URL(u).hostname.replace(/^www\./, "");
 const submittedSince = (apps: Application[], since: number) =>
   apps.filter((a) => a.mode === "yolo" && a.status === "submitted" && a.at >= since).length;
 
+/** A site that refused to work in the hidden frame: its later jobs start in a background tab. */
+async function learnTabHost(url: string) {
+  const hosts = (await store.get("yoloTabHosts")).filter((h) => h !== hostOf(url));
+  await store.set({ yoloTabHosts: [...hosts, hostOf(url)].slice(-200) });
+}
+
 async function setState(patch: Partial<YoloState>) {
   await store.set({ yoloState: { ...(await store.get("yoloState")), ...patch } });
 }
@@ -695,6 +701,8 @@ async function watchdog(due: number) {
     await saveRun(run);
   }
   const late = overdue(run, now, yolo.reviewFills || yolo.aiNavigation ? REVIEW_RUN_MS : undefined);
+  // The frame never loaded or went quiet: the site's next jobs start in a tab instead of losing this wait again.
+  if (late?.status === "blocked" && run.mode === "apply") await learnTabHost(applyUrl(run.item.url));
   if (late) await finish(run, late);
   // After a worker restart the tab listener is gone: listen again.
   else if (run.host !== "frame") watchTab(run);
@@ -1129,10 +1137,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     run.steps.push(sig);
     run.stepAt = Date.now();
     if (kind === "success") run.confirmation = confirmation(facts);
-    if (kind === "blocked" && run.host === "frame") {
-      const hosts = (await store.get("yoloTabHosts")).filter((h) => h !== hostOf(url));
-      await store.set({ yoloTabHosts: [...hosts, hostOf(url)].slice(-200) });
-    }
+    if (kind === "blocked" && run.host === "frame") await learnTabHost(url);
     // Reached the employer's own posting from a board link: it may be one applied to through another source.
     if (
       !run.atsUrl &&

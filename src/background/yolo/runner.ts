@@ -152,8 +152,13 @@ export function overdue(run: Run, now = Date.now(), limitMs = RUN_MS): YoloResul
   const captcha = visible && run.steps.at(-1)?.startsWith("captcha|");
   // A verification step waits on the inbox without stepping.
   const wait = captcha ? CAPTCHA_WAIT_MS : run.steps.at(-1)?.startsWith("verify|") ? EMAIL_WAIT_MS : 0;
-  if (now - run.stepAt > wait + STEP_MS)
+  if (now - run.stepAt > wait + STEP_MS) {
+    // The hidden frame went quiet before any form (Qualcomm's apply page never loaded there; a tab's did): nothing
+    // was filled or sent yet, so a tab retry can't apply twice.
+    if (run.host === "frame" && !run.steps.some((s) => s.startsWith("form|")))
+      return { status: "blocked", reason: "The page stopped responding" };
     return { status: "failed", reason: captcha ? "The CAPTCHA wasn't solved" : "No progress for 3 minutes" };
+  }
   if (!visible && now - run.startedAt > limitMs)
     return { status: "failed", reason: `Took over ${Math.round(limitMs / 60_000)} minutes` };
   return null;

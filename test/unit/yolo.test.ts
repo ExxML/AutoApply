@@ -1675,8 +1675,18 @@ describe("run watchdog", () => {
 
   it("still ends stalled or overlong runs", () => {
     expect(overdue(run("visible", "form"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
-    expect(overdue(run("frame", "captcha"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
+    expect(overdue(run("frame", "form"), 15 * min)).toMatchObject({ reason: "No progress for 3 minutes" });
     expect(overdue(run("tab", "form"), 13 * min)).toMatchObject({ reason: "Took over 12 minutes" });
+  });
+
+  it("retries a hidden frame that went quiet before any form in a tab", () => {
+    expect(overdue(run("frame", "job"), 15 * min)).toMatchObject({ status: "blocked" });
+    expect(overdue(run("frame", "captcha"), 15 * min)).toMatchObject({ status: "blocked" });
+    expect(overdue(run("tab", "job"), 15 * min)).toMatchObject({ status: "failed" });
+    // A form was filled: its submission may have gone through, so no retry.
+    const filled = run("frame", "unknown");
+    filled.steps.unshift("form|/apply||5");
+    expect(overdue(filled, 15 * min)).toMatchObject({ status: "failed" });
   });
 
   it("doesn't count the time the computer slept", () => {
