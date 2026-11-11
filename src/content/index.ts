@@ -1477,7 +1477,7 @@ async function startYolo() {
   const restoreTransitions = throttled() ? endTransitions() : () => undefined;
   config = await send({ type: "GET_RUNTIME_CONFIG", yolo: true });
   listen();
-  await drive({
+  const parked = await drive({
     fieldStats: () => {
       // Nor the fields of a form still collapsed (JazzHR's, until its Apply): file inputs are scanned hidden too.
       const fields = rescan().filter((h) => !RE_SIGNUP_BOX.test(h.desc.section ?? "") && isVisible(h.container));
@@ -1510,7 +1510,7 @@ async function startYolo() {
         await sharePosting(new DOMParser().parseFromString(html, "text/html"), new URL(url) as unknown as Location);
     },
   });
-  if (reviewContext) {
+  if (reviewContext || parked) {
     yolo = false;
     restoreTransitions();
   }

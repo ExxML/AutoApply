@@ -269,23 +269,48 @@ test("refills a site's fixed work slots from the profile and empties the one pas
   );
 });
 
-test("waits in a background tab for the user to solve a CAPTCHA, then submits", async ({ context, sw }) => {
-  test.setTimeout(120_000);
+test("parks a background tab at its CAPTCHA, then finishes it in place once the user opens it", async ({
+  context,
+  sw,
+  page,
+}) => {
+  test.setTimeout(150_000);
   await seed(sw, { caps: true });
-  await queue(sw, `${BASE}yolo-captcha.html`);
+  const url = `${BASE}yolo-captcha.html`;
+  await queue(sw, url);
   // The hidden frame met the bot check: the site's later jobs start in a tab.
   await expect.poll(() => storage(sw, "yoloTabHosts"), { timeout: 60_000 }).toEqual(["localhost"]);
-  await expect.poll(() => context.pages().find((p) => p.url().includes("yolo-captcha")), { timeout: 30_000 }).toBeTruthy();
+  await expect
+    .poll(() => context.pages().find((p) => p.url().includes("yolo-captcha")), { timeout: 30_000 })
+    .toBeTruthy();
   const tab = context.pages().find((p) => p.url().includes("yolo-captcha"))!;
   // The form is filled first, so the challenge is all that's left for the user.
   await expect(tab.locator("#fn")).not.toHaveValue("", { timeout: 60_000 });
+  // Parked: the user is told, the run slot is free for the next job, and the filled tab stays as it is.
   await expect
-    .poll(() => sw.evaluate(async () => Object.keys(await chrome.notifications.getAll())), { timeout: 40_000 })
-    .toContain("yolo-captcha");
-  expect((await storage<Application[] | undefined>(sw, "applications")) ?? []).toEqual([]);
-  // The user solves it: the run carries on by itself.
+    .poll(() => sw.evaluate(async () => Object.keys(await chrome.notifications.getAll())), { timeout: 60_000 })
+    .toContain(`yolo:${url}`);
+  await outcome(sw).toBe("needs");
+  expect(await sw.evaluate(async () => (await chrome.storage.session.get("yoloRun")).yoloRun)).toBeUndefined();
+  expect(tab.isClosed()).toBe(false);
+  const filled = await tab.locator("#fn").inputValue();
+  // Opening it (the notification, or Open in Applications) drives the same page on: nothing starts over.
+  const id = new URL(sw.url()).host;
+  await page.goto(`chrome-extension://${id}/src/popup/index.html`);
+  await page.evaluate((key) => chrome.runtime.sendMessage({ type: "YOLO_RESUME", key }), url);
+  await expect
+    .poll(() =>
+      sw.evaluate(
+        async () =>
+          ((await chrome.storage.session.get("yoloRun")).yoloRun as { adopted?: boolean } | undefined)?.adopted,
+      ),
+    )
+    .toBe(true);
+  expect(await tab.locator("#fn").inputValue()).toBe(filled);
+  // The user solves it and leaves: the run submits and closes the tab.
   await tab.evaluate(() => document.querySelector("iframe")?.remove());
   await outcome(sw).toBe("submitted");
+  await expect.poll(() => tab.isClosed(), { timeout: 10_000 }).toBe(true);
 });
 
 test("waits out a challenge page in a background tab instead of failing", async ({ sw, page }) => {
@@ -303,8 +328,9 @@ test("hands a DataDome CAPTCHA to the user instead of failing the hidden run", a
   await queue(sw, `${BASE}yolo-datadome-captcha.html`);
   await expect
     .poll(() => sw.evaluate(async () => Object.keys(await chrome.notifications.getAll())), { timeout: 90_000 })
-    .toContain("yolo-captcha");
-  expect((await storage<Application[] | undefined>(sw, "applications")) ?? []).toEqual([]);
+    .toContain(`yolo:${BASE}yolo-datadome-captcha.html`);
+  // Parked for the user, not failed.
+  await outcome(sw).toBe("needs");
 });
 
 test("stops at the batch size", async ({ sw, page }) => {

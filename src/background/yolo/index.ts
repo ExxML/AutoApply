@@ -40,8 +40,10 @@ import {
   reviewAttempt,
   reviewList,
   reviewRefillStarted,
+  showTab,
   submitReview,
 } from "./reviewTabs";
+import { dropParked, park, parkedKeys, takeParked } from "./parked";
 import { confirmation, confirmFirst, kindOf, refused, signature, verifyFailed } from "./classify";
 import { applied, discover, indeedSignedOutNow, inQueueOrder, readIndeed, RETRY } from "./discover";
 import {
@@ -53,13 +55,14 @@ import {
   waitForEmail,
   waitForFeedCode,
 } from "./gmail";
-import { closeFrame, openTab } from "./host";
+import { closeFrame, closeTab, openTab } from "./host";
 import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "./jobKey";
 import { findOnEmployerBoard } from "./careers";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
 import { letterText, textPdf } from "./pdf";
 import {
+  adoptTab,
   credit,
   end,
   fromRun,
@@ -168,8 +171,6 @@ const fetcher = (url: string, init?: RequestInit) => fetch(url, init);
 /** How long discovery waits on the user to clear Indeed's bot check before going on without Indeed. */
 const INDEED_WAIT_MS = 10 * 60e3;
 const INDEED_NOTE = "yolo-indeed";
-/** A background tab's run waits on the user to solve a CAPTCHA; cleared at its next step. */
-const CAPTCHA_NOTE = "yolo-captcha";
 const INDEED_PAUSE = "Waiting for you to tick Indeed's bot check in the tab YOLO opened";
 /** The tab YOLO opened on Indeed for the user to clear its bot check in; Indeed's next blocked search reuses it. */
 let indeedTabId: number | undefined;
@@ -548,7 +549,6 @@ export async function recoverLost() {
  * refused, re-queued on a quota stop, else logged.
  */
 async function finish(run: Run, r: YoloResult) {
-  if (run.steps.at(-1)?.startsWith("captcha|")) void chrome.notifications.clear(CAPTCHA_NOTE);
   if (run.reviewTab && run.tabId !== undefined && (r.status === "needs" || r.status === "failed") && !r.retryAt) {
     await holdForReview(run, "needs", r.reason);
     return;
@@ -589,7 +589,9 @@ async function finish(run: Run, r: YoloResult) {
   }
   const a = await outcome(run, r);
   await record(a);
-  if (a.status === "needs" && run.host !== "visible")
+  // A parked tab the user opened: they solved its CAPTCHA and left it to finish.
+  if (run.adopted && a.status === "submitted" && run.tabId !== undefined) await closeTab(run.tabId);
+  if (a.status === "needs" && (run.host !== "visible" || run.adopted))
     notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: ${a.reason}`);
   void pump();
 }
@@ -717,6 +719,7 @@ async function watchdog(due: number) {
 async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
   const a = (await store.get("applications")).find((x) => x.key === key);
   if (!a) return { error: { kind: "other", message: "Unknown application" } };
+  if (await adopt(key)) return { ok: true };
   if (a.review) {
     if (!(await openReview(key))) {
       await queueReviewRefill(key);
@@ -728,6 +731,42 @@ async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
   if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item, run.resumeKey);
   await startResumed(a, "visible");
   return { ok: true };
+}
+
+/**
+ * Drives a tab parked at a CAPTCHA (parked.ts) on from where it stands, in front of the user: the job running now goes
+ * back in the queue, as for any resume. False when that page is gone (closed, reloaded, navigated away).
+ */
+async function adopt(key: string): Promise<boolean> {
+  const parked = await takeParked(key);
+  if (parked?.tabId === undefined) return false;
+  // Answers only from the very document that was parked.
+  const alive = await chrome.tabs
+    .sendMessage(
+      parked.tabId,
+      { type: "YOLO_REVIEW_PING", key },
+      { frameId: 0, ...(parked.documentId ? { documentId: parked.documentId } : {}) },
+    )
+    .then(
+      () => true,
+      () => false,
+    );
+  if (!alive) return false;
+  const run = await getRun();
+  if (run && (await end(run.id)) && run.mode === "apply") await requeue(run.item, run.resumeKey);
+  const now = Date.now();
+  await adoptTab({
+    ...parked,
+    id: crypto.randomUUID(),
+    host: "visible",
+    adopted: true,
+    startedAt: now,
+    stepAt: now,
+    helloAt: 0,
+    steps: [],
+  });
+  await showTab(parked.tabId);
+  return true;
 }
 
 async function startResumed(a: Application, host: "tab" | "visible") {
@@ -932,8 +971,14 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   YOLO_RESUME: ({ key }) => resume(key),
 
   async YOLO_RESUME_PENDING() {
-    const [apps, reviews, run] = await Promise.all([store.get("applications"), reviewList(), getRun()]);
+    const [apps, reviews, run, parked] = await Promise.all([
+      store.get("applications"),
+      reviewList(),
+      getRun(),
+      parkedKeys(),
+    ]);
     const handled = new Set([
+      ...parked,
       ...reviews.live,
       ...reviews.refilling,
       ...(run ? [run.item.key, run.reviewKey, run.resumeKey] : []),
@@ -984,6 +1029,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     const a = await markApplicationSubmitted(key);
     if (!a) return { error: { kind: "other", message: "Unknown application" } };
     await releaseReview(key);
+    await dropParked(key);
     await pendingResumeStarted(key);
     await updateQueue((q) => q.filter((i) => i.key !== key && i.listing !== key && (!a.alt || i.alt !== a.alt)));
     void pump();
@@ -1222,10 +1268,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     if (kind === "flagged") run.steps = run.steps.filter((s) => s.startsWith("flagged|"));
     if (run.steps.at(-1)?.startsWith("embedded|")) run.embedUrl ??= sender.url ?? url;
     // Time spent waiting on a CAPTCHA (the user's) doesn't count toward the run's time limit.
-    if (run.steps.at(-1)?.startsWith("captcha|")) {
-      run.startedAt += Date.now() - run.stepAt;
-      void chrome.notifications.clear(CAPTCHA_NOTE);
-    }
+    if (run.steps.at(-1)?.startsWith("captcha|")) run.startedAt += Date.now() - run.stepAt;
     run.steps.push(sig);
     run.stepAt = Date.now();
     if (kind === "success") run.confirmation = confirmation(facts);
@@ -1336,15 +1379,22 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ...(await createAccount(site, await accountEmail())), created: true };
   },
 
+  /** Parks the run's tab at its CAPTCHA for the user (parked.ts); the queue goes on meanwhile. */
   async YOLO_CAPTCHA(_, sender) {
     const run = await getRun();
-    if (fromRun(run, sender) && run.host === "tab")
-      notify(
-        CAPTCHA_NOTE,
-        "AutoApply needs you",
-        `${run.item.company} – ${run.item.title}: solve the CAPTCHA (click here to open it). YOLO carries on after.`,
-      );
-    return { ok: true };
+    if (!fromRun(run, sender) || run.mode !== "apply" || run.host === "frame" || run.tabId === undefined)
+      return { parked: false };
+    const reason = "Solve the CAPTCHA in its tab; YOLO finishes the application after";
+    const a = await outcome(run, { status: "needs", reason, guesses: run.guesses });
+    if (!(await park(a.key, run))) return { parked: false };
+    await record(a);
+    if (!(await end(run.id, true))) return { parked: true };
+    await releaseRealInput(run.tabId);
+    const limit = deps.logLimit();
+    if (limit) await logRun(run, { status: "needs", reason }, limit);
+    notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: solve the CAPTCHA (click to open it)`);
+    void pump();
+    return { parked: true };
   },
 
   async YOLO_WAIT_EMAIL({ since, want }, sender) {
@@ -1511,11 +1561,6 @@ export function initYolo(d: YoloDeps) {
     else if (id === INDEED_NOTE && indeedTabId !== undefined)
       void chrome.tabs
         .update(indeedTabId, { active: true })
-        .then((t) => t && chrome.windows.update(t.windowId, { focused: true }))
-        .catch(() => undefined);
-    else if (id === CAPTCHA_NOTE)
-      void getRun()
-        .then((run) => (run?.tabId === undefined ? undefined : chrome.tabs.update(run.tabId, { active: true })))
         .then((t) => t && chrome.windows.update(t.windowId, { focused: true }))
         .catch(() => undefined);
     else if (id === "yolo-gmail")

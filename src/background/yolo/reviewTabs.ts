@@ -144,7 +144,12 @@ export async function openReview(key: string): Promise<boolean> {
     await persist();
     return false;
   }
-  const tab = await chrome.tabs.get(held.tabId).catch(() => null);
+  return showTab(held.tabId);
+}
+
+/** Brings a held tab to the front, out of its collapsed group. */
+export async function showTab(tabId: number): Promise<boolean> {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab?.id) return false;
   if (tab.groupId >= 0) await chrome.tabGroups.update(tab.groupId, { collapsed: false });
   await chrome.windows.update(tab.windowId, { focused: true });

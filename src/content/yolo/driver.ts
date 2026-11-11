@@ -141,7 +141,8 @@ let leaving = false;
 addEventListener("beforeunload", () => (leaving = true));
 document.addEventListener("autoapply-leaving", () => (leaving = true)); // pageTimers.ts stops the page's beforeunload
 
-export async function drive(deps: DriverDeps) {
+/** "parked": the run handed this page to the user at a CAPTCHA; a later YOLO_ATTACH drives it on. */
+export async function drive(deps: DriverDeps): Promise<void | "parked"> {
   if (driving) return;
   driving = true;
   const hello = await send({ type: "YOLO_HELLO", url: location.href }).catch(() => null);
@@ -315,10 +316,12 @@ export async function drive(deps: DriverDeps) {
           // A check that passes by itself (Cloudflare's "Verifying…") gets a moment first.
           if (await waitFor(cleared, CAPTCHA_SELF_CLEAR_MS)) continue;
           if (IN_HOST) return needs("CAPTCHA");
-          if (!hello.visible) await send({ type: "YOLO_CAPTCHA" });
-          // A visible tab waits again; the step loop guard ends it, as the user's.
-          if ((await waitFor(cleared, CAPTCHA_WAIT_MS)) || hello.visible) continue;
-          return needs(`The CAPTCHA wasn't solved within ${CAPTCHA_WAIT_MS / 60_000} minutes`);
+          // The user is here (a visible tab, or a parked one they opened): their whole wait.
+          if (hello.visible && (await waitFor(cleared, CAPTCHA_WAIT_MS))) continue;
+          // Parked: the tab stays as it is for the user and the queue goes on; opening the application drives this
+          // page on from here (background/yolo/parked.ts).
+          if ((await send({ type: "YOLO_CAPTCHA" }).catch(() => null))?.parked) return "parked";
+          return needs("CAPTCHA");
         }
         case "blocked":
           return result({ status: "blocked", reason: "The site's bot check stopped it" });

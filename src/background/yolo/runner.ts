@@ -46,6 +46,8 @@ export interface Run {
   hasGuessedAnswers?: boolean;
   reviewTab?: boolean;
   documentId?: string;
+  /** Carries on a run parked at a CAPTCHA (parked.ts), in its own tab, once the user opens it. */
+  adopted?: boolean;
 }
 
 const KEY = "yoloRun";
@@ -108,6 +110,13 @@ export async function start(
   }
   await chrome.alarms.create(WATCHDOG, { periodInMinutes: 0.5 });
   return run;
+}
+
+/** Drives a page already open in `run.tabId` (a parked one) from where it stands. */
+export async function adoptTab(run: Run) {
+  await saveRun(run);
+  watchTab(run);
+  await chrome.alarms.create(WATCHDOG, { periodInMinutes: 0.5 });
 }
 
 /** Reads a page's links in the hidden host (Indeed results, career sites without an API); null = a bot check stood in. */
