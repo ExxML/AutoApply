@@ -214,9 +214,24 @@ export async function awaitReset(): Promise<AuthOutcome | null> {
   return { ok: true };
 }
 
+/**
+ * The boxes a code goes in: its own, or a row of one-character boxes, one character each (Oracle's six "digit N of
+ * six"): the whole code typed into the first left only its first digit there.
+ */
+function codeBoxes(first: HTMLInputElement, code: string): HTMLInputElement[] {
+  let row: HTMLInputElement[] = [];
+  for (let p = first.parentElement, i = 0; p && i < 4 && row.length < 2; p = p.parentElement, i++)
+    row = (deepQueryAll("input", p) as HTMLInputElement[]).filter((x) => isVisible(x) && x.type !== "hidden");
+  const box = (x: HTMLInputElement) =>
+    x.maxLength === 1 || /\bdigit\b|code|otp|pin/i.test(`${x.id} ${x.name} ${x.getAttribute("aria-label") ?? ""}`);
+  return row.length > 1 && row.length === code.length && row.every(box) ? row : [first];
+}
+
 /** A "check your inbox" page: follows the emailed link, or types the emailed code. */
 export async function handleVerify(since: number, email: string): Promise<AuthOutcome> {
-  const input = codeInput();
+  // A page saying it sent a code can draw its box a moment later; without one, the email holds a link.
+  const input =
+    codeInput() ?? (/\b(code|passcode|pin)\b/i.test(document.body.innerText) ? await waitFor(codeInput, 5000) : null);
   // "Forgot password" asks for the address first.
   const ask = emailInputs().find((e) => !e.value);
   if (ask && !input) {
@@ -231,6 +246,9 @@ export async function handleVerify(since: number, email: string): Promise<AuthOu
   // same site is no answer to it).
   const asked = Number(remember(EMAIL_ASKED, null));
   if (asked) since = Math.max(since, asked - 60_000);
+  // A code is sent as its page shows: an earlier attempt's (Uber's, 10 minutes before) is no longer valid, and typing
+  // it costs one of the site's few tries.
+  if (input) since = Math.max(since, Date.now() - 60_000);
   const r = await send({ type: "YOLO_WAIT_EMAIL", since, want: input ? "code" : "link" });
   if (isErr(r)) return { fail: r.error.message };
   if (r.link) {
@@ -238,7 +256,8 @@ export async function handleVerify(since: number, email: string): Promise<AuthOu
     return { ok: true };
   }
   if (!input || !r.code) return { fail: "No verification code" };
-  await type(input, r.code);
+  const boxes = codeBoxes(input, r.code);
+  for (const [k, box] of boxes.entries()) await type(box, boxes.length > 1 ? r.code[k] : r.code);
   const b = findButton(RE_VERIFY_BTN);
   if (b) press(b);
   return { ok: true };

@@ -457,6 +457,33 @@ describe("YOLO buttons", () => {
     vi.unstubAllGlobals();
   });
 
+  it("types an emailed code one character per box when the page splits it", async () => {
+    const asked: number[] = [];
+    vi.stubGlobal("chrome", {
+      runtime: { sendMessage: async (m: { since: number }) => (asked.push(m.since), { code: "482913" }) },
+    });
+    // Oracle Recruiting's "Confirm your identity".
+    const boxes = [1, 2, 3, 4, 5, 6]
+      .map(
+        (n) => `<input id="pin-code-${n}" inputmode="numeric" aria-label="Enter verification code digit ${n} of six.">`,
+      )
+      .join("");
+    setBody(`<h2>Confirm your identity</h2><p>The verification code was sent to this email address.</p>
+      <div>${boxes}</div><button>Verify</button>`);
+    const t = Date.now();
+    expect(await handleVerify(t - 15 * 60_000, "me@x.com")).toEqual({ ok: true });
+    expect([...document.querySelectorAll("input")].map((i) => i.value).join(",")).toBe("4,8,2,9,1,3");
+    // Only a code sent as the page showed: an earlier attempt's is spent (Uber's, 10 minutes before).
+    expect(asked[0]).toBeGreaterThanOrEqual(t - 61_000);
+    // One box takes the whole code.
+    setBody(
+      `<h2>Verify your email</h2><input name="otp_code"><input name="email" value="me@x.com"><button>Verify</button>`,
+    );
+    expect(await handleVerify(0, "me@x.com")).toEqual({ ok: true });
+    expect(document.querySelector("input")!.value).toBe("482913");
+    vi.unstubAllGlobals();
+  });
+
   it("skips third-party sign-ins and back buttons, and takes the form's own submit", () => {
     setBody(`<button>Apply with LinkedIn</button><button>Apply</button>`);
     expect(findApply()?.textContent).toBe("Apply");
