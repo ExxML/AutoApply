@@ -19,7 +19,7 @@ import type {
   Settings,
   TabStatus,
 } from "./types";
-import type { FORGETTABLE, Guess, REAL_INPUT, YoloStatus } from "./yolo";
+import type { FORGETTABLE, Guess, REAL_INPUT, RESUMABLE, YoloStatus } from "./yolo";
 
 /** What a YOLO driver reads off its page; the background decides what kind of step that is (yolo/classify.ts). */
 export interface PageFacts {
@@ -144,7 +144,7 @@ export type Message =
   /** The job tabs not started yet are left alone; the one being filled finishes. */
   | { type: "YOLO_TABS_STOP" }
   | { type: "YOLO_RESUME"; key: string }
-  | { type: "YOLO_RESUME_PENDING" }
+  | { type: "YOLO_RESUME_PENDING"; status: (typeof RESUMABLE)[number] }
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
   /** A job the user applied to outside AutoApply, entered on the Applications page. */
   | { type: "YOLO_ADD_APPLICATION"; job: { url: string; company: string; title: string } }

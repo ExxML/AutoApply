@@ -202,6 +202,9 @@ export const isPendingApplication = (a: Application) => a.status === "needs" || 
 /** The outcomes the Applications page can forget all of at once. */
 export const FORGETTABLE = ["failed", "needs", "skipped"] as const satisfies readonly Application["status"][];
 
+/** The outcomes the Applications page can resume all of at once. */
+export const RESUMABLE = ["needs", "review"] as const satisfies readonly Application["status"][];
+
 /** How a source fared in a check, worst last. */
 export const SOURCE_LEVELS = ["ok", "info", "warn", "error"] as const;
 export type SourceLevel = (typeof SOURCE_LEVELS)[number];

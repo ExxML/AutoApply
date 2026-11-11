@@ -3,7 +3,7 @@ import { namesPosting } from "../../background/yolo/jobKey";
 import { send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
-import { FORGETTABLE, isPendingApplication, SOURCE_NAMES, type Application } from "../../shared/yolo";
+import { FORGETTABLE, isPendingApplication, RESUMABLE, SOURCE_NAMES, type Application } from "../../shared/yolo";
 import { readPosting } from "../posting";
 import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
@@ -38,7 +38,7 @@ export function Applications() {
   const [reviewTabs, setReviewTabs] = useState<{ live: string[]; refilling: string[] }>({ live: [], refilling: [] });
   const [busy, setBusy] = useState("");
   const [forgetting, setForgetting] = useState<"" | (typeof FORGETTABLE)[number]>("");
-  const [resuming, setResuming] = useState(false);
+  const [resuming, setResuming] = useState<"" | (typeof RESUMABLE)[number]>("");
   const blank = { url: "", company: "", title: "" };
   const [addOpen, setAddOpen] = useState(false);
   const [added, setAdded] = useState(blank);
@@ -89,14 +89,13 @@ export function Applications() {
       .catch(() => setAddError("Couldn't add it. Try again."))
       .finally(() => setAdding(""));
   };
-  const pendingCount = apps?.filter(isPendingApplication).length ?? 0;
-  const resumePending = async () => {
-    if (resuming || !pendingCount) return;
-    setResuming(true);
-    await send({ type: "YOLO_RESUME_PENDING" })
+  const resumeAll = async (status: (typeof RESUMABLE)[number], count: number) => {
+    if (resuming || !count) return;
+    setResuming(status);
+    await send({ type: "YOLO_RESUME_PENDING", status })
       .then(loadReviews)
       .catch(() => undefined)
-      .finally(() => setResuming(false));
+      .finally(() => setResuming(""));
   };
   const forgetAll = async (status: (typeof FORGETTABLE)[number], count: number) => {
     const marked = `marked "${STATUS[status]}"`;
@@ -204,15 +203,23 @@ export function Applications() {
         >
           Debug logs
         </button>
-        <button
-          type="button"
-          class="btn small primary"
-          disabled={resuming || pendingCount === 0}
-          title="Resume all Needs you and Ready for your review applications, including those hidden by filters, one at a time"
-          onClick={() => void resumePending()}
-        >
-          {resuming ? "Queueing resumes…" : "Resume all pending applications"}
-        </button>
+        <div class="resume-all" role="group" aria-labelledby="resume-all-label">
+          <span id="resume-all-label">Resume all</span>
+          {RESUMABLE.map((status) => {
+            const count = apps.filter((a) => a.status === status).length;
+            return (
+              <button
+                type="button"
+                class="btn small primary"
+                disabled={!!resuming || count === 0}
+                title={`Resume every application marked "${STATUS[status]}", including those hidden by filters, one at a time`}
+                onClick={() => void resumeAll(status, count)}
+              >
+                {resuming === status ? "Queueing resumes…" : `${STATUS[status]} (${count})`}
+              </button>
+            );
+          })}
+        </div>
         <div class="forget-all" role="group" aria-labelledby="forget-all-label">
           <span id="forget-all-label">Forget all</span>
           {FORGETTABLE.map((status) => {

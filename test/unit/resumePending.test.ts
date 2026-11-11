@@ -14,7 +14,8 @@ const application = (key: string, status: Application["status"] = "needs", revie
     status,
     ...(review && { review: { reasons: ["Review requested"], preparedAt: 1 } }),
   });
-const request = () => coordinator.yoloHandlers.YOLO_RESUME_PENDING!({ type: "YOLO_RESUME_PENDING" }, {});
+const request = (status: "needs" | "review" = "needs") =>
+  coordinator.yoloHandlers.YOLO_RESUME_PENDING!({ type: "YOLO_RESUME_PENDING", status }, {});
 const sender = (run: Run) =>
   ({ tab: { id: run.tabId }, frameId: 0, url: run.item.url }) as chrome.runtime.MessageSender;
 async function running(key: string) {
@@ -70,12 +71,29 @@ beforeEach(async () => {
   });
 });
 
-describe("resume all pending applications", () => {
-  it("resumes only pending outcomes one at a time, even with YOLO off", async () => {
+describe("resume all Needs you applications", () => {
+  it("resumes only Ready for your review applications into review tabs when asked", async () => {
+    await chrome.storage.local.set({ applications: [application("first"), application("ready", "review", true)] });
+    expect(await request("review")).toEqual({ ok: true, queued: 1 });
+    const ready = await running("ready");
+    expect(ready.reviewKey).toBe("ready");
+    expect(chrome.tabs.create).toHaveBeenCalledTimes(1);
+    expect((await chrome.storage.session.get("yoloPendingResumes")).yoloPendingResumes).toEqual([]);
+  });
+
+  it("refuses to bulk-resume other outcomes", async () => {
+    await chrome.storage.local.set({ applications: [application("done", "submitted")] });
+    expect(await request("submitted" as "needs")).toMatchObject({ error: { kind: "other" } });
+    expect((await chrome.storage.session.get("yoloPendingResumes")).yoloPendingResumes ?? []).toEqual([]);
+    expect(chrome.tabs.create).not.toHaveBeenCalled();
+  });
+
+  it("resumes only Needs you applications one at a time, even with YOLO off", async () => {
     const untouched = [
       application("submitted", "submitted"),
       application("failed", "failed"),
       application("skipped", "skipped"),
+      application("ready", "review", true),
     ];
     await chrome.storage.local.set({ applications: [application("first"), application("second"), ...untouched] });
     expect(await request()).toEqual({ ok: true, queued: 2 });
@@ -193,7 +211,7 @@ describe("resume all pending applications", () => {
 
   it("refills missing review tabs without submitting and continues when the review tab limit frees up", async () => {
     await chrome.storage.local.set({
-      applications: [application("first", "review", true), application("second", "needs", true)],
+      applications: [application("first", "needs", true), application("second", "needs", true)],
     });
     expect(await request()).toEqual({ ok: true, queued: 2 });
     const first = await running("first");

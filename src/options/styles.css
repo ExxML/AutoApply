@@ -790,13 +790,15 @@ main:has(.applications-table-scroll) {
 .row select {
   width: auto;
 }
-/* One label for the bulk forgets, each button naming its status and how many it removes. */
+/* One label for the bulk resumes and forgets, each button naming its status and how many it touches. */
+.resume-all,
 .forget-all {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
+.resume-all > span,
 .forget-all > span {
   color: var(--muted);
   font-size: 0.85em;

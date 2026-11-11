@@ -32,6 +32,10 @@ async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45)
 }
 
 /** A bulk forget's button: its accessible name ends with how many it removes, which changes as it runs. */
+const resumeAllButton = (page: Page, status: string) =>
+  page
+    .getByRole("group", { name: "Resume all", exact: true })
+    .getByRole("button", { name: new RegExp(String.raw`^(${status} \(\d+\)|Queueing resumes…)$`) });
 const forgetAllButton = (page: Page, status: string) =>
   page
     .getByRole("group", { name: "Forget all", exact: true })
@@ -79,7 +83,7 @@ test("each non-submitted row can be marked submitted while preserving its applic
     expect(stored.at).toBeGreaterThan(original.at);
   }
   await expect(page.locator("section").getByRole("status")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
+  await expect(resumeAllButton(page, "Needs you")).toBeDisabled();
   await expect(forgetAllButton(page, "Failed")).toBeDisabled();
   const totals = page
     .getByRole("definition")
@@ -182,10 +186,11 @@ test("forget all failed applications is disabled for empty history", async ({ sw
   await expect(forgetAllButton(page, "Failed")).toBeDisabled();
   await expect(forgetAllButton(page, "Needs you")).toBeDisabled();
   await expect(forgetAllButton(page, "Skipped")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
+  await expect(resumeAllButton(page, "Needs you")).toBeDisabled();
+  await expect(resumeAllButton(page, "Ready for your review")).toBeDisabled();
 });
 
-test("bulk resume includes hidden pending jobs, keeps review required, and preserves filled review tabs", async ({
+test("bulk resume includes hidden Needs you jobs and leaves Ready for your review untouched", async ({
   sw,
   page,
   context,
@@ -215,7 +220,7 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
   }, applications);
   await page.getByRole("searchbox", { name: "Search applications", exact: true }).fill("submitted");
   await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("submitted");
-  const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
+  const button = resumeAllButton(page, "Needs you");
   await expect(button).toBeEnabled();
   await button.click();
   await expect
@@ -228,6 +233,41 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
     )
     .toEqual(["submitted", "submitted"]);
   await expect(page.locator("section").getByRole("status")).toHaveCount(0);
+  const stored = await storage<Application[]>(sw, "applications");
+  for (const key of ["submitted", "failed", "skipped", "review"]) {
+    expect(stored.find((a) => a.key === key)).toEqual(applications.find((a) => a.key === key));
+  }
+  expect(context.pages().some((p) => p.url().includes("job=review"))).toBe(false);
+  await expect(button).toBeDisabled();
+});
+
+test("bulk resume of Ready for your review refills review tabs and preserves filled ones", async ({
+  sw,
+  page,
+  context,
+}) => {
+  await applicationsPage(sw, page, 0, 0);
+  await seed(sw, { caps: true, settings: { reviewFills: false } });
+  const applications = [
+    { key: "needs", status: "needs" },
+    { key: "review", status: "review", review: { reasons: ["Review requested"], preparedAt: 1 } },
+  ].map((app) =>
+    ApplicationSchema.parse({
+      ...app,
+      url: `${BASE}yolo-review-form.html?job=${app.key}`,
+      company: app.key,
+      title: "Software Engineer Intern",
+    }),
+  );
+  await sw.evaluate(async (applications) => {
+    await chrome.storage.local.set({
+      applications,
+      yolo: { enabled: false, boards: [], feeds: [], reviewFills: false, aiNavigation: false },
+    });
+  }, applications);
+  const button = resumeAllButton(page, "Ready for your review");
+  await expect(button).toBeEnabled();
+  await button.click();
   await expect
     .poll(async () => {
       const { yoloReviewTabs } = await sw.evaluate(() =>
@@ -237,10 +277,9 @@ test("bulk resume includes hidden pending jobs, keeps review required, and prese
     })
     .toBe(true);
   const stored = await storage<Application[]>(sw, "applications");
-  for (const key of ["submitted", "failed", "skipped"]) {
-    expect(stored.find((a) => a.key === key)).toEqual(applications.find((a) => a.key === key));
-  }
+  expect(stored.find((a) => a.key === "needs")).toEqual(applications[0]);
   expect(stored.find((a) => a.key === "review")?.status).toBe("review");
+  expect(context.pages().some((p) => p.url().includes("job=needs"))).toBe(false);
   const review = context.pages().find((p) => p.url().includes("job=review"))!;
   await expect(review.locator("#first")).toHaveValue("Ada");
   await review.locator("#first").fill("Edited");
@@ -265,7 +304,7 @@ test("a failed bulk resume keeps pending records and allows retrying", async ({ 
         ? Promise.resolve({ error: { kind: "other", message: "Couldn't queue the pending applications." } })
         : send(message)) as typeof chrome.runtime.sendMessage;
   });
-  const button = page.getByRole("button", { name: "Resume all pending applications", exact: true });
+  const button = resumeAllButton(page, "Needs you");
   await button.click();
   await expect(button).toBeEnabled();
   await expect(page.locator("section").getByRole("status")).toHaveCount(0);

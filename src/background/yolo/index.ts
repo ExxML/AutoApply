@@ -12,6 +12,7 @@ import {
   FORGETTABLE,
   hasReviewRules,
   isPendingApplication,
+  RESUMABLE,
   type Application,
   type Guess,
   type Listing,
@@ -1105,7 +1106,10 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
 
   YOLO_RESUME: ({ key }) => resume(key),
 
-  async YOLO_RESUME_PENDING() {
+  async YOLO_RESUME_PENDING({ status }) {
+    // Never bulk-resume submissions or other finished outcomes, whatever the caller sends.
+    if (!RESUMABLE.includes(status))
+      return { error: { kind: "other", message: `Can't resume ${status} applications in bulk.` } };
     const [apps, reviews, run, parked] = await Promise.all([
       store.get("applications"),
       reviewList(),
@@ -1119,7 +1123,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       ...(run ? [run.item.key, run.reviewKey, run.resumeKey] : []),
     ]);
     const queued = await queuePendingResumes(
-      apps.filter((a) => isPendingApplication(a) && !handled.has(a.key)).map((a) => a.key),
+      apps.filter((a) => a.status === status && !handled.has(a.key)).map((a) => a.key),
     );
     void pump();
     return { ok: true, queued };
