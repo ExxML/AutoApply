@@ -103,7 +103,12 @@ export async function start(
   if (mode === "apply" && host !== "visible") await store.set({ yoloInFlight: item });
   if (host === "frame") await openFrame(url);
   else {
-    run.tabId = await openTab(url, host === "visible");
+    // The user's own tab (popup "YOLO apply to job tabs"): it starts where a tab of YOLO's would, left in the background.
+    if (item.tabId === undefined) run.tabId = await openTab(url, host === "visible");
+    else {
+      run.tabId = item.tabId;
+      await chrome.tabs.update(run.tabId, { url });
+    }
     if (review?.tab) await chrome.tabs.update(run.tabId, { autoDiscardable: false });
     await saveRun(run);
     watchTab(run);
@@ -111,6 +116,9 @@ export async function start(
   await chrome.alarms.create(WATCHDOG, { periodInMinutes: 0.5 });
   return run;
 }
+
+/** The run's tab is the user's own, opened before it (or none): never YOLO's to close. */
+export const ownTab = (run: Run) => run.tabId === undefined || run.tabId === run.item.tabId;
 
 /** Drives a page already open in `run.tabId` (a parked one) from where it stands. */
 export async function adoptTab(run: Run) {
@@ -141,8 +149,7 @@ export async function end(id: string, keepTab = false): Promise<Run | null> {
   await session.remove(KEY);
   unwatchTab();
   await chrome.alarms.clear(WATCHDOG);
-  if (!keepTab && (run.host === "tab" || (run.reviewKey && run.reviewTab)) && run.tabId !== undefined)
-    await closeTab(run.tabId);
+  if (!keepTab && (run.host === "tab" || (run.reviewKey && run.reviewTab)) && !ownTab(run)) await closeTab(run.tabId!);
   return run;
 }
 

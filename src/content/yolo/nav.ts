@@ -69,17 +69,31 @@ const usable = (el: HTMLElement) =>
   !(el as HTMLButtonElement).disabled &&
   el.getAttribute("aria-disabled") !== "true";
 
+/** The visible, enabled controls matching `re`. */
+const controls = (re: RegExp) =>
+  deepQueryAll(CLICKABLE).filter((el) => {
+    const t = labelOf(el);
+    return t.length < 60 && re.test(t) && !RE_AVOID.test(t) && usable(el);
+  });
+
 /** The visible, enabled control matching `re` that sits lowest on the page (a form's own buttons come last). */
 export function findButton(re: RegExp, workday: string[] = []): HTMLElement | null {
   for (const sel of workday) {
     const w = deepQueryAll(sel).find(usable);
     if (w) return w;
   }
-  const matches = deepQueryAll(CLICKABLE).filter((el) => {
-    const t = labelOf(el);
-    return t.length < 60 && re.test(t) && !RE_AVOID.test(t) && usable(el);
-  });
+  const matches = controls(re);
   return matches.sort((a, b) => a.getBoundingClientRect().bottom - b.getBoundingClientRect().bottom).pop() ?? null;
+}
+
+/**
+ * Whether the page's Apply controls are one posting's: links all to one place, at most two buttons (its top and
+ * bottom Apply). A job list's lead to many (86 on Spotify's Lever board, 21 on Y Combinator's).
+ */
+export function oneApply(): boolean {
+  const all = controls(RE_APPLY);
+  const links = new Set(all.flatMap((el) => (el.closest("a[href]") as HTMLAnchorElement | null)?.href ?? []));
+  return links.size <= 1 && all.length - all.filter((el) => el.closest("a[href]")).length <= 2;
 }
 
 /**

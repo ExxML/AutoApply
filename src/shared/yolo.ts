@@ -156,6 +156,10 @@ export const QueueItemSchema = z.object({
   retries: z.number().optional().catch(undefined),
   /** In-flight only: past Submit, so a browser restart records it rather than applying again. */
   submitted: z.boolean().optional().catch(undefined),
+  /** The user's own tab it is applied in (popup "YOLO apply to job tabs"), never closed for it. */
+  tabId: z.number().optional().catch(undefined),
+  /** Its company is a guess from the job tab's address: the application's own pages decide it instead. */
+  companyGuessed: z.boolean().optional().catch(undefined),
 });
 export type QueueItem = z.infer<typeof QueueItemSchema>;
 
@@ -165,6 +169,8 @@ export const ApplicationSchema = QueueItemSchema.omit({
   addedAt: true,
   retries: true,
   submitted: true,
+  tabId: true,
+  companyGuessed: true,
 }).extend({
   /** The confirmation page a submission ended on. */
   doneUrl: z.string().catch(""),
@@ -272,6 +278,9 @@ export interface YoloStatus {
   appliedBatch: number;
   batchSize: number;
   queued: number;
+  /** Job tabs (popup "YOLO apply to job tabs") not started yet, and whether one is being applied to now. */
+  tabJobs?: number;
+  tabRun?: boolean;
   queueOnlyBatch?: boolean;
   needsYou: number;
   pendingReviews?: number;

@@ -45,6 +45,22 @@ export function yoloText(y: YoloStatus): string {
     .join("\n");
 }
 
+/** The job-tabs run's progress, or what the button does. */
+export function tabsText(y: YoloStatus): string {
+  const left = (y.tabJobs ?? 0) + (y.tabRun ? 1 : 0);
+  if (!left)
+    return "Applies to each job posting open in this window, in its own tab, one at a time. Other tabs are left alone.";
+  return [
+    y.tabRun && y.running ? `Applying: ${y.running}` : "",
+    `${left} job tab${left === 1 ? "" : "s"} left`,
+    y.tabRun ? "" : y.paused,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+type TabsResult = { added: number; others: number; skipped: { label: string; reason: string }[] };
+
 const openOptions = (hash: string) =>
   void chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html#${hash}`) });
 
@@ -55,6 +71,9 @@ export function Popup() {
   const [yolo, setYolo] = useState<YoloStatus | null>(null);
   const [startingBatch, setStartingBatch] = useState<"discover" | "queue" | null>(null);
   const [batchError, setBatchError] = useState("");
+  const [readingTabs, setReadingTabs] = useState(false);
+  const [tabsResult, setTabsResult] = useState<TabsResult | null>(null);
+  const [tabsError, setTabsError] = useState("");
 
   const host = (() => {
     try {
@@ -98,6 +117,32 @@ export function Popup() {
     } finally {
       setStartingBatch(null);
     }
+  };
+
+  const applyTabs = async () => {
+    if (readingTabs || tab?.windowId === undefined) return;
+    setReadingTabs(true);
+    setTabsError("");
+    setTabsResult(null);
+    try {
+      const r = await send({ type: "YOLO_APPLY_TABS", windowId: tab.windowId });
+      if (isErr(r)) return setTabsError(r.error.message);
+      // Named by their tab titles: the links alone are hard to tell apart.
+      const titles = new Map((await chrome.tabs.query({ windowId: tab.windowId })).map((t) => [t.url, t.title]));
+      const skipped = r.skipped.map(({ url, reason }) => ({ label: titles.get(url) || url, reason }));
+      setTabsResult({ added: r.added, others: r.others, skipped });
+      setYolo(await send({ type: "YOLO_STATUS" }));
+    } catch {
+      setTabsError("Couldn't read this window's tabs. Please try again.");
+    } finally {
+      setReadingTabs(false);
+    }
+  };
+
+  const stopTabs = async () => {
+    await send({ type: "YOLO_TABS_STOP" });
+    setTabsResult(null);
+    setYolo(await send({ type: "YOLO_STATUS" }));
   };
 
   useEffect(() => {
@@ -214,6 +259,60 @@ export function Popup() {
           {batchError && (
             <p class="err" role="alert">
               {batchError}
+            </p>
+          )}
+        </div>
+      )}
+      {yolo && (
+        <div class="yolo-actions">
+          <div class="tabs-row">
+            <button
+              type="button"
+              class="btn"
+              onClick={() => void applyTabs()}
+              disabled={readingTabs || tab?.windowId === undefined}
+              aria-describedby="tabs-help"
+              aria-busy={readingTabs}
+            >
+              {readingTabs ? "Reading tabs…" : "YOLO apply to job tabs"}
+            </button>
+            {!!yolo.tabJobs && (
+              <button type="button" class="btn" onClick={() => void stopTabs()}>
+                Stop after this tab
+              </button>
+            )}
+          </div>
+          <p id="tabs-help" class="help" role="status">
+            {tabsText(yolo)}
+          </p>
+          {tabsResult && (
+            <div class="help" role="status">
+              <p>
+                {[
+                  tabsResult.added
+                    ? `Applying to ${tabsResult.added} job tab${tabsResult.added === 1 ? "" : "s"}.`
+                    : "No new job tabs to apply to.",
+                  tabsResult.others
+                    ? `${tabsResult.others} other tab${tabsResult.others === 1 ? " isn't a job posting" : "s aren't job postings"}.`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              </p>
+              {!!tabsResult.skipped.length && (
+                <ul class="tabs-skipped">
+                  {tabsResult.skipped.map((s) => (
+                    <li>
+                      <span class="tab-name">{s.label}</span>: {s.reason}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {tabsError && (
+            <p class="err" role="alert">
+              {tabsError}
             </p>
           )}
         </div>

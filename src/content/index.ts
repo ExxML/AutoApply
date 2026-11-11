@@ -54,6 +54,7 @@ import { nextMidnightPacific } from "../shared/time";
 import type { Guess } from "../shared/yolo";
 import { composedContains, isVisible } from "./scan/visibility";
 import { RE_SIGNUP_BOX } from "./yolo/classify";
+import { jobContext, postingContext, shareOnApply, tabJob } from "./posting";
 import { drive, type FillReport } from "./yolo/driver";
 import { DRIVER_FRAME, endTransitions, IN_HOST, throttled } from "./yolo/frame";
 import { labelOf } from "./yolo/nav";
@@ -763,7 +764,7 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
     report();
 
     // Job context: top frame extracts; child frames share theirs only when they hold a description.
-    const jc = extractJobContext();
+    const jc = jobContext();
     const postingUrl = TOP && !jc.location ? phenomPostingUrl(location) : null;
     if (postingUrl) {
       // Once per posting: Phenom's later steps are the same page.
@@ -1467,7 +1468,7 @@ async function sharePosting(doc: Document, loc: Location) {
   const pays = readPay(doc, loc);
   await Promise.all([
     pays && send({ type: "SET_JOB_PAY", pays, passive: false }),
-    send({ type: "SET_JOB_CONTEXT", ctx: extractJobContext(doc, loc) }),
+    send({ type: "SET_JOB_CONTEXT", ctx: doc === document ? jobContext() : extractJobContext(doc, loc) }),
   ]).catch(() => undefined);
 }
 
@@ -1586,8 +1587,11 @@ function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) =>
       if (window === window.top) void startYolo();
       break;
     case "READ_POSTING":
-      // No read of a page that isn't about a job: this runs whenever a link opens a job page in a new tab.
-      sendResponse(jobUrl(location) ? extractJobContext() : null);
+      // No read of a page that isn't about a job: this runs whenever the page opens a new tab.
+      sendResponse(postingContext());
+      return false;
+    case "READ_JOB_TAB":
+      sendResponse(tabJob());
       return false;
     case "FRAME_STATUS":
       if (TOP) {
@@ -1647,10 +1651,19 @@ async function main() {
   // No message to the background until a fill: waking its service worker on every page load costs battery.
   chrome.runtime.onMessage.addListener(onMessage);
   watchPay();
+  // A YOLO run shares its posting itself (sharePosting).
+  if (TOP && !DRIVER_FRAME)
+    document.addEventListener(
+      "click",
+      (e) =>
+        yolo ||
+        shareOnApply(e, (ctx) => void send({ type: "SET_JOB_CONTEXT", ctx, passive: true }).catch(() => undefined)),
+      { capture: true, signal: life.signal },
+    );
   if (DRIVER_FRAME) void startYolo();
-  // Except a job page in a fresh tab, like the pay read above: the tab that opened it may show another job by the fill.
-  else if (TOP && history.length === 1 && jobUrl(location))
-    void send({ type: "BORROW_POSTING" }).catch(() => undefined);
+  // Except a fresh tab, at any address (an employer's form at "forms.acme.com/f/88"): the tab that opened it may show
+  // another job by the fill. Only the background knows its opener ("noreferrer" links hide it from the page).
+  else if (TOP && history.length === 1) void send({ type: "BORROW_POSTING" }).catch(() => undefined);
 }
 
 /** Edit tracking and page timers, from the first fill on a site that isn't excluded (they only act on its fields). */

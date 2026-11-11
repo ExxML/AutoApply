@@ -106,6 +106,19 @@ export function jsonLdJobPosting(doc: Document): JobPosting | null {
   return null;
 }
 
+/** A posting's company, job title and posting date from its JSON-LD: empty where it has none. */
+export function postingFacts(doc: Document): { company: string; title: string; postedAt?: number } {
+  const ld = jsonLdJobPosting(doc);
+  const org = ld?.hiringOrganization;
+  const text = (s: unknown) => (typeof s === "string" ? collapse(s).slice(0, 200) : "");
+  const posted = typeof ld?.datePosted === "string" ? Date.parse(ld.datePosted) : NaN;
+  return {
+    company: text(typeof org === "string" ? org : org?.name),
+    title: text(ld?.title),
+    ...(posted > 0 && { postedAt: posted }),
+  };
+}
+
 export function companyFromHost(loc: Location): string {
   const host = loc.hostname.replace(/^(www|careers|jobs|apply)\./, "");
   if (isAtsHost(loc.hostname, loc.pathname)) {
@@ -152,8 +165,13 @@ function largestDescriptionBlock(doc: Document): string {
   best ??= markedDescription(doc);
   if (!best) return "";
   if (best.ownerDocument !== document) return collapse(spacedText(best)).slice(0, 8000);
-  let shown = collapse(best.innerText);
-  for (const t of hiddenStrings(best)) shown = shown.replace(t, " ");
+  return shownText(best);
+}
+
+/** An element's text as people see it, less what's hidden from them (instructions planted for AI). */
+export function shownText(el: HTMLElement): string {
+  let shown = collapse(el.innerText);
+  for (const t of hiddenStrings(el)) shown = shown.replace(t, " ");
   return collapse(shown).slice(0, 8000);
 }
 
@@ -367,6 +385,7 @@ export function payIn(text: string): Pay[] {
 const RE_JOB_URL = /job|career|position|opening|vacanc|requisition|posting|recruit|hiring/i;
 /** An address that may show a job posting: an ATS, or a URL that says so. */
 export const jobUrl = (loc: Location) => isAtsHost(loc.hostname, loc.pathname) || RE_JOB_URL.test(loc.href);
+
 const CONTROLS = "input:not([type=hidden]),select,textarea";
 const SKIP_TEXT = "script,style,noscript,template,form,label,fieldset,select,textarea,button,[role=dialog],nav,footer";
 

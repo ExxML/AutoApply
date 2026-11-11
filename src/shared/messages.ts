@@ -87,7 +87,8 @@ export type Message =
   | { type: "GET_RUNTIME_CONFIG"; yolo?: boolean }
   | { type: "GET_DOCUMENT"; id: string }
   | { type: "GET_DOC_JOB"; id: string }
-  | { type: "SET_JOB_CONTEXT"; ctx: JobContext }
+  /** `passive`: read outside a fill (the user pressing a posting's Apply), so dropped on a site the user excluded. */
+  | { type: "SET_JOB_CONTEXT"; ctx: JobContext; passive?: boolean }
   /** A job page opened in a new tab: keep the posting of the tab that opened it, while that tab still shows it. */
   | { type: "BORROW_POSTING" }
   /** Which résumé variant to upload for the tab's job. */
@@ -138,6 +139,10 @@ export type Message =
   | { type: "YOLO_CHECK_NOW" }
   | { type: "YOLO_FORCE_BATCH" }
   | { type: "YOLO_APPLY_QUEUED" }
+  /** Applies to the jobs open in a window's tabs, each in its own tab (popup). */
+  | { type: "YOLO_APPLY_TABS"; windowId: number }
+  /** The job tabs not started yet are left alone; the one being filled finishes. */
+  | { type: "YOLO_TABS_STOP" }
   | { type: "YOLO_RESUME"; key: string }
   | { type: "YOLO_RESUME_PENDING" }
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
@@ -178,6 +183,7 @@ export type Message =
   | { type: "REGEN_DOC"; frameId: number; fieldId: string }
   | { type: "TOGGLE_OVERLAY" }
   | { type: "READ_POSTING" }
+  | { type: "READ_JOB_TAB" }
   // popup → B
   | { type: "TAB_STATUS"; tabId: number }
   // O → B
@@ -209,6 +215,14 @@ export interface Responses {
   SET_JOB_CONTEXT: Ok;
   BORROW_POSTING: Ok;
   READ_POSTING: JobContext | null;
+  /** `companyGuessed`: from the page's address, which the page doesn't name; `context`: the posting, for the run. */
+  READ_JOB_TAB: {
+    company: string;
+    title: string;
+    postedAt?: number;
+    companyGuessed?: boolean;
+    context: JobContext;
+  } | null;
   PICK_RESUME: { id: string | null };
   SET_JOB_PAY: Ok;
   MAP_FIELDS: { decisions: Decision[]; usedModel: string } | Err;
@@ -282,6 +296,9 @@ export interface Responses {
   YOLO_CHECK_NOW: Ok;
   YOLO_FORCE_BATCH: Ok | Err;
   YOLO_APPLY_QUEUED: Ok | Err;
+  /** `skipped`: job tabs not applied to, each with why; `others`: tabs showing no job. */
+  YOLO_APPLY_TABS: { ok: true; added: number; skipped: { url: string; reason: string }[]; others: number } | Err;
+  YOLO_TABS_STOP: Ok;
   YOLO_RESUME: Ok | Err;
   YOLO_RESUME_PENDING: { ok: true; queued: number } | Err;
   YOLO_MARK_SUBMITTED: Ok | Err;

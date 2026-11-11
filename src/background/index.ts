@@ -376,7 +376,8 @@ const handlers: Handlers = {
   /** The job details an AI-made document (tailored résumé, generated cover letter) was written from. */
   GET_DOC_JOB: ({ id }) => session.get(`docjob:${id}`),
 
-  async SET_JOB_CONTEXT({ ctx }, sender) {
+  async SET_JOB_CONTEXT({ ctx, passive }, sender) {
+    if (passive && isExcluded(hostOf(sender.tab?.url ?? sender.url))) return { ok: true };
     const tab = await runTab(sender);
     const job = await yoloJob(sender);
     if (job) ctx = { ...ctx, company: job.company || ctx.company, jobTitle: job.title || ctx.jobTitle };

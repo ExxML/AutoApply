@@ -900,6 +900,30 @@ main:has(.applications-table-scroll) {
 .popup .yolo-actions .help + .btn {
   margin-top: 8px;
 }
+.popup .yolo-actions + .yolo-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.popup .tabs-row {
+  display: flex;
+  gap: 8px;
+}
+.popup .tabs-row .btn:first-child {
+  flex: 1;
+}
+.popup .tabs-row .btn + .btn {
+  width: auto;
+  margin: 0;
+}
+.popup .tabs-skipped {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.popup .tabs-skipped .tab-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .popup .links {
   display: flex;
   gap: 14px;

@@ -1,6 +1,6 @@
 // YOLO coordinator: the check timer, the queue, the application log, and every message of a run. With YOLO off no
 // alarm exists, so none of this runs.
-import type { Message, Responses, YoloResult } from "../../shared/messages";
+import { ensureContentScript, type Message, type Responses, type YoloResult } from "../../shared/messages";
 import { RE_APPLIED, SLEPT_MS } from "../../shared/constants";
 import { isTailoredDoc, resumeProblem } from "../../shared/resumeMode";
 import { collapse } from "../../shared/normalize";
@@ -24,10 +24,11 @@ import { draftEssays } from "../services/draftEssays";
 import { FALLBACK, tailoredDoc } from "../services/tailorResume";
 import { jobBrief } from "../services/jobBrief";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
-import { getJobContext } from "../jobContext";
+import { getJobContext, setJobContext } from "../jobContext";
 import { realInput, realInputReady, releaseRealInput } from "./realInput";
 import { markApplicationSubmitted, recordApplication, updateApplications, updateQueue } from "./applicationStore";
 import { nextPendingResume, pendingResumeKeys, pendingResumeStarted, queuePendingResumes } from "./pendingResumes";
+import { tabJobs, updateTabJobs } from "./tabJobs";
 import { completedSince, needsReviewTab, pendingReview, reviewReasons } from "./submissionReview";
 import {
   dismissReview,
@@ -68,6 +69,7 @@ import {
   fromRun,
   getRun,
   overdue,
+  ownTab,
   resolveScrape,
   REVIEW_RUN_MS,
   saveRun,
@@ -407,10 +409,12 @@ async function pump() {
       await pendingResumeStarted(pending.key);
       return;
     }
-    if (!yolo.enabled) return;
-    // The user is asked to clear Indeed's bot check: applying waits for the check to read Indeed.
-    if (indeedWaiting) return;
     const apps = await store.get("applications");
+    // Jobs in the user's tabs: whether YOLO is on or not, ahead of its queue, and past its batch's budget.
+    const tabbed = await nextTabJob(apps);
+    if (!yolo.enabled && !tabbed) return;
+    // The user is asked to clear Indeed's bot check: applying waits for the check to read Indeed.
+    if (indeedWaiting && !tabbed) return;
     const policy = yolo.submissionReview;
     if (policy.mode === "matching" && !hasReviewRules(policy)) {
       await setState({ pauseReason: "Select at least one review rule in YOLO settings" });
@@ -423,30 +427,40 @@ async function pump() {
       await closeFrame().catch(() => undefined);
       return;
     }
-    const queue = await store.get("yoloQueue");
-    if (!queue.length) return void ((await topUp()) || (await closeFrame().catch(() => undefined)));
-    if (completedSince(apps, state.batchAt) >= yolo.batchSize) {
-      await setState({ pauseReason: "Batch done" });
-      return void (await closeFrame().catch(() => undefined));
+    if (!tabbed) {
+      const queue = await store.get("yoloQueue");
+      if (!queue.length) return void ((await topUp()) || (await closeFrame().catch(() => undefined)));
+      if (completedSince(apps, state.batchAt) >= yolo.batchSize) {
+        await setState({ pauseReason: "Batch done" });
+        return void (await closeFrame().catch(() => undefined));
+      }
     }
     const ctx = await deps.serviceCtx();
     if ("error" in ctx) return void (await setState({ pauseReason: ctx.error.message }));
     const blocked = await resumeBlocker();
     if (blocked) return void (await setState({ pauseReason: blocked }));
-    let item: QueueItem | undefined;
+    let item = tabbed;
+    if (tabbed) {
+      await updateTabJobs((jobs) => jobs.filter((j) => j.tabId !== tabbed.tabId));
+      // The posting read when it was queued, fresh again for the run: its later pages often show no description.
+      const posting = await session.getJobContext(tabbed.tabId!);
+      if (posting) await session.setJobContext(tabbed.tabId!, { ...posting, capturedAt: Date.now() });
+    }
     // Taken from the queue as it is now (discovery or a requeue may have changed it since), dropping jobs already in
     // Applications: discovery can queue one in the moment between its run ending and its result being recorded.
     // Requeued jobs were put back on purpose.
-    await updateQueue((q) => {
-      const ok = (i: QueueItem) => i.postedAt === RETRY || !applied(apps, i.key, i.alt, yolo.reapplyManual);
-      const [first, ...rest] = inQueueOrder(q.filter(ok), yolo);
-      item = first;
-      // Its other copies too: a requeued copy would skip the already-applied check above.
-      return rest.filter((i) => i.key !== first?.key);
-    });
+    else
+      await updateQueue((q) => {
+        const ok = (i: QueueItem) => i.postedAt === RETRY || !applied(apps, i.key, i.alt, yolo.reapplyManual);
+        const [first, ...rest] = inQueueOrder(q.filter(ok), yolo);
+        item = first;
+        // Its other copies too: a requeued copy would skip the already-applied check above.
+        return rest.filter((i) => i.key !== first?.key);
+      });
     if (!item) return;
     await setState({ pauseReason: "" });
-    const tab = yolo.tabFallback && (await store.get("yoloTabHosts")).includes(hostOf(applyUrl(item.url)));
+    const tab =
+      !!tabbed || (yolo.tabFallback && (await store.get("yoloTabHosts")).includes(hostOf(applyUrl(item.url))));
     const reviewTab = needsReviewTab(policy, item);
     await start(
       item,
@@ -456,6 +470,19 @@ async function pump() {
     );
   } finally {
     pumping = false;
+  }
+}
+
+/**
+ * The first job tab still showing its job, not applied to since: closed, moved and applied ones are dropped, and not
+ * recorded, so YOLO can still apply to them later. One YOLO put back (its sleep, an AI limit) has moved on by itself.
+ */
+async function nextTabJob(apps: Application[]): Promise<QueueItem | undefined> {
+  for (const job of await tabJobs()) {
+    const tab = await chrome.tabs.get(job.tabId!).catch(() => null);
+    const shown = job.postedAt === RETRY || jobKey(tab?.url ?? "") === job.listing;
+    if (tab && shown && !applied(apps, job.key, job.alt, yolo.reapplyManual)) return job;
+    await updateTabJobs((jobs) => jobs.filter((j) => j.tabId !== job.tabId));
   }
 }
 
@@ -475,6 +502,8 @@ async function requeue(item: QueueItem, resumeKey?: string) {
     await queueReviewRefill(held.key);
     return;
   }
+  if (item.tabId !== undefined)
+    return updateTabJobs((jobs) => [{ ...item, postedAt: RETRY }, ...jobs.filter((j) => j.tabId !== item.tabId)]);
   // Replaces any copy already queued: two recoveries racing on one in-flight job would otherwise queue it twice, and
   // requeued jobs skip the already-applied check.
   await updateQueue((q) => [{ ...item, postedAt: RETRY }, ...q.filter((i) => i.key !== item.key)]);
@@ -540,6 +569,8 @@ export async function recoverLost() {
       notes: [],
       at: Date.now(),
     });
+  // A job tab's id is gone with the restart: dropped unrecorded, like a job tab closed before its turn.
+  if (item.tabId !== undefined) return;
   await requeue({ ...item, retries: (item.retries ?? 0) + 1 });
   if (yolo.enabled) await whenOnline("pump");
 }
@@ -549,6 +580,16 @@ export async function recoverLost() {
  * refused, re-queued on a quota stop, else logged.
  */
 async function finish(run: Run, r: YoloResult) {
+  // The user closed their job tab before it was sent: dropped unrecorded, as before its turn, to apply to again later.
+  if (
+    run.item.tabId !== undefined &&
+    !run.confirming &&
+    r.status !== "submitted" &&
+    !(await chrome.tabs.get(run.item.tabId).catch(() => null))
+  ) {
+    if (await end(run.id)) void pump();
+    return;
+  }
   if (run.reviewTab && run.tabId !== undefined && (r.status === "needs" || r.status === "failed") && !r.retryAt) {
     await holdForReview(run, "needs", r.reason);
     return;
@@ -590,7 +631,7 @@ async function finish(run: Run, r: YoloResult) {
   const a = await outcome(run, r);
   await record(a);
   // A parked tab the user opened: they solved its CAPTCHA and left it to finish.
-  if (run.adopted && a.status === "submitted" && run.tabId !== undefined) await closeTab(run.tabId);
+  if (run.adopted && a.status === "submitted" && !ownTab(run)) await closeTab(run.tabId!);
   if (a.status === "needs" && (run.host !== "visible" || run.adopted))
     notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: ${a.reason}`);
   void pump();
@@ -799,7 +840,9 @@ export async function yoloJob(
 ): Promise<{ company: string; title: string; location: string } | null> {
   const run = await getRun();
   if (!fromRun(run, sender) || run.mode !== "apply" || run.item.source === "careers") return null;
-  return { company: run.item.company, title: run.item.title, location: run.item.location };
+  // A job tab's guessed company ("recruiting" for UKG's recruiting.ultipro.ca) is left to the pages.
+  const company = run.item.companyGuessed ? "" : run.item.company;
+  return { company, title: run.item.title, location: run.item.location };
 }
 
 /** The run's tab as the rest of the background sees it; the hidden frame has none, so it stands in as tab -1. */
@@ -878,6 +921,95 @@ export async function yoloUpload(sender: chrome.runtime.MessageSender, id: strin
 export const isYoloDoc = (id: string) => id.startsWith("yolo-");
 export const yoloDoc = (id: string) => session.get<{ meta: DocumentMeta; base64: string }>(`yolodoc:${id}`);
 
+type NamedJob = { url: string; company: string; title: string; postedAt?: number };
+
+/**
+ * Jobs the user names (Applications > Add jobs, or their open tabs) as queue items: each one posting, with its company
+ * and title, on the employer's own posting where a board's leads there, not applied to yet nor being applied to now.
+ */
+async function vetJobs<T extends NamedJob>(jobs: T[]) {
+  const now = Date.now();
+  const [apps, yolo, employerBoards, run] = await Promise.all([
+    store.get("applications"),
+    store.get("yolo"),
+    store.get("employerBoards"),
+    getRun(),
+  ]);
+  // A copy: discovery writes the cache back at its end, and would overwrite this.
+  const known = { ...employerBoards };
+  const boards = new Map<string, Listing[] | null>();
+  const skipped: { url: string; reason: string }[] = [];
+  const items: { item: QueueItem; job: T }[] = [];
+  for (const job of jobs) {
+    const [company, title] = [collapse(job.company), collapse(job.title)];
+    const skip = (reason: string) => void skipped.push({ url: job.url, reason });
+    let url = job.url.trim();
+    // A site root or shared apply page would read as "already applied" for every job on that site.
+    if (!/^https?:\/\//i.test(url) || !namesPosting(url)) {
+      skip("Not a link to one job posting");
+      continue;
+    }
+    if (!company || !title) {
+      skip("Needs its company and job title");
+      continue;
+    }
+    const listing = jobKey(url);
+    const board = /^(linkedin|indeed|glassdoor|ziprecruiter):/.exec(listing)?.[1];
+    // As discovery does: applied to on the employer's own posting. Only LinkedIn shows the run no way there.
+    if (board) {
+      const l = { url, company, title, location: "", source: board };
+      const own = await findOnEmployerBoard(fetcher, l, known, boards).catch(() => null);
+      if (own) url = own;
+      else if (board === "linkedin") {
+        skip("LinkedIn doesn't link to the employer's site: add the employer's own posting link");
+        continue;
+      }
+    }
+    const key = jobKey(url);
+    const alt = altKey(company, title);
+    if (applied(apps, key, alt, yolo.reapplyManual) || applied(apps, listing, "", yolo.reapplyManual))
+      skip("Already in Applications");
+    else if (
+      run?.mode === "apply" &&
+      [run.item.key, run.item.listing, run.item.alt].some((k) => k && [key, listing, alt].includes(k))
+    )
+      skip("YOLO is applying to it now");
+    else {
+      const posted = job.postedAt && job.postedAt > 0 && job.postedAt <= now ? job.postedAt : now;
+      const item = { key, alt, listing, url, company, title, location: "", postedAt: posted, addedAt: now };
+      items.push({ item: { ...item, source: "added", sourceGroups: ["added"] }, job });
+    }
+  }
+  return { items, skipped };
+}
+
+/** The vetted jobs not already in `list`, once each; the rest go to `skipped`, with `reason`. */
+function newJobs<T extends NamedJob>(
+  list: QueueItem[],
+  items: { item: QueueItem; job: T }[],
+  skipped: { url: string; reason: string }[],
+  reason: string,
+) {
+  const have = new Set(list.flatMap((i) => [i.key, i.alt, i.listing]).filter(Boolean));
+  return items.filter(({ item: i, job }) => {
+    const ids = [i.key, i.alt, i.listing].filter(Boolean);
+    if (ids.some((k) => have.has(k))) return void skipped.push({ url: job.url, reason });
+    ids.forEach((k) => have.add(k));
+    return true;
+  });
+}
+
+/** The job a tab shows, with its address and id; null for one showing no job, or one nothing of ours can run in. */
+async function readJobTab(t: chrome.tabs.Tab) {
+  const url = t.url ?? "";
+  if (t.id === undefined || t.discarded || !/^https?:\/\//i.test(url) || !namesPosting(url)) return null;
+  // A tab opened before the extension was last loaded has no content script yet.
+  await ensureContentScript(t.id);
+  const ask: Message = { type: "READ_JOB_TAB" };
+  const job: Responses["READ_JOB_TAB"] = await chrome.tabs.sendMessage(t.id, ask, { frameId: 0 }).catch(() => null);
+  return job && { ...job, url, tabId: t.id };
+}
+
 // ---------- messages ----------
 export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_STATUS() {
@@ -895,6 +1027,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       appliedBatch: submittedSince(apps, state.batchAt),
       batchSize: yolo.batchSize,
       queued: queue.length,
+      tabJobs: (await tabJobs()).length,
+      tabRun: run?.item.tabId !== undefined,
       queueOnlyBatch: state.queueOnlyBatch,
       needsYou: apps.filter((a) => a.status === "needs").length,
       pendingReviews: apps.filter(pendingReview).length,
@@ -1077,72 +1211,51 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   },
 
   async YOLO_QUEUE_ADD({ jobs }) {
-    const now = Date.now();
-    const [apps, yolo, employerBoards, run] = await Promise.all([
-      store.get("applications"),
-      store.get("yolo"),
-      store.get("employerBoards"),
-      getRun(),
-    ]);
-    // A copy: discovery writes the cache back at its end, and would overwrite this.
-    const known = { ...employerBoards };
-    const boards = new Map<string, Listing[] | null>();
-    const skipped: { url: string; reason: string }[] = [];
-    const items: { item: QueueItem; pasted: string }[] = [];
-    for (const job of jobs) {
-      const [company, title] = [collapse(job.company), collapse(job.title)];
-      const skip = (reason: string) => void skipped.push({ url: job.url, reason });
-      let url = job.url.trim();
-      // A site root or shared apply page would read as "already applied" for every job on that site.
-      if (!/^https?:\/\//i.test(url) || !namesPosting(url)) {
-        skip("Not a link to one job posting");
-        continue;
-      }
-      if (!company || !title) {
-        skip("Needs its company and job title");
-        continue;
-      }
-      const listing = jobKey(url);
-      const board = /^(linkedin|indeed|glassdoor|ziprecruiter):/.exec(listing)?.[1];
-      // As discovery does: applied to on the employer's own posting. Only LinkedIn shows the run no way there.
-      if (board) {
-        const l = { url, company, title, location: "", source: board };
-        const own = await findOnEmployerBoard(fetcher, l, known, boards).catch(() => null);
-        if (own) url = own;
-        else if (board === "linkedin") {
-          skip("LinkedIn doesn't link to the employer's site: add the employer's own posting link");
-          continue;
-        }
-      }
-      const key = jobKey(url);
-      const alt = altKey(company, title);
-      if (applied(apps, key, alt, yolo.reapplyManual) || applied(apps, listing, "", yolo.reapplyManual))
-        skip("Already in Applications");
-      else if (
-        run?.mode === "apply" &&
-        [run.item.key, run.item.listing, run.item.alt].some((k) => k && [key, listing, alt].includes(k))
-      )
-        skip("YOLO is applying to it now");
-      else {
-        const posted = job.postedAt && job.postedAt > 0 && job.postedAt <= now ? job.postedAt : now;
-        const item = { key, alt, listing, url, company, title, location: "", postedAt: posted, addedAt: now };
-        items.push({ item: { ...item, source: "added", sourceGroups: ["added"] }, pasted: job.url });
-      }
-    }
+    const { items, skipped } = await vetJobs(jobs);
     let added = 0;
     await updateQueue((q) => {
-      const have = new Set(q.flatMap((i) => [i.key, i.alt, i.listing]).filter(Boolean));
-      const adding = items.flatMap(({ item: i, pasted }) => {
-        const ids = [i.key, i.alt, i.listing].filter(Boolean);
-        if (ids.some((k) => have.has(k))) return (skipped.push({ url: pasted, reason: "Already queued" }), []);
-        ids.forEach((k) => have.add(k));
-        return [i];
-      });
+      const adding = newJobs(q, items, skipped, "Already queued").map(({ item }) => item);
       added = adding.length;
       return [...q, ...adding];
     });
     if (added) void pump();
     return { ok: true, added, skipped };
+  },
+
+  async YOLO_APPLY_TABS({ windowId }) {
+    // Checked now, not at each tab's turn: with YOLO off, the popup shows no pause reason.
+    const ctx = await deps.serviceCtx();
+    if ("error" in ctx) return { error: ctx.error };
+    const blocked = await resumeBlocker();
+    if (blocked) return { error: { kind: "other", message: blocked } };
+    const tabs = await chrome.tabs.query({ windowId });
+    const found = (await Promise.all(tabs.map(readJobTab))).filter((j) => !!j);
+    const { items, skipped } = await vetJobs(found);
+    // Memory saver unloaded it: its page can't be read until it loads again.
+    const unloaded = tabs.filter((t) => t.discarded && t.url && namesPosting(t.url));
+    for (const t of unloaded) skipped.push({ url: t.url!, reason: "Not loaded: open the tab once, then try again" });
+    // Each tab's own posting, kept for its run: before it can start.
+    for (const { job } of items) await setJobContext(job.tabId, job.context);
+    let added = 0;
+    await updateTabJobs((list) => {
+      const adding = newJobs(list, items, skipped, "Already in this run");
+      added = adding.length;
+      return [
+        ...list,
+        ...adding.map(({ item, job }) => ({
+          ...item,
+          tabId: job.tabId,
+          ...(job.companyGuessed && { companyGuessed: true }),
+        })),
+      ];
+    });
+    if (added) void pump();
+    return { ok: true, added, skipped, others: tabs.length - found.length - unloaded.length };
+  },
+
+  async YOLO_TABS_STOP() {
+    await updateTabJobs(() => []);
+    return { ok: true };
   },
 
   async YOLO_FORGET({ key }) {
