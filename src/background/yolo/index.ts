@@ -53,7 +53,7 @@ import {
   waitForFeedCode,
 } from "./gmail";
 import { closeFrame, openTab } from "./host";
-import { altKey, applyUrl, jobKey, namesPosting } from "./jobKey";
+import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "./jobKey";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
 import { letterText, textPdf } from "./pdf";
@@ -728,7 +728,7 @@ async function resume(key: string): Promise<Responses["YOLO_RESUME"]> {
 async function startResumed(a: Application, host: "tab" | "visible") {
   const reviewing = !!a.review || a.status === "review";
   const policy = reviewing ? { ...yolo.submissionReview, mode: "all" as const } : yolo.submissionReview;
-  const item = { ...a, listing: "", postedAt: 0, addedAt: Date.now() };
+  const item = { ...a, url: reviewing ? a.url : restartUrl(a.url), listing: "", postedAt: 0, addedAt: Date.now() };
   await start(
     item,
     "apply",

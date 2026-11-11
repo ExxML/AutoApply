@@ -18,10 +18,24 @@ const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
 const RE_VERIFY_BTN =
   /^(verify|confirm|continue|next|submit|sign ?in|send( (me )?(a |the )?(reset )?(link|email|code))?|reset( (my |your )?password)?)$/i;
 
-/** The account a site's applications share: a Workday tenant's, else the site's own. */
-export function siteKey(): string {
-  const h = location.hostname.toLowerCase();
-  return /\.myworkday(jobs|site)\.com$/.test(h) ? `workday:${h.split(".")[0]}` : h.replace(/^www\./, "");
+/** The account a site's applications share: a Workday tenant's, a SuccessFactors company's, else the site's own. */
+export function siteKey(href = location.href): string {
+  const u = new URL(href);
+  const h = u.hostname.toLowerCase();
+  if (/\.myworkday(jobs|site)\.com$/.test(h)) return `workday:${h.split(".")[0]}`;
+  // One SuccessFactors host serves many companies, each with its own accounts: Teck's sign-in got another company's
+  // password for career4.successfactors.com.
+  if (!/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/.test(h)) return h.replace(/^www\./, "");
+  // Its later pages can drop ?company= (Teck's and L3Harris's sign-in, "/career?_s.crb=…"): the tab's last one stands,
+  // remembered from every page the run saw (driver.ts). Unknown, it is no other company's: never the bare host's.
+  let company = [...u.searchParams].find(([k]) => k.toLowerCase() === "company")?.[1]?.toLowerCase();
+  try {
+    if (company) sessionStorage.setItem("autoapply-sf-company", company);
+    else company = sessionStorage.getItem("autoapply-sf-company") ?? undefined;
+  } catch {
+    // storage refused (a third-party frame's): the address alone
+  }
+  return `sf:${h}:${company ?? ""}`;
 }
 
 const emailInputs = () =>

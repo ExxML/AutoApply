@@ -9,7 +9,16 @@ import type { Guess } from "../../shared/yolo";
 import { sleep, waitFor } from "../fill/events";
 import { deepQueryAll } from "../scan/traverse";
 import { isVisible, isVisibleAnyOpacity } from "../scan/visibility";
-import { acceptNotices, emailSignIn, findSignup, forgotPassword, handleAuth, handleVerify, setLogin } from "./auth";
+import {
+  acceptNotices,
+  emailSignIn,
+  findSignup,
+  forgotPassword,
+  handleAuth,
+  handleVerify,
+  setLogin,
+  siteKey,
+} from "./auth";
 import { botWall, captchaShown, embeddedForm, pageFacts, pageText, scoreCheck } from "./classify";
 import { IN_HOST } from "./frame";
 import { realFor, realPress, setGraded, setRealMode } from "./real";
@@ -139,6 +148,7 @@ export async function drive(deps: DriverDeps) {
   if (!hello) return void (driving = false);
   // A hidden run's page never asks "Leave site?" (pageTimers.ts); a visible one's user can answer it.
   if (!hello.visible) document.dispatchEvent(new Event("autoapply-yolo"));
+  siteKey(); // a SuccessFactors page's company, for its sign-in pages that leave it out of the address
   setRealMode(hello.realInput);
   const result = (r: YoloResult) =>
     void send({ type: "YOLO_RESULT", result: r, runId: hello.runId }).catch(() => undefined);

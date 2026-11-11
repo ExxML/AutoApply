@@ -96,6 +96,20 @@ export function altKey(company: string, title: string): string {
   return `${c.replace(/\s+/g, " ").trim()}|${t.replace(/\s+/g, " ").trim()}`;
 }
 
+/**
+ * Where a resumed application starts over. A SuccessFactors run stopped mid sign-in keeps that page's session-bound
+ * address (Teck's "login_ns=forgot_pwd&requestParams=…"): Resume reopened the password reset instead of the job.
+ * Its posting's own link starts the job again; other addresses stay as they are.
+ */
+export function restartUrl(raw: string): string {
+  const u = parse(raw);
+  if (!u || !/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/i.test(u.hostname)) return raw;
+  const q = (k: string) => [...u.searchParams].find(([p]) => p.toLowerCase() === k)?.[1];
+  const [company, id] = [q("company"), q("career_job_req_id")];
+  if (!company || !id) return raw;
+  return `${u.origin}/career?career_ns=job_listing&company=${encodeURIComponent(company)}&career_job_req_id=${encodeURIComponent(id)}`;
+}
+
 /** Where an application starts: the ATS's own form page, skipping its description page where the URL allows. */
 export function applyUrl(raw: string): string {
   const u = parse(raw);

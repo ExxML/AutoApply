@@ -439,4 +439,20 @@ describe("YOLO buttons", () => {
   it("keys site accounts per Workday tenant", () => {
     expect(siteKey()).toBe(location.hostname.replace(/^www\./, ""));
   });
+
+  it("keys SuccessFactors accounts per company, which its later pages may leave out of the address", () => {
+    expect(siteKey("https://career4.successfactors.com/career?company=Teck&career_job_req_id=54593")).toBe(
+      "sf:career4.successfactors.com:teck",
+    );
+    expect(siteKey("https://career4.successfactors.com/career?company=acuitybrands")).toBe(
+      "sf:career4.successfactors.com:acuitybrands",
+    );
+    expect(siteKey("https://career4.successfactors.com/career?_s.crb=x")).toBe(
+      "sf:career4.successfactors.com:acuitybrands",
+    );
+    // Never known: no other company's account (the bare host's held one).
+    sessionStorage.clear();
+    expect(siteKey("https://career4.successfactors.com/career?_s.crb=x")).toBe("sf:career4.successfactors.com:");
+    expect(siteKey("https://jobs.lever.co/x/1?company=y")).toBe("jobs.lever.co");
+  });
 });

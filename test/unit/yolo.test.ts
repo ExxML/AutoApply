@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
-import { altKey, applyUrl, jobKey, namesPosting } from "../../src/background/yolo/jobKey";
+import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "../../src/background/yolo/jobKey";
 import {
   glassdoorMore,
   glassdoorSearch,
@@ -120,6 +120,18 @@ describe("job keys", () => {
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en/job/13309/software-intern")).toBe(true);
     expect(namesPosting("https://jobs.bce.ca/bell/job/Montreal-Intern/1433151100")).toBe(true);
     expect(namesPosting("https://www.d2l.com/careers/jobs/?job_id=8289767")).toBe(true);
+  });
+
+  it("resumes a SuccessFactors application from its posting, not the page it stopped on", () => {
+    expect(
+      restartUrl(
+        "https://career4.successfactors.com/career?company=Teck&site=&lang=en_US&requestParams=x&login_ns=forgot_pwd&career_ns=job%5fapplication&career_job_req_id=54593&jobPipeline=Indeed",
+      ),
+    ).toBe("https://career4.successfactors.com/career?career_ns=job_listing&company=Teck&career_job_req_id=54593");
+    expect(restartUrl("https://career-hcm20.ns2cloud.com/careers?company=L3HHCM20")).toBe(
+      "https://career-hcm20.ns2cloud.com/careers?company=L3HHCM20",
+    );
+    expect(restartUrl("https://jobs.lever.co/x/1/apply")).toBe("https://jobs.lever.co/x/1/apply");
   });
 
   it("opens an iCIMS page's own frame as its mobile view in a tab", () => {
