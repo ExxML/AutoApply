@@ -1848,6 +1848,98 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
   });
 
+  it("answers a job entry's Current Employer from that entry", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.experience = [
+      { ...emptyProfile().experience[0], company: "FORM Swim", endDate: "2026-08", current: false },
+      { ...emptyProfile().experience[0], company: "Acme", startDate: "2026-09", current: true },
+    ];
+    const fields = [
+      field("a", {
+        label: "Current Employer",
+        kind: "select",
+        options: ["Yes", "No"],
+        section: "Previous Employment 1",
+      }),
+      field("b", { label: "Current Employer", kind: "typeahead", section: "Previous Employment 2" }),
+      field("c", { label: "I currently work here", kind: "checkbox", section: "Work Experience 2" }),
+      // Not an entry's: the profile step's own "Current Employer" box (a company name).
+      field("d", { label: "Current Employer", kind: "text" }),
+    ];
+    const r = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile, documents: [], job: null },
+    );
+    const got = r.decisions.map((d) => d.intendedAnswer ?? d.checked ?? d.text ?? d.action);
+    expect(got.slice(0, 3)).toEqual(["No", "Yes", true]);
+    expect(["Yes", "No"]).not.toContain(got[3]);
+  });
+
+  it("answers a native language row's Years of Experience as Native", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.skills.languages = [
+      { language: "English", proficiency: "Native" },
+      { language: "French", proficiency: "Basic" },
+    ];
+    const years = ["Native", "1 year", "3 years", "5+ years"];
+    const fields = [
+      field("a", { label: "Years of Experience", kind: "dropdown", options: years, section: "1. Language Skills" }),
+      field("b", { label: "Years of Experience", kind: "dropdown", options: years, section: "2. Language Skills" }),
+      field("c", { label: "Years of Experience", kind: "dropdown", options: years, section: "Work Experience 1" }),
+    ];
+    const r = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      { fields, profile, documents: [], job: null },
+    );
+    expect(r.decisions.map((d) => d.intendedAnswer ?? d.action)).toEqual(["Native", "flag", "flag"]);
+  });
+
+  it("answers a highest degree completed or not with the degree in progress", async () => {
+    const gemini = {
+      call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
+        const decisions = (s.payload.fields ?? []).map((f) => ({ fieldId: f.id, action: "flag", confidence: "low" }));
+        return { data: { decisions, verdicts: [] }, usedModel: "m", keyLabel: "k" };
+      },
+    } as unknown as Gemini;
+    const profile = emptyProfile();
+    profile.highSchool.graduationYear = "2024";
+    profile.education = [
+      {
+        ...emptyProfile().education[0],
+        school: "UBC",
+        degree: "Bachelor of Science",
+        expectedGraduation: "2099-05",
+        currentlyEnrolled: "yes",
+      },
+    ];
+    const levels = ["High School", "Associate's Degree", "Bachelor's Degree", "Master's Degree", "Doctorate"];
+    const ask = async (label: string) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          { fields: [field("a", { label, kind: "select", options: levels })], profile, documents: [], job: null },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    // AMD's iCIMS got "High School" for a bachelor's student.
+    expect(await ask("Highest Degree (Completed or Not Completed)")).toEqual(["Bachelor's Degree"]);
+    expect(await ask("What is the highest level of education you have completed or are pursuing?")).toEqual([
+      "Bachelor's Degree",
+    ]);
+    expect(await ask("What is the highest level of education you have obtained?")).toEqual(["High School"]);
+  });
+
   it("matches currently enrolled education to current-attendance checkboxes", async () => {
     const asked: string[] = [];
     const gemini = {

@@ -1002,7 +1002,13 @@ function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decisi
     !/\b(education|degree)\b/i.test(f.label)
   )
     return null;
-  if (!done.test(f.label) || /\b(pursu\w*|enrolled|in progress|working (toward|on))\b/i.test(f.label)) return null;
+  if (
+    !done.test(f.label) ||
+    /\b(pursu\w*|enrolled|in progress|working (toward|on))\b|\bnot\s+(yet\s+)?(completed?|finished|obtained)\b/i.test(
+      f.label,
+    )
+  )
+    return null;
   // An education entry's "Highest Degree Achieved" (Westinghouse's, beside its school) is that entry's degree.
   if (RE_ENTRY_SECTION.test(f.section ?? "")) return null;
   if (!profile.highSchool.graduationYear) return null;
@@ -1032,6 +1038,49 @@ function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decisi
     intendedAnswer: f.options[hits[0]],
     confidence: "high",
     sources: ["highSchool", "education"],
+  };
+}
+
+/** Degree levels, lowest first, as profile entries and options word them. */
+const DEGREE_LEVELS: [Profile["education"][number]["degreeLevel"], RegExp][] = [
+  ["diploma", /\bdiploma\b|\bcertificate\b/i],
+  ["associate", /\bassociate/i],
+  ["bachelor", /\bbachelor|\bundergrad\w*|\bb\.?\s?(a|s|sc|eng|comm)\b/i],
+  ["master", /\bmaster|\bm\.?\s?(s|sc|eng|a|asc)\b|\bmba\b/i],
+  ["doctorate", /\bph\.?\s?d\b|\bdoctor/i],
+];
+const RE_SCHOOL_LEVEL = /\bhigh school\b|\bsecondary\b|\bGED\b/i;
+
+/**
+ * "Highest Degree (Completed or Not Completed)" (AMD's iCIMS) or "completed or are pursuing": the highest level among
+ * the education entries, in progress or not. The model answered AMD's "High School" for a bachelor's student.
+ */
+function pursuedEducationDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+  if (
+    !f.options ||
+    isMulti(f) ||
+    !/\bhighest\b/i.test(f.label) ||
+    !/\b(education|degree)\b/i.test(f.label) ||
+    !/\bnot\s+(yet\s+)?(completed?|finished|obtained)\b|\bpursu\w*|\bin progress\b|\bworking (toward|on)\b/i.test(
+      f.label,
+    ) ||
+    RE_ENTRY_SECTION.test(f.section ?? "")
+  )
+    return null;
+  const levelOf = (e: Profile["education"][number]) =>
+    DEGREE_LEVELS.findIndex(([l, re]) => e.degreeLevel === l || (!e.degreeLevel && re.test(e.degree)));
+  const top = Math.max(-1, ...profile.education.map(levelOf));
+  if (top < 0) return null;
+  const re = DEGREE_LEVELS[top][1];
+  const hits = f.options.flatMap((o, i) => (re.test(o) && !RE_SCHOOL_LEVEL.test(o) ? [i] : []));
+  if (hits.length !== 1) return null;
+  return {
+    fieldId: f.id,
+    action: "fill",
+    optionIndexes: hits,
+    intendedAnswer: f.options[hits[0]],
+    confidence: "high",
+    sources: ["education"],
   };
 }
 
@@ -1410,6 +1459,47 @@ const RE_CURRENT_STUDENT =
   /\b(?:currently|presently|now)\b[^?.]{0,40}\b(?:attend(?:ing)?|enrol(?:led|ment)?|stud(?:y|ying)|student)\b|\b(?:attend(?:ing)?|enrol(?:led|ment)?|stud(?:y|ying)|student)\b[^?.]{0,40}\b(?:currently|presently|now)\b|\bcurrent(?:ly)?\s+(?:enrol(?:led|ment)|student)\b|\b(?:currently|presently|now)\b[^?.]{0,40}\bpursu(?:e|ing)\b[^?.]{0,20}\b(?:degree|program|course|education)\b/i;
 const RE_NEGATED_CURRENT_STUDENT =
   /\b(?:not|no longer|never|do not|don't|does not|doesn't|is not|isn't|are not|aren't)\b[^?.]{0,35}\b(?:attend|enrol|stud|student|pursu)/i;
+
+/**
+ * A job entry's "Current Employer" / "I currently work here" (Teck's SuccessFactors "Previous Employment 1"): that
+ * entry's current flag. The review cleared Teck's, optional, each round; it is the profile's to say.
+ */
+function currentEmployerDecision(f: FieldDescriptor, experience: Profile["experience"]): Decision | null {
+  if (
+    !/^(current employer|(i )?currently (work|working|employed) here|current (job|position|role))\??\*?$/i.test(
+      f.label.trim(),
+    )
+  )
+    return null;
+  const n = /\b(employment|experience|job|position)\s*(\d+)\s*$/i.exec(f.section ?? "")?.[2];
+  const e = n ? experience[Number(n) - 1] : undefined;
+  if (!e) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["experience"] };
+  if (f.kind === "checkbox") return { ...base, checked: e.current };
+  const answer = e.current ? "yes" : "no";
+  if (!f.options)
+    return f.kind === "typeahead" || f.kind === "dropdown"
+      ? { ...base, intendedAnswer: e.current ? "Yes" : "No" }
+      : null;
+  const i = f.options.findIndex((o) => new RegExp(`^${answer}\\b`, "i").test(o.trim()));
+  return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
+}
+
+/**
+ * A language row's "Years of Experience" offering "Native" (SuccessFactors' "1. Language Skills": Native, 1 year,
+ * 3 years…): Native for a language the profile has as native. The review answered "0 - 1 Years".
+ */
+function languageYearsDecision(f: FieldDescriptor, languages: Profile["skills"]["languages"]): Decision | null {
+  if (!/\byears? of experience\b|\bexperience\b/i.test(f.label) || !/\blanguages?\b/i.test(f.section ?? ""))
+    return null;
+  const n = /^(\d+)[.)]\s|\s(\d+)\s*$/.exec(f.section ?? "");
+  const lang = n ? languages[Number(n[1] ?? n[2]) - 1] : undefined;
+  if (!lang || !/native|bilingual|mother tongue|first language/i.test(lang.proficiency)) return null;
+  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["skills"] };
+  if (!f.options) return f.kind === "dropdown" || f.kind === "typeahead" ? { ...base, intendedAnswer: "Native" } : null;
+  const i = f.options.findIndex((o) => /^native\b/i.test(o.trim()));
+  return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
+}
 
 function currentStudentDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
   if (!RE_CURRENT_STUDENT.test(f.label) || RE_NEGATED_CURRENT_STUDENT.test(f.label)) return null;
@@ -2403,6 +2493,8 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       experienceDecision(f, excluding ? fullTime : months, jobExperienceMinimum) ??
       graduationDecision(f, input.profile) ??
       currentStudentDecision(f, input.profile.education) ??
+      currentEmployerDecision(f, input.profile.experience) ??
+      languageYearsDecision(f, input.profile.skills.languages) ??
       entryDateDecision(f, input.profile) ??
       entryLocationDecision(f, input.profile.experience) ??
       recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
@@ -2410,6 +2502,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       officeDecision(f, input.profile.preferences) ??
       relocationDecision(f, input.profile.preferences, input.profile.personal.address) ??
       timezoneDecision(f, input.profile.personal.address) ??
+      pursuedEducationDecision(f, input.profile) ??
       obtainedEducationDecision(f, input.profile) ??
       basicsDecision(f, input.profile) ??
       languagesDecision(f, input.profile) ??
