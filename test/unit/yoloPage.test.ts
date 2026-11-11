@@ -384,6 +384,13 @@ describe("YOLO buttons", () => {
     document.querySelector("a")!.addEventListener("click", () => (toSignup = true));
     expect(await handleAuth("signin", async () => undefined)).toEqual({ ok: true });
     expect(toSignup).toBe(true);
+    // iCIMS' login.icims.com: an account exists for the address, no sign-up offered: reset through the inbox.
+    setBody(`<form><input name="username"><input type="password"><button>Continue</button></form>
+      <a href="#">Forgot password?</a>`);
+    let forgot = false;
+    document.querySelector("a")!.addEventListener("click", () => (forgot = true));
+    expect(await handleAuth("signin", async () => undefined)).toEqual({ ok: true });
+    expect(forgot).toBe(true);
     vi.unstubAllGlobals();
   });
 

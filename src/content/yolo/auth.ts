@@ -117,7 +117,9 @@ export async function handleAuth(
       const guest = (deepQueryAll("input[type=file]") as HTMLInputElement[]).some(
         (f) => !f.closest("form")?.querySelector("input[type=password]"),
       );
-      if (!guest) return { fail: "Needs an account it can't create" };
+      // An account that exists already, asked for its password with no way to sign up (iCIMS' login.icims.com for
+      // Kinaxis): reset it through the inbox, as when a sign-up is refused.
+      if (!guest) return findButton(RE_FORGOT) ? forgotPassword() : { fail: "Needs an account it can't create" };
       await fillRest();
       const go = findButton(/^(continue|next)$/i);
       if (!go) return { fail: "Couldn't upload a résumé as a first-time applicant" };
