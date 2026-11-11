@@ -1,10 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { localMatch, localMatchAll } from "../../src/content/match/localMatch";
 import { deterministicValue, formatPhone, matchLearned, shoutedName } from "../../src/content/match/deterministic";
-import { fitLength, formatDateFor } from "../../src/content/fill/native";
+import { byExample, byPattern, fillText, fitLength, formatDateFor } from "../../src/content/fill/native";
 import { sameValue } from "../../src/content/fill/verify";
 import { emptyProfile } from "../../src/shared/profileSchema";
 import type { FieldDescriptor } from "../../src/shared/types";
+import type { FieldHandle } from "../../src/content/scan/fields";
 import { stubLayout } from "./dom";
 
 beforeAll(stubLayout);
@@ -238,6 +239,46 @@ describe("fill formatting (§14.2, §14.3)", () => {
     wrap.className = "react-datepicker__input-container";
     const picker = wrap.appendChild(input("text", "Pick date..."));
     expect(formatDateFor(picker, "2028-05")).toBe("05/01/2028");
+    // Cornerstone's bare box beside a calendar icon wants US dates too.
+    const box = document.createElement("div");
+    const csod = box.appendChild(input("text"));
+    box.appendChild(document.createElement("span")).className = "p-calendar p-icon-calendar";
+    expect(formatDateFor(csod, "2027-01-01")).toBe("01/01/2027");
+    expect(formatDateFor(csod, "From January 1, 2027")).toBe("01/01/2027");
+    expect(formatDateFor(input("text"), "From January 1, 2027")).toBe("From January 1, 2027"); // not a date box
+  });
+  it("writes a date the way the field declares: its component's pattern or its placeholder's example", () => {
+    const jan = { y: 2026, m: 1 };
+    expect(byPattern("MMM d, y", jan)).toBe("Jan 1, 2026");
+    expect(byPattern("dd.MM.yyyy", { y: 2026, m: 8, d: 5 })).toBe("05.08.2026");
+    expect(byPattern("MMMM yyyy", jan)).toBe("January 2026");
+    expect(byExample("e.g. Dec 31, 2025", jan)).toBe("Jan 1, 2026");
+    expect(byExample("31/12/2025", { y: 2026, m: 8, d: 5 })).toBe("05/08/2026");
+    expect(byExample("12/31/2025", { y: 2026, m: 8, d: 5 })).toBe("08/05/2026");
+    expect(byExample("01/02/2025", jan)).toBeNull(); // which is the day?
+    expect(byExample("Select a date", jan)).toBeNull();
+    // A UI5 date picker declaring its pattern, its box in its shadow root.
+    const host = document.createElement("div");
+    host.setAttribute("format-pattern", "MMM d, y");
+    const inner = host.attachShadow({ mode: "open" }).appendChild(input("text"));
+    expect(formatDateFor(inner, "January 2026")).toBe("Jan 1, 2026");
+  });
+  it("tries the ways dates are written until a field that declares no format takes one", async () => {
+    // Teck's SuccessFactors date picker: "January 2026" shown but marked invalid, "Jan 1, 2026" taken.
+    document.body.innerHTML = `<label for="sd">Start Date</label><input id="sd" type="text">`;
+    const el = document.getElementById("sd") as HTMLInputElement;
+    el.addEventListener("change", () =>
+      el.setAttribute("aria-invalid", String(!/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(el.value))),
+    );
+    const h = { el, desc: { kind: "text", label: "Start Date" } } as unknown as FieldHandle;
+    expect(await fillText(h, "January 2026")).toMatchObject({ outcome: "ok", shown: "Jan 1, 2026" });
+    // A field the page marked before the fill (only checked on submit) is filled as before.
+    el.value = "";
+    el.setAttribute("aria-invalid", "true");
+    const plain = Object.assign(document.createElement("input"), { type: "text" });
+    plain.setAttribute("aria-invalid", "true");
+    const h2 = { el: plain, desc: { kind: "text", label: "Start Date" } } as unknown as FieldHandle;
+    expect(await fillText(h2, "January 2026")).toMatchObject({ outcome: "ok", shown: "January 2026" });
   });
   it("truncates to maxLength at a word boundary", () => {
     expect(fitLength("hello wonderful world", 15)).toBe("hello wonderful");

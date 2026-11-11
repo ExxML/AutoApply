@@ -67,14 +67,27 @@ const RE_DATE_PH = /^(mm|dd|yyyy|yy)([/.-])(mm|dd|yyyy|yy)(?:\2(mm|dd|yyyy|yy))?
 
 /** Converts a value to what the input accepts: ISO for type=date/month, else the placeholder's format. */
 export function formatDateFor(el: HTMLInputElement, value: string): string {
-  const p = parseDate(value);
+  // A bare box beside a calendar icon on a US-English page takes MM/DD/YYYY: Cornerstone's "When will you be able to
+  // begin employment?" refused "2027-01-01" and the answer "From January 1, 2027" ("Please enter a valid date").
+  const calendar =
+    !!el.parentElement?.querySelector(':scope > [class*="calendar" i]') &&
+    /^(en(-us)?)?$/i.test(document.documentElement.lang);
+  // A box that only takes a date gets the date inside a worded answer.
+  const inside = /[a-z]{3,9}\.? \d{1,2},? \d{4}|\d{4}-\d{1,2}(-\d{1,2})?|\d{1,2}\/\d{1,2}\/\d{4}/i.exec(value)?.[0];
+  const p = parseDate(value) ?? (calendar || isDateField(el) ? parseDate(inside ?? "") : null);
   if (!p) return value;
   if (el.type === "date") return `${p.y}-${pad(p.m)}-${pad(p.d ?? 1)}`;
   if (el.type === "month") return `${p.y}-${pad(p.m)}`;
   // react-datepicker (Ashby) reads ISO dates as UTC, a day early west of Greenwich; its default format is MM/DD/YYYY.
-  const picker = el.closest(".react-datepicker__input-container") ? "MM/DD/YYYY" : "";
+  const picker = el.closest(".react-datepicker__input-container") || calendar ? "MM/DD/YYYY" : "";
   const f = RE_DATE_PH.exec((el.placeholder || "").trim()) ?? RE_DATE_PH.exec(picker);
-  if (!f) return value;
+  if (!f) {
+    // A date component's own pattern (UI5's <ui5-date-picker format-pattern="MMM d, y">), or a placeholder showing an
+    // example ("e.g. Dec 31, 2025"): the date written the same way.
+    const host = (el.getRootNode() as ShadowRoot).host;
+    const pattern = host?.getAttribute("format-pattern");
+    return (pattern && byPattern(pattern, p)) || byExample(el.placeholder || "", p) || value;
+  }
   const parts: Record<string, string> = {
     mm: pad(p.m),
     dd: pad(p.d ?? 1),
@@ -85,6 +98,94 @@ export function formatDateFor(el: HTMLInputElement, value: string): string {
     .filter(Boolean)
     .map((t) => parts[t.toLowerCase()])
     .join(f[2]);
+}
+
+type Ymd = { y: number; m: number; d?: number };
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** A date by an LDML pattern, as date components declare it: "MMM d, y" → "Jan 1, 2026", "dd.MM.yyyy". */
+export function byPattern(pattern: string, p: Ymd): string | null {
+  if (!/y/.test(pattern) || !/M/.test(pattern)) return null;
+  const d = p.d ?? 1;
+  return pattern.replace(/'([^']*)'|y+|M+|d+/g, (t, quoted?: string) => {
+    if (quoted !== undefined) return quoted;
+    if (t[0] === "y") return t.length === 2 ? String(p.y).slice(2) : String(p.y);
+    if (t[0] === "d") return t.length === 2 ? pad(d) : String(d);
+    if (t.length >= 4) return MONTH_NAMES[p.m - 1];
+    if (t.length === 3) return MONTH_NAMES[p.m - 1].slice(0, 3);
+    return t.length === 2 ? pad(p.m) : String(p.m);
+  });
+}
+
+/**
+ * A date written like a placeholder's example ("e.g. Dec 31, 2025", "31.12.2025"): its month name or number, day and
+ * year in the example's places and widths. Null when the example isn't a date, or its numbers don't say which is the
+ * day ("01/02/2025").
+ */
+export function byExample(placeholder: string, p: Ymd): string | null {
+  const ex = placeholder.replace(/^\s*(e\.?\s?g\.?|ex\.?|example:?|for example,?)\s*/i, "").trim();
+  const parts = ex.match(/[a-z]+|\d+|[^a-z\d]+/gi);
+  if (!parts || !/\d{4}/.test(ex)) return null;
+  const named = parts.findIndex((t) => MONTHS.includes(t.slice(0, 3).toLowerCase()) && t.length >= 3);
+  const nums = parts.flatMap((t, i) => (/^\d+$/.test(t) && t.length < 4 ? [i] : []));
+  const year = parts.findIndex((t) => /^\d{4}$/.test(t));
+  let day: number | undefined;
+  let month: number | undefined;
+  if (named >= 0) [day] = nums;
+  else if (nums.length === 2) {
+    const [a, b] = nums.map((i) => Number(parts[i]));
+    if (a > 12 && b <= 12) [day, month] = nums;
+    else if (b > 12 && a <= 12) [month, day] = nums;
+    else return null;
+  } else return null;
+  if (
+    day === undefined ||
+    (named < 0 && month === undefined) ||
+    parts.some((t) => /[a-z]/i.test(t) && !MONTHS.includes(t.slice(0, 3).toLowerCase()))
+  )
+    return null;
+  const out = [...parts];
+  const d = p.d ?? 1;
+  out[year] = String(p.y);
+  // "31" doesn't say whether 1 is "01": numeric dates usually pad, ones naming the month ("Dec 31") don't.
+  const padded = (t: string) => t.startsWith("0") || (named < 0 && t.length === 2);
+  out[day] = padded(parts[day]) ? pad(d) : String(d);
+  if (named >= 0) out[named] = parts[named].length > 3 ? MONTH_NAMES[p.m - 1] : MONTH_NAMES[p.m - 1].slice(0, 3);
+  else out[month!] = padded(parts[month!]) ? pad(p.m) : String(p.m);
+  return out.join("");
+}
+
+/** The field says the page refused its value: aria-invalid, or a component's error state (UI5's value-state). */
+const refused = (el: HTMLElement) =>
+  el.getAttribute("aria-invalid") === "true" ||
+  /^(error|negative)$/i.test(((el.getRootNode() as ShadowRoot).host?.getAttribute("value-state") ?? "").trim());
+
+/** Ways a date is written, the unambiguous ones first: a day-first numeric one only off a US-English page. */
+function dateForms(p: Ymd): string[] {
+  const d = p.d ?? 1;
+  const us = /^(en(-us)?)?$/i.test(document.documentElement.lang);
+  return [
+    ...new Set([
+      `${MONTH_NAMES[p.m - 1].slice(0, 3)} ${d}, ${p.y}`,
+      `${MONTH_NAMES[p.m - 1]} ${d}, ${p.y}`,
+      `${p.y}-${pad(p.m)}-${pad(d)}`,
+      ...(us ? [`${pad(p.m)}/${pad(d)}/${p.y}`] : [`${pad(d)}/${pad(p.m)}/${p.y}`, `${pad(d)}.${pad(p.m)}.${p.y}`]),
+      `${d} ${MONTH_NAMES[p.m - 1].slice(0, 3)} ${p.y}`,
+    ]),
+  ];
 }
 
 const isDateField = (el: HTMLElement) =>
@@ -106,11 +207,25 @@ export async function fillText(h: FieldHandle, raw: string): Promise<FillResult>
   let value = el instanceof HTMLInputElement ? formatDateFor(el, raw) : raw;
   value = fitLength(value, h.desc.maxLength);
   const mode = h.desc.kind === "tel" ? "digits" : "text";
+  const refusedBefore = refused(el); // a page that marks fields only on submit keeps its old mark meanwhile
   focus(el);
   // YOLO on a page a bot check grades may type it for real (content/yolo/real.ts).
   if (!(realFor("typing") && (await realType(el, value)))) setNativeValue(el, value);
   blur(el);
   await sleep(0);
+  // A date the field shows but refuses (Teck's date picker marked "January 2026" invalid, wanting "Jan 1, 2026"),
+  // declaring no format: the ways dates are written, until one is taken.
+  const date = parseDate(value);
+  if (date && el instanceof HTMLInputElement && !refusedBefore && (refused(el) || (await sleep(50), refused(el)))) {
+    for (const v of dateForms(date)) {
+      focus(el);
+      setNativeValue(el, v);
+      blur(el);
+      await sleep(50);
+      if (el.value && !refused(el)) return ok(el.value);
+    }
+    return { outcome: "flag", note: `Pick the date manually: ${value}` };
+  }
   if (sameValue(value, el.value, mode)) return ok(value);
   // Date widgets reformat what they are given (SmartRecruiters: "2026-08" → "08/2026").
   if (sameDate(value, el.value)) return ok(el.value);
