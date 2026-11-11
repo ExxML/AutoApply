@@ -19,7 +19,7 @@ import type {
   Settings,
   TabStatus,
 } from "./types";
-import type { Guess, REAL_INPUT, YoloStatus } from "./yolo";
+import type { FORGETTABLE, Guess, REAL_INPUT, YoloStatus } from "./yolo";
 
 /** What a YOLO driver reads off its page; the background decides what kind of step that is (yolo/classify.ts). */
 export interface PageFacts {
@@ -151,7 +151,8 @@ export type Message =
   /** Jobs the user queues by hand, from Applications > Queued jobs; `postedAt` as the posting's page gives it. */
   | { type: "YOLO_QUEUE_ADD"; jobs: { url: string; company: string; title: string; postedAt?: number }[] }
   | { type: "YOLO_FORGET"; key: string }
-  | { type: "YOLO_FORGET_FAILED" }
+  /** Every application with this outcome, including those the page's filters hide. */
+  | { type: "YOLO_FORGET_ALL"; status: (typeof FORGETTABLE)[number] }
   | { type: "YOLO_GMAIL_CONNECT" }
   | { type: "YOLO_GMAIL_CHECK" }
   | { type: "YOLO_ACCOUNTS" }
@@ -306,7 +307,7 @@ export interface Responses {
   /** `skipped`: the links not queued, each with why. */
   YOLO_QUEUE_ADD: { ok: true; added: number; skipped: { url: string; reason: string }[] } | Err;
   YOLO_FORGET: Ok;
-  YOLO_FORGET_FAILED: { ok: true; forgotten: number } | Err;
+  YOLO_FORGET_ALL: { ok: true; forgotten: number } | Err;
   YOLO_GMAIL_CONNECT: Ok | Err;
   YOLO_GMAIL_CHECK: Ok;
   YOLO_ACCOUNTS: { site: string; email: string; createdAt: number }[];

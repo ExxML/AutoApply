@@ -9,6 +9,7 @@ import type { AiTask } from "../../shared/settings";
 import type { ApiError, DocumentMeta, Settings } from "../../shared/types";
 import {
   defaultYolo,
+  FORGETTABLE,
   hasReviewRules,
   isPendingApplication,
   type Application,
@@ -1265,12 +1266,15 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
-  async YOLO_FORGET_FAILED() {
+  async YOLO_FORGET_ALL({ status }) {
+    // Never bulk-forget submissions or reviews, whatever the caller sends.
+    if (!FORGETTABLE.includes(status))
+      return { error: { kind: "other", message: `Can't forget ${status} applications in bulk.` } };
     let failed: Application[] = [];
     // Use the current history and serialize with submissions so their records cannot be lost.
     await updateApplications((apps) => {
-      failed = apps.filter((a) => a.status === "failed");
-      return apps.filter((a) => a.status !== "failed");
+      failed = apps.filter((a) => a.status === status);
+      return apps.filter((a) => a.status !== status);
     });
     for (const a of failed) if (a.review) await releaseReview(a.key);
     // Unchanged feeds must be read again so forgotten jobs can be rediscovered.

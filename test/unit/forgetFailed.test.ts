@@ -17,7 +17,9 @@ const application = (key: string, status: Application["status"], review = false)
     at: 1,
   });
 
-const forgetFailed = () => yoloHandlers.YOLO_FORGET_FAILED!({ type: "YOLO_FORGET_FAILED" }, {});
+const forgetAll = (status: "failed" | "needs" | "skipped") =>
+  yoloHandlers.YOLO_FORGET_ALL!({ type: "YOLO_FORGET_ALL", status }, {});
+const forgetFailed = () => forgetAll("failed");
 
 beforeEach(async () => {
   installChromeMock();
@@ -61,6 +63,27 @@ describe("forget all failed applications", () => {
     expect(chrome.tabs.ungroup).not.toHaveBeenCalledWith(8);
     expect(chrome.tabs.remove).not.toHaveBeenCalled();
     expect(await forgetFailed()).toEqual({ ok: true, forgotten: 0 });
+  });
+
+  it("forgets Needs you and Skipped applications the same way, and never submissions", async () => {
+    const needs = [application("needs", "needs"), application("needs-review", "needs", true)];
+    const skipped = application("skipped", "skipped");
+    const others = [
+      application("submitted", "submitted"),
+      application("failed", "failed"),
+      application("review", "review"),
+    ];
+    await chrome.storage.local.set({ applications: [...needs, skipped, ...others] });
+    await retainReview("lever:needs-review", 7);
+
+    expect(await forgetAll("needs")).toEqual({ ok: true, forgotten: 2 });
+    expect((await reviewList()).live).toEqual([]);
+    expect(chrome.tabs.ungroup).toHaveBeenCalledWith(7);
+    expect(await forgetAll("skipped")).toEqual({ ok: true, forgotten: 1 });
+    expect((await chrome.storage.local.get("applications")).applications).toEqual(others);
+    const send = yoloHandlers.YOLO_FORGET_ALL! as (m: unknown, s: unknown) => Promise<unknown>;
+    expect(await send({ type: "YOLO_FORGET_ALL", status: "submitted" }, {})).toHaveProperty("error");
+    expect((await chrome.storage.local.get("applications")).applications).toEqual(others);
   });
 
   it("preserves submissions recorded concurrently with forgetting", async () => {

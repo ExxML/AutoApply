@@ -3,7 +3,7 @@ import { namesPosting } from "../../background/yolo/jobKey";
 import { send } from "../../shared/messages";
 import { normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
-import { isPendingApplication, SOURCE_NAMES, type Application } from "../../shared/yolo";
+import { FORGETTABLE, isPendingApplication, SOURCE_NAMES, type Application } from "../../shared/yolo";
 import { readPosting } from "../posting";
 import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
@@ -37,7 +37,7 @@ export function Applications() {
   const [showLogs, setShowLogs] = useState(false);
   const [reviewTabs, setReviewTabs] = useState<{ live: string[]; refilling: string[] }>({ live: [], refilling: [] });
   const [busy, setBusy] = useState("");
-  const [forgetting, setForgetting] = useState(false);
+  const [forgetting, setForgetting] = useState<"" | (typeof FORGETTABLE)[number]>("");
   const [resuming, setResuming] = useState(false);
   const blank = { url: "", company: "", title: "" };
   const [addOpen, setAddOpen] = useState(false);
@@ -89,7 +89,6 @@ export function Applications() {
       .catch(() => setAddError("Couldn't add it. Try again."))
       .finally(() => setAdding(""));
   };
-  const failedCount = apps?.filter((a) => a.status === "failed").length ?? 0;
   const pendingCount = apps?.filter(isPendingApplication).length ?? 0;
   const resumePending = async () => {
     if (resuming || !pendingCount) return;
@@ -99,19 +98,20 @@ export function Applications() {
       .catch(() => undefined)
       .finally(() => setResuming(false));
   };
-  const forgetFailed = async () => {
+  const forgetAll = async (status: (typeof FORGETTABLE)[number], count: number) => {
+    const marked = `marked "${STATUS[status]}"`;
     if (
       forgetting ||
-      !failedCount ||
+      !count ||
       !window.confirm(
-        "Forget all failed applications? This removes every failed application from your history, including those hidden by filters. YOLO can queue these jobs again the next time it checks. This cannot be undone.",
+        `Forget ${count} application${count === 1 ? "" : "s"} ${marked}? This removes every application ${marked} from your history, including those hidden by filters. YOLO can queue these jobs again the next time it checks. This cannot be undone.`,
       )
     )
       return;
-    setForgetting(true);
-    await send({ type: "YOLO_FORGET_FAILED" })
+    setForgetting(status);
+    await send({ type: "YOLO_FORGET_ALL", status })
       .catch(() => undefined)
-      .finally(() => setForgetting(false));
+      .finally(() => setForgetting(""));
   };
   const loadReviews = () =>
     void send({ type: "YOLO_REVIEW_LIST" })
@@ -213,15 +213,23 @@ export function Applications() {
         >
           {resuming ? "Queueing resumes…" : "Resume all pending applications"}
         </button>
-        <button
-          type="button"
-          class="btn small danger"
-          disabled={forgetting || failedCount === 0}
-          title="Remove every failed application from the history, including those hidden by filters, so YOLO can queue them again"
-          onClick={() => void forgetFailed()}
-        >
-          {forgetting ? "Forgetting…" : "Forget all failed applications"}
-        </button>
+        <div class="forget-all" role="group" aria-labelledby="forget-all-label">
+          <span id="forget-all-label">Forget all</span>
+          {FORGETTABLE.map((status) => {
+            const count = apps.filter((a) => a.status === status).length;
+            return (
+              <button
+                type="button"
+                class="btn small danger"
+                disabled={!!forgetting || count === 0}
+                title={`Remove every application marked "${STATUS[status]}" from the history, including those hidden by filters, so YOLO can queue them again`}
+                onClick={() => void forgetAll(status, count)}
+              >
+                {forgetting === status ? "Forgetting…" : `${STATUS[status]} (${count})`}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {addOpen ? (
         <form

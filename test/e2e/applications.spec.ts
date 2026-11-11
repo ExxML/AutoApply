@@ -31,6 +31,12 @@ async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45)
   return yoloQueue;
 }
 
+/** A bulk forget's button: its accessible name ends with how many it removes, which changes as it runs. */
+const forgetAllButton = (page: Page, status: string) =>
+  page
+    .getByRole("group", { name: "Forget all", exact: true })
+    .getByRole("button", { name: new RegExp(String.raw`^(${status} \(\d+\)|Forgetting…)$`) });
+
 test("each non-submitted row can be marked submitted while preserving its application details", async ({
   sw,
   page,
@@ -74,7 +80,7 @@ test("each non-submitted row can be marked submitted while preserving its applic
   }
   await expect(page.locator("section").getByRole("status")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Forget all failed applications", exact: true })).toBeDisabled();
+  await expect(forgetAllButton(page, "Failed")).toBeDisabled();
   const totals = page
     .getByRole("definition")
     .locator("..")
@@ -119,14 +125,17 @@ test("forgetting all failed applications requires confirmation and includes filt
     { key: "skipped", status: "skipped" },
   ].map((app) => ApplicationSchema.parse({ ...app, url: `https://example.com/${app.key}`, company: app.key }));
   await sw.evaluate((applications) => chrome.storage.local.set({ applications }), applications);
-  const button = page.getByRole("button", { name: "Forget all failed applications", exact: true });
-  await expect(button).toBeEnabled();
+  const button = forgetAllButton(page, "Failed");
+  await expect(button).toHaveText("Failed (2)");
+  await expect(forgetAllButton(page, "Needs you")).toHaveText("Needs you (1)");
+  await expect(forgetAllButton(page, "Skipped")).toHaveText("Skipped (1)");
   await page.getByRole("searchbox", { name: "Search applications", exact: true }).fill("submitted");
   await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("submitted");
   await expect(page.locator(".table tbody tr")).toHaveCount(1);
 
   page.once("dialog", async (dialog) => {
     expect(dialog.type()).toBe("confirm");
+    expect(dialog.message()).toContain('Forget 2 applications marked "Failed"?');
     expect(dialog.message()).toContain("including those hidden by filters");
     expect(dialog.message()).toContain("YOLO can queue these jobs again");
     await dialog.dismiss();
@@ -143,14 +152,36 @@ test("forgetting all failed applications requires confirmation and includes filt
   expect(await storage(sw, "applications")).toEqual(remaining);
   expect(await storage(sw, "yoloQueue")).toEqual(queue);
   await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("submitted");
+  await expect(button).toHaveText("Failed (0)");
   await page.reload();
   await expect(button).toBeDisabled();
   expect(await storage(sw, "applications")).toEqual(remaining);
+
+  for (const [label, status] of [
+    ["Needs you", "needs"],
+    ["Skipped", "skipped"],
+  ]) {
+    page.once("dialog", async (dialog) => {
+      expect(dialog.message()).toContain(`Forget 1 application marked "${label}"?`);
+      await dialog.accept();
+    });
+    await forgetAllButton(page, label).click();
+    await expect(forgetAllButton(page, label)).toHaveText(`${label} (0)`);
+    await expect(forgetAllButton(page, label)).toBeDisabled();
+    remaining.splice(
+      remaining.findIndex((app) => app.status === status),
+      1,
+    );
+    expect(await storage(sw, "applications")).toEqual(remaining);
+  }
+  expect(remaining.map((app) => app.status)).toEqual(["submitted", "submitted", "review"]);
 });
 
 test("forget all failed applications is disabled for empty history", async ({ sw, page }) => {
   await applicationsPage(sw, page, 0, 0);
-  await expect(page.getByRole("button", { name: "Forget all failed applications", exact: true })).toBeDisabled();
+  await expect(forgetAllButton(page, "Failed")).toBeDisabled();
+  await expect(forgetAllButton(page, "Needs you")).toBeDisabled();
+  await expect(forgetAllButton(page, "Skipped")).toBeDisabled();
   await expect(page.getByRole("button", { name: "Resume all pending applications", exact: true })).toBeDisabled();
 });
 
@@ -247,12 +278,12 @@ test("a failed bulk forget keeps the history and allows retrying", async ({ sw, 
   await page.evaluate(() => {
     const send = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = ((message: { type: string }) =>
-      message.type === "YOLO_FORGET_FAILED"
+      message.type === "YOLO_FORGET_ALL"
         ? Promise.resolve({ error: { kind: "other", message: "Couldn't update the application history." } })
         : send(message)) as typeof chrome.runtime.sendMessage;
   });
   page.once("dialog", (dialog) => dialog.accept());
-  const button = page.getByRole("button", { name: "Forget all failed applications", exact: true });
+  const button = forgetAllButton(page, "Failed");
   await button.click();
   await expect(button).toBeEnabled();
   await expect(page.locator("section").getByRole("status")).toHaveCount(0);

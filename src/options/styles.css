@@ -790,6 +790,17 @@ main:has(.applications-table-scroll) {
 .row select {
   width: auto;
 }
+/* One label for the bulk forgets, each button naming its status and how many it removes. */
+.forget-all {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.forget-all > span {
+  color: var(--muted);
+  font-size: 0.85em;
+}
 .danger-zone {
   border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
 }
