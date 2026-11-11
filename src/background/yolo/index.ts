@@ -1006,15 +1006,58 @@ function newJobs<T extends NamedJob>(
   });
 }
 
+/** A tab whose address could be one job's posting, in a page our content script can run in. */
+const jobTab = (t: chrome.tabs.Tab) => t.id !== undefined && /^https?:\/\//i.test(t.url ?? "") && namesPosting(t.url!);
+
 /** The job a tab shows, with its address and id; null for one showing no job, or one nothing of ours can run in. */
 async function readJobTab(t: chrome.tabs.Tab) {
   const url = t.url ?? "";
-  if (t.id === undefined || t.discarded || !/^https?:\/\//i.test(url) || !namesPosting(url)) return null;
+  if (t.id === undefined || t.discarded || !jobTab(t)) return null;
   // A tab opened before the extension was last loaded has no content script yet.
   await ensureContentScript(t.id);
   const ask: Message = { type: "READ_JOB_TAB" };
   const job: Responses["READ_JOB_TAB"] = await chrome.tabs.sendMessage(t.id, ask, { frameId: 0 }).catch(() => null);
   return job && { ...job, url, tabId: t.id };
+}
+
+/** How long a page gets to answer: an alert or "Leave site?" prompt holds its tab, and the whole read, forever. */
+const TAB_READ_MS = 10_000;
+/** How long an unloaded tab gets to load again and show its job (Workday's renders after it loads). */
+const TAB_LOAD_MS = 20_000;
+const STUCK = "Didn't answer: open the tab, then try again";
+type TabRead = Awaited<ReturnType<typeof readJobTab>> | "stuck";
+
+const readTimed = (t: chrome.tabs.Tab): Promise<TabRead> =>
+  Promise.race([readJobTab(t), new Promise<"stuck">((r) => setTimeout(() => r("stuck"), TAB_READ_MS))]);
+
+/** A tab Memory Saver unloaded: loaded again in the background, then read once its page shows a job. */
+async function readUnloaded(id: number): Promise<TabRead> {
+  await chrome.tabs.reload(id).catch(() => undefined);
+  for (const end = Date.now() + TAB_LOAD_MS; ; await new Promise((r) => setTimeout(r, 500))) {
+    const t = await chrome.tabs.get(id).catch(() => null);
+    if (!t) return null;
+    const loaded = t.status === "complete" && !t.discarded;
+    const job = loaded ? await readTimed(t) : null;
+    if (job || Date.now() > end) return job ?? (loaded ? null : "stuck");
+  }
+}
+
+/**
+ * Tabs Chrome froze, which run nothing (no script, no message) until shown: each shown a moment to be read, then the
+ * user's tab again, unless they moved to another meanwhile.
+ */
+async function readFrozen(frozen: chrome.tabs.Tab[], windowId: number) {
+  const reads = new Map<number, TabRead>();
+  if (!frozen.length) return reads;
+  const [shown] = await chrome.tabs.query({ windowId, active: true });
+  for (const t of frozen) {
+    await chrome.tabs.update(t.id!, { active: true }).catch(() => undefined);
+    reads.set(t.id!, await readTimed(t));
+  }
+  const [now] = await chrome.tabs.query({ windowId, active: true });
+  if (shown?.id !== undefined && now?.id === frozen.at(-1)!.id)
+    await chrome.tabs.update(shown.id, { active: true }).catch(() => undefined);
+  return reads;
 }
 
 async function applyJobTabs(windowId: number): Promise<Responses["YOLO_APPLY_TABS"]> {
@@ -1024,11 +1067,23 @@ async function applyJobTabs(windowId: number): Promise<Responses["YOLO_APPLY_TAB
   const blocked = await resumeBlocker();
   if (blocked) return { error: { kind: "other", message: blocked } };
   const tabs = await chrome.tabs.query({ windowId });
-  const found = (await Promise.all(tabs.map(readJobTab))).filter((j) => !!j);
+  const frozen = tabs.filter((t) => t.frozen && !t.discarded && jobTab(t));
+  const woken = readFrozen(frozen, windowId);
+  const reads = await Promise.all(
+    tabs.map(async (t) =>
+      t.discarded
+        ? jobTab(t)
+          ? readUnloaded(t.id!)
+          : null
+        : frozen.includes(t)
+          ? ((await woken).get(t.id!) ?? null)
+          : readTimed(t),
+    ),
+  );
+  const found = reads.filter((j) => !!j && j !== "stuck");
+  const stuck = tabs.filter((_, i) => reads[i] === "stuck");
   const { items, skipped } = await vetJobs(found);
-  // Memory saver unloaded it: its page can't be read until it loads again.
-  const unloaded = tabs.filter((t) => t.discarded && t.url && namesPosting(t.url));
-  for (const t of unloaded) skipped.push({ url: t.url!, reason: "Not loaded: open the tab once, then try again" });
+  for (const t of stuck) skipped.push({ url: t.url!, reason: STUCK });
   // Each tab's own posting, kept for its run: before it can start.
   for (const { job } of items) await setJobContext(job.tabId, job.context);
   let added = 0;
@@ -1045,7 +1100,7 @@ async function applyJobTabs(windowId: number): Promise<Responses["YOLO_APPLY_TAB
     ];
   });
   if (added) void pump();
-  return { ok: true, added, skipped, others: tabs.length - found.length - unloaded.length };
+  return { ok: true, added, skipped, others: tabs.length - found.length - stuck.length };
 }
 
 // ---------- messages ----------

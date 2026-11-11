@@ -46,20 +46,30 @@ beforeEach(async () => {
       onRemoved: events(),
       onUpdated: events(),
       onCreated: events(),
-      query: vi.fn(async () => tabs),
+      query: vi.fn(async (q?: { active?: boolean }) =>
+        tabs.filter((t) => q?.active === undefined || !!(t as { active?: boolean }).active === q.active),
+      ),
       create: vi.fn(async () => ({ id: 99, windowId: 1 })),
       get: vi.fn(async (id: number) => {
         const t = tabs.find((x) => x.id === id);
         if (!t) throw new Error("No tab");
         return t;
       }),
-      update: vi.fn(async () => undefined),
+      update: vi.fn(async (id: number, change: { active?: boolean }) => {
+        if (change.active) for (const t of tabs) Object.assign(t, { active: t.id === id });
+      }),
+      // Memory Saver's unloaded tab loads again.
+      reload: vi.fn(async (id: number) => {
+        Object.assign(tabs.find((t) => t.id === id)!, { discarded: false, status: "complete" });
+      }),
       remove: vi.fn(async () => undefined),
       group: vi.fn(async () => 1),
       // The content script's READ_JOB_TAB: the search and the blog post show no job; tab 12 names no company.
       sendMessage: vi.fn(async (id: number, msg: { type: string }) => {
         if (msg.type !== "READ_JOB_TAB") return { ready: true };
         if ([6, 9].includes(id)) return null;
+        // A page held by an alert or "Leave site?" prompt never answers.
+        if (id === 13) return new Promise(() => undefined);
         const guessed = id === 12;
         const context = {
           url: "",
@@ -91,7 +101,10 @@ beforeEach(async () => {
   await chrome.storage.local.set({
     // YOLO off, with no search: job tabs need neither.
     yolo: { ...defaultYolo(), boards: [], feeds: [], submissionReview: { mode: "off", maxPending: 1 } },
-    applications: [ApplicationSchema.parse({ key: "lever:done", url: "https://jobs.lever.co/acme/done" })],
+    applications: [
+      ApplicationSchema.parse({ key: "lever:done", url: "https://jobs.lever.co/acme/done" }),
+      ApplicationSchema.parse({ key: "ashby:9", url: "https://jobs.ashbyhq.com/acme/9" }),
+    ],
     documentsIndex: [
       {
         id: "resume",
@@ -117,10 +130,12 @@ describe("YOLO apply to job tabs", () => {
       added: 1,
       skipped: [
         { url: "https://jobs.lever.co/acme/done", reason: "Already in Applications" },
-        { url: "https://jobs.ashbyhq.com/acme/9", reason: "Not loaded: open the tab once, then try again" },
+        // Unloaded, so loaded again and read.
+        { url: "https://jobs.ashbyhq.com/acme/9", reason: "Already in Applications" },
       ],
       others: 2,
     });
+    expect(chrome.tabs.reload).toHaveBeenCalledWith(8);
     const run = await running();
     expect(run).toMatchObject({ host: "tab", tabId: 5, item: { key: "lever:1", company: "Acme", tabId: 5 } });
     expect(chrome.tabs.update).toHaveBeenCalledWith(5, { url: expect.stringContaining("jobs.lever.co/acme/1") });
@@ -153,7 +168,7 @@ describe("YOLO apply to job tabs", () => {
     await result(first, { status: "failed", reason: "No progress for 3 minutes" });
     await vi.waitFor(async () => expect((await chrome.storage.session.get("yoloTabJobs")).yoloTabJobs).toEqual([]));
     expect(await runner.getRun()).toBeNull();
-    expect((await apps())?.map((a) => a.key)).toEqual(["lever:done"]);
+    expect((await apps())?.map((a) => a.key)).toEqual(["lever:done", "ashby:9"]);
   });
 
   it("lists a guessed company but leaves the application's company to its pages", async () => {
@@ -179,12 +194,33 @@ describe("YOLO apply to job tabs", () => {
         others: 2,
         skipped: [
           { label: "Tab 7", reason: "Already in Applications" },
-          { label: "Tab 8", reason: "Not loaded: open the tab once, then try again" },
+          { label: "Tab 8", reason: "Already in Applications" },
         ],
       },
     });
     await coordinator.yoloHandlers.YOLO_TABS_STOP!({ type: "YOLO_TABS_STOP" }, {});
     expect(await status()).toMatchObject({ tabsRead: null });
+  });
+
+  it("reads a frozen tab by showing it a moment, then the user's tab again, and skips one that never answers", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    tabs = [
+      tab(6, "https://www.google.com/search?q=jobs", { active: true }),
+      tab(10, "https://jobs.lever.co/acme/2", { frozen: true }),
+      tab(13, "https://jobs.lever.co/acme/3"),
+    ];
+    const reading = apply();
+    await vi.advanceTimersByTimeAsync(10_000);
+    vi.useRealTimers();
+    expect(await reading).toEqual({
+      ok: true,
+      added: 1,
+      skipped: [{ url: "https://jobs.lever.co/acme/3", reason: "Didn't answer: open the tab, then try again" }],
+      others: 1,
+    });
+    expect(chrome.tabs.update).toHaveBeenNthCalledWith(1, 10, { active: true });
+    expect(chrome.tabs.update).toHaveBeenNthCalledWith(2, 6, { active: true });
+    expect((await running()).item).toMatchObject({ key: "lever:2", tabId: 10 });
   });
 
   it("stops before the tabs not started yet", async () => {
