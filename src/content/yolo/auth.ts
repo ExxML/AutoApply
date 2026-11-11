@@ -227,8 +227,10 @@ export async function handleVerify(since: number, email: string): Promise<AuthOu
     remember(EMAIL_ASKED, String(Date.now()));
     return { ok: true };
   }
-  // This page waits for the email itself.
-  remember(EMAIL_ASKED, null);
+  // This page waits for the email itself: the one it was just asked for, when it was (an earlier run's email from the
+  // same site is no answer to it).
+  const asked = Number(remember(EMAIL_ASKED, null));
+  if (asked) since = Math.max(since, asked - 60_000);
   const r = await send({ type: "YOLO_WAIT_EMAIL", since, want: input ? "code" : "link" });
   if (isErr(r)) return { fail: r.error.message };
   if (r.link) {

@@ -426,6 +426,13 @@ describe("YOLO buttons", () => {
     expect(sent[0].since).toBeLessThanOrEqual(t - 60_000);
     expect(location.hash).toBe("#reset-link");
     expect(await awaitReset()).toBeNull();
+    // Or still on its form, saying the email is on its way: only an email since it was asked for, not the last 15 min's.
+    sent.length = 0;
+    document.querySelector("input")!.value = "";
+    expect(await handleVerify(0, "me@x.com")).toEqual({ ok: true });
+    const asked = Date.now();
+    expect(await handleVerify(asked - 15 * 60_000, "me@x.com")).toEqual({ ok: true });
+    expect(sent[0].since).toBeGreaterThanOrEqual(asked - 61_000);
     // A reset link's page: its own Reset Password saves the new password.
     setBody(`<h2>Reset Password</h2><input type="password"><input type="password"><button>Reset Password</button>`);
     let saved = false;

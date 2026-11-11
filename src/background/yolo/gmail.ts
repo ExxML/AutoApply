@@ -114,9 +114,19 @@ export function siteOf(host: string): string {
   return p.slice(-n).join(".");
 }
 
+/**
+ * The site an address is on, for matching emailed links to a run. On Workday, with the company's tenant: every
+ * company's Workday is one site, and Intel's password reset followed SOTI's emailed link there.
+ */
 export const siteOfUrl = (u: string) => {
   try {
-    return siteOf(new URL(u).hostname);
+    const { hostname, pathname } = new URL(u);
+    const site = siteOf(hostname);
+    if (site !== "myworkday.com") return site;
+    // acme.wd5.myworkdayjobs.com, or the tenant in the path: wd5.myworkday.com/acme/, wd1.myworkdaysite.com/en-US/recruiting/acme/
+    const inPath = pathname.split("/").filter((s) => s && !/^([a-z]{2}-[a-z]{2}|recruiting)$/i.test(s))[0] ?? "";
+    const tenant = /^wd\d*\./i.test(hostname) ? inPath : hostname.split(".")[0];
+    return `${site}/${tenant.toLowerCase()}`;
   } catch {
     return "";
   }

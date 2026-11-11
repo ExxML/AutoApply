@@ -26,7 +26,15 @@ import {
 } from "../../src/background/yolo/careers";
 import { locationMatches, rejectReason, titleMatches } from "../../src/background/yolo/filter";
 import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
-import { connectGmail, extract, feedTexts, GmailAuthError, gmailToken, siteOf } from "../../src/background/yolo/gmail";
+import {
+  connectGmail,
+  extract,
+  feedTexts,
+  GmailAuthError,
+  gmailToken,
+  siteOf,
+  siteOfUrl,
+} from "../../src/background/yolo/gmail";
 import { letterText, LINES_PER_PAGE, textLines, textPdf, wrap } from "../../src/background/yolo/pdf";
 import { ONE_PAGE_WORDS, topLevelUrl } from "../../src/shared/constants";
 import { accountKey, accountSite, decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
@@ -727,10 +735,22 @@ describe("verification emails", () => {
   it("only takes a link back to the run's sites, or a tracked Verify button", () => {
     const html = `<a href="https://evil.example/verify?t=1">Verify</a>
       <a href="https://acme.wd5.myworkdayjobs.com/en-US/careers/activate/abc">Activate</a>`;
-    expect(extract(html, "link", [siteOf("acme.wd5.myworkdayjobs.com")])).toBe(
+    expect(extract(html, "link", [siteOfUrl("https://acme.wd5.myworkdayjobs.com/en-US/careers/login")])).toBe(
       "https://acme.wd5.myworkdayjobs.com/en-US/careers/activate/abc",
     );
     expect(extract(html, "link", [siteOf("jobs.other.com")])).toBeNull();
+    // Every company's Workday is one site; the tenant tells them apart (Intel's reset followed SOTI's emailed link).
+    const intel = siteOfUrl("https://intel.wd1.myworkdayjobs.com/en-US/External/job/x/apply");
+    expect(
+      extract(`<a href="https://soti.wd3.myworkdayjobs.com/SOTI/passwordreset/abc">Reset</a>`, "link", [intel]),
+    ).toBeNull();
+    expect(siteOfUrl("https://wd5.myworkday.com/acme/verify?t=1")).toBe(
+      siteOfUrl("https://acme.wd5.myworkdayjobs.com/x"),
+    );
+    expect(siteOfUrl("https://wd1.myworkdaysite.com/en-US/recruiting/acme/External")).toBe(
+      siteOfUrl("https://ACME.wd1.myworkdayjobs.com/x"),
+    );
+    expect(siteOfUrl("https://careers.acme.com/x")).toBe("acme.com");
     // A click tracker hides where it leads: only its Verify button, never its other links or an unknown host's.
     const tracked = `<a href="https://u1.ct.sendgrid.net/ls/click?upn=aaa">Unsubscribe</a>
       <a href="https://evil.example/c/xyz"><b>Confirm email</b></a>
