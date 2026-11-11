@@ -30,7 +30,7 @@ import type {
 import { extractJobContext, jobUrl, ldPosting, phenomPostingUrl, readPay } from "./jobContextExtract";
 import { deterministicValue, isFreeText, matchLearned, RE_CITY_FIELD, shoutedName } from "./match/deterministic";
 import { localMatchAll } from "./match/localMatch";
-import { harvestOptions } from "./fill/dropdown";
+import { harvestOptions, ui5Host } from "./fill/dropdown";
 import { fill, serial, type FillOp } from "./fill/engine";
 import { dispatching, haltFill, isFilling, sleep, waitFor } from "./fill/events";
 import { findDropzones } from "./fill/file";
@@ -876,7 +876,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
       for (const h of pending) setStatus(h, "working");
       // Required ones first: SpaceX's 15th, "Citizenship Status", answered blind as "Citizen", got "U.S. citizen".
       const toHarvest = pending
-        .filter((h) => h.desc.kind === "dropdown" && !h.desc.optionsKnown)
+        // A UI5 box lists its options from its arrow, though it reads as a search box: read first like a dropdown's
+        // (SuccessFactors' Status answered blind as "Currently Enrolled", "In Progress", "Current": none an option).
+        .filter(
+          (h) => (h.desc.kind === "dropdown" || (h.desc.kind === "typeahead" && !!ui5Host(h))) && !h.desc.optionsKnown,
+        )
         .sort((a, b) => Number(b.desc.required) - Number(a.desc.required));
       const later = new Set(toHarvest);
       const now = pending.filter((h) => !later.has(h));

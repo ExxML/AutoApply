@@ -80,6 +80,74 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(h.searchInput!.value).toBe("");
   });
 
+  it("enters typed text in a suggest box whose list it can't read, which clears uncommitted text on leaving", async () => {
+    // A suggest box with no list it can read: Enter or a pick commits, and leaving the box clears anything else.
+    setBody(
+      `<div><label for="st">State/Province</label><input id="st" role="combobox" aria-autocomplete="both"></div>`,
+    );
+    const h = scan(newScanState()).handles[0];
+    const input = h.el as HTMLInputElement;
+    let committed = "";
+    input.addEventListener("keydown", (e) => e.key === "Enter" && (committed = input.value));
+    input.addEventListener("blur", () => (input.value = committed));
+    const r = await fillTypeahead(h, "British Columbia", "British Columbia", async () => null);
+    expect(r).toMatchObject({ outcome: "ok", shown: "British Columbia" });
+    expect(input.value).toBe("British Columbia");
+  });
+
+  it("reads and picks a UI5 box's suggestions, and the AI picks from its whole list when the answer lists none", async () => {
+    // SuccessFactors' new application: <ui5-input show-suggestions>, its box in a shadow root, suggestions light-DOM
+    // children worded by a `text` attribute while typed in, the whole list from its arrow button (slot=icon).
+    const FACULTIES = ["Bachelor of Applied Science", "Bachelor of Arts", "Bachelor of Science", "Master of Science"];
+    setBody(
+      `<div id="host" show-suggestions accessible-name="Faculty of Study?"><ui5-button-x slot="icon" ui5-button></ui5-button-x></div>`,
+    );
+    const host = document.getElementById("host")!;
+    const input = host.attachShadow({ mode: "open" }).appendChild(document.createElement("input"));
+    input.setAttribute("role", "combobox");
+    let picked = "";
+    const show = (texts: string[]) => {
+      host.querySelectorAll("[ui5-suggestion-item]").forEach((n) => n.remove());
+      for (const t of texts) {
+        const item = host.appendChild(document.createElement("ui5-suggestion-item-x"));
+        item.setAttribute("ui5-suggestion-item", "");
+        item.setAttribute("text", t);
+        item.addEventListener("click", () => (input.value = picked = t));
+      }
+    };
+    input.addEventListener("input", () =>
+      show(input.value ? FACULTIES.filter((f) => f.toLowerCase().includes(input.value.toLowerCase())) : []),
+    );
+    host.querySelector("[slot=icon]")!.addEventListener("click", () => show(FACULTIES));
+    input.addEventListener("blur", () => (input.value = picked)); // anything not picked is dropped
+    const h = {
+      id: "f1",
+      desc: { id: "f1", kind: "typeahead", label: "Faculty of Study?", required: true },
+      el: input,
+      container: host,
+      prefilled: false,
+      sensitive: false,
+      consent: false,
+    } as unknown as FieldHandle;
+    // Its whole list reads up front, from its arrow, so the answer is chosen from real options.
+    expect(await harvestOptions(h)).toEqual(FACULTIES);
+    // Typed, its suggestions are read and the matching one picked.
+    expect(await fillTypeahead(h, "Science", "Bachelor of Science", async () => null)).toMatchObject({
+      outcome: "ok",
+      shown: "Bachelor of Science",
+    });
+    // An answer none lists: the AI chooses from the whole list.
+    picked = input.value = "";
+    let offered: string[] = [];
+    const r = await fillTypeahead(h, "Computer Science", "Computer Science", async (o) => {
+      offered = o;
+      return o.indexOf("Bachelor of Science");
+    });
+    expect(offered).toEqual(FACULTIES);
+    expect(r).toMatchObject({ outcome: "ok", shown: "Bachelor of Science" });
+    expect(input.value).toBe("Bachelor of Science");
+  });
+
   it("a remote search dropdown picks the AI's choice even if the list closed while it chose, and verifies the pick", async () => {
     // react-select (Greenhouse location): typing lists suggestions; a pick shows in the control and empties the input.
     setBody(`<div><label>Location (City)</label><div class="select__control"><div class="select__value"></div>

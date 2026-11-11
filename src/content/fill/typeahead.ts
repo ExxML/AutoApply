@@ -13,6 +13,7 @@ import {
   settle,
   snapshot,
   submitSearch,
+  ui5Host,
 } from "./dropdown";
 import { blur, focus, key, realClick, setNativeValue, sleep, typeText, waitFor } from "./events";
 import type { FillResult } from "./native";
@@ -47,6 +48,12 @@ export function abbreviates(code: string, name: string): boolean {
 }
 
 const plainLists = (h: FieldHandle) => [...h.container.querySelectorAll<HTMLElement>("ul,ol")];
+
+/** A box that suggests as it's typed in: a combobox, or a component hosting it that says so (UI5's ui5-input). */
+const suggestBox = (input: HTMLElement) =>
+  input.getAttribute("role") === "combobox" ||
+  input.hasAttribute("aria-autocomplete") ||
+  !!((input.getRootNode() as ShadowRoot).host as HTMLElement | undefined)?.hasAttribute("show-suggestions");
 
 export async function fillTypeahead(
   h: FieldHandle,
@@ -113,6 +120,14 @@ export async function fillTypeahead(
     if (h.desc.kind === "dropdown") {
       setNativeValue(input, "");
       key(input, "Escape");
+    } else if (ui5Host(h)) {
+      // A UI5 box drops what matches none of its options on leaving: its whole list is read instead, below.
+      setNativeValue(input, "");
+    } else if (input.value && suggestBox(input)) {
+      // Its list unread, a suggest box can keep only what's picked or entered and clear typed text on leaving.
+      // Enter enters it, as a person would. Untrusted, it submits no form.
+      key(input, "Enter");
+      await sleep(100);
     }
     blur(input);
     await sleep(50);
@@ -120,7 +135,10 @@ export async function fillTypeahead(
     // A list filtered by what's typed, naming ranges: Oracle's salary lists "$40,001 - $50,000", nothing for "41600".
     // Only a sure match there: the AI chose "Armstrong, BC" for Langley off Oracle's unfiltered cities.
     const all = h.desc.kind === "typeahead" ? await openDropdown(h) : null;
-    if (!all || localMatch(intended, optionElements(all).map(optText)) === null) {
+    // A UI5 box's own short list (SuccessFactors' "Faculty of Study?": "Bachelor of Science", …, none naming the
+    // answer "Computer Science" given before the list was seen): the AI picks from it, as from a dropdown's.
+    const own = !!all && all === ui5Host(h) && optionElements(all).length <= 60;
+    if (!all || (localMatch(intended, optionElements(all).map(optText)) === null && !own)) {
       await closeDropdown(h, all);
       return { outcome: "flag", note: "No suggestions appeared" };
     }

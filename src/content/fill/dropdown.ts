@@ -16,8 +16,27 @@ import type { FillResult } from "./native";
 import { dropdownText, isOn, sameValue } from "./verify";
 import { throttled } from "../yolo/frame";
 
+/**
+ * UI5 Web Components' suggestions (SuccessFactors' new application: State/Province, Faculty of Study): light-DOM
+ * children of the <ui5-input show-suggestions> host while it's typed in, worded only by their `text` attribute.
+ */
+// Its Select's and ComboBox's options likewise: <ui5-option> (worded by its text) and <ui5-cb-item text="…">
+// (SuccessFactors' language "Years of Experience").
+const UI5_ITEM = "[ui5-suggestion-item],[ui5-option],[ui5-cb-item]";
+const hasUi5Items = (e: Element) => [...e.children].some((c) => c.matches(UI5_ITEM));
+/** The UI5 component hosting this field's box (an Input that suggests, a Select, a ComboBox), when it is one. */
+export const ui5Host = (h: FieldHandle): HTMLElement | null => {
+  const i = h.searchInput ?? h.el;
+  const host =
+    i.hasAttribute("show-suggestions") || hasUi5Items(i)
+      ? i
+      : ((i.getRootNode() as ShadowRoot).host as HTMLElement | undefined);
+  return host && (host.hasAttribute("show-suggestions") || hasUi5Items(host)) ? host : null;
+};
+
 // Not an icon's <title>: Epic Games' country options read "CanadaCanada+1" with their flag's.
 export const optText = (o: Element) => {
+  if (o.matches(UI5_ITEM)) return collapse(o.getAttribute("text") ?? o.textContent ?? "");
   if (!o.querySelector("svg")) return collapse(o.textContent ?? "");
   const clone = o.cloneNode(true) as Element;
   clone.querySelectorAll("svg").forEach((n) => n.remove());
@@ -47,6 +66,8 @@ const slotted = (c: Element) =>
     );
 
 export function optionElements(c: Element): HTMLElement[] {
+  const ui5 = [...c.children].filter((o): o is HTMLElement => o instanceof HTMLElement && o.matches(UI5_ITEM));
+  if (ui5.length) return ui5.filter((o) => isVisible(o) && isRealOption(o));
   // Innermost match only: Workday's [role=option] row ignores clicks; its promptOption label inside takes them.
   let els = [...c.querySelectorAll<HTMLElement>(OPTION_SELECTORS)].filter((o) => !o.querySelector(OPTION_SELECTORS));
   if (!els.length) els = slotted(c);
@@ -83,6 +104,8 @@ function controlledBy(els: (Element | undefined)[]): HTMLElement[] {
 
 /** The options container that appeared for this widget (§14.5.1 step 2). */
 export function findOptionsContainer(h: FieldHandle, before: Snapshot): HTMLElement | null {
+  const host = ui5Host(h);
+  if (host && optionElements(host).length) return host;
   for (const c of controlledBy([h.el, h.searchInput, h.el.querySelector("[aria-controls],[aria-owns]") ?? undefined]))
     if (isVisible(c) && optionElements(c).length) return c;
   for (const lb of deepQueryAll("[role=listbox]"))
@@ -97,9 +120,11 @@ export function findOptionsContainer(h: FieldHandle, before: Snapshot): HTMLElem
 }
 
 const triggerOf = (h: FieldHandle) =>
-  h.el.matches("[role=combobox],[aria-haspopup]")
+  // A UI5 box lists everything from its own arrow button.
+  ui5Host(h)?.querySelector<HTMLElement>(":scope > [slot=icon]") ??
+  (h.el.matches("[role=combobox],[aria-haspopup]")
     ? h.el
-    : (h.el.querySelector<HTMLElement>("[role=combobox]:not(input),[aria-haspopup]") ?? h.el);
+    : (h.el.querySelector<HTMLElement>("[role=combobox]:not(input),[aria-haspopup]") ?? h.el));
 
 export async function openDropdown(h: FieldHandle): Promise<HTMLElement | null> {
   if (h.listbox) return h.listbox;
