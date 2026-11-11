@@ -234,6 +234,24 @@ describe("YOLO apply to job tabs", () => {
     await vi.waitFor(async () => expect(await status()).toMatchObject({ tabJobs: 0, tabRun: false }));
     expect(await runner.getRun()).toBeNull();
   });
+
+  it("stops at once: the running tab back on its posting, unrecorded, and nothing after it", async () => {
+    tabs.push(tab(10, "https://jobs.lever.co/acme/2"));
+    await apply();
+    const run = await running();
+    vi.mocked(chrome.tabs.update).mockClear();
+    await coordinator.yoloHandlers.YOLO_TABS_STOP!({ type: "YOLO_TABS_STOP", now: true }, {});
+    expect(await runner.getRun()).toBeNull();
+    expect(chrome.tabs.update).toHaveBeenCalledWith(5, { url: POSTING });
+    // Its page's late result changes nothing.
+    await result(run, { status: "submitted", doneUrl: `${POSTING}/thanks` });
+    expect(await coordinator.yoloHandlers.YOLO_STATUS!({ type: "YOLO_STATUS" }, {})).toMatchObject({
+      tabJobs: 0,
+      tabRun: false,
+    });
+    expect((await apps())?.map((a) => a.key)).toEqual(["lever:done", "ashby:9"]);
+    expect(chrome.tabs.remove).not.toHaveBeenCalled();
+  });
 });
 
 describe("tabJob", () => {

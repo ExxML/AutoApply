@@ -1333,9 +1333,20 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     );
   },
 
-  async YOLO_TABS_STOP() {
+  async YOLO_TABS_STOP({ now }) {
     await updateTabJobs(() => []);
     await forgetTabsRead();
+    const run = now ? await getRun() : null;
+    if (run?.mode === "apply" && run.item.tabId !== undefined && (await end(run.id))) {
+      await releaseRealInput(run.item.tabId);
+      // Past Submit it may have gone through: left for the user to check rather than applied to twice.
+      if (run.confirming)
+        await record(await outcome(run, { status: "needs", reason: "Stopped before the emailed confirmation" }));
+      // Unrecorded, as for a tab closed before its turn. Loading the tab's posting again ends its page's driver
+      // mid-step, before it can press anything more.
+      else await chrome.tabs.update(run.item.tabId, { url: run.item.url }).catch(() => undefined);
+      void pump();
+    }
     return { ok: true };
   },
 

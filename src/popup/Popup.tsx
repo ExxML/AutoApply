@@ -139,8 +139,8 @@ export function Popup() {
     }
   };
 
-  const stopTabs = async () => {
-    await send({ type: "YOLO_TABS_STOP" });
+  const stopTabs = async (now: boolean) => {
+    await send({ type: "YOLO_TABS_STOP", now });
     setYolo(await send({ type: "YOLO_STATUS" }));
   };
 
@@ -264,23 +264,29 @@ export function Popup() {
       )}
       {yolo && (
         <div class="yolo-actions">
-          <div class="tabs-row">
-            <button
-              type="button"
-              class="btn"
-              onClick={() => void applyTabs()}
-              disabled={reading || tab?.windowId === undefined}
-              aria-describedby="tabs-help"
-              aria-busy={reading}
-            >
-              {reading ? "Reading tabs…" : "YOLO apply to job tabs"}
-            </button>
-            {!!yolo.tabJobs && (
-              <button type="button" class="btn" onClick={() => void stopTabs()}>
-                Stop after this tab
+          <button
+            type="button"
+            class="btn"
+            onClick={() => void applyTabs()}
+            disabled={reading || tab?.windowId === undefined}
+            aria-describedby="tabs-help"
+            aria-busy={reading}
+          >
+            {reading ? "Reading tabs…" : "YOLO apply to job tabs"}
+          </button>
+          {(!!yolo.tabJobs || yolo.tabRun) && (
+            <div class="tabs-row" role="group" aria-label="Stop applying to job tabs">
+              <button type="button" class="btn danger" onClick={() => void stopTabs(true)}>
+                Stop now
               </button>
-            )}
-          </div>
+              {/* Only while a tab is being applied to with more after it: otherwise both stop the same way. */}
+              {yolo.tabRun && !!yolo.tabJobs && (
+                <button type="button" class="btn" onClick={() => void stopTabs(false)}>
+                  Stop after this tab
+                </button>
+              )}
+            </div>
+          )}
           <p id="tabs-help" class="help" role="status">
             {tabsText(yolo)}
           </p>

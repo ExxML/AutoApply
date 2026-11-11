@@ -921,13 +921,10 @@ main:has(.applications-table-scroll) {
 .popup .tabs-row {
   display: flex;
   gap: 8px;
+  margin-top: 8px;
 }
-.popup .tabs-row .btn:first-child {
+.popup .tabs-row .btn {
   flex: 1;
-}
-.popup .tabs-row .btn + .btn {
-  width: auto;
-  margin: 0;
 }
 .popup .tabs-skipped {
   margin: 4px 0 0;

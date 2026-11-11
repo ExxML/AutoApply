@@ -141,8 +141,8 @@ export type Message =
   | { type: "YOLO_APPLY_QUEUED" }
   /** Applies to the jobs open in a window's tabs, each in its own tab (popup). */
   | { type: "YOLO_APPLY_TABS"; windowId: number }
-  /** The job tabs not started yet are left alone; the one being filled finishes. */
-  | { type: "YOLO_TABS_STOP" }
+  /** The job tabs not started yet are left alone; the one being filled finishes, or with `now` stops at once. */
+  | { type: "YOLO_TABS_STOP"; now?: boolean }
   | { type: "YOLO_RESUME"; key: string }
   | { type: "YOLO_RESUME_PENDING"; status: (typeof RESUMABLE)[number] }
   | { type: "YOLO_MARK_SUBMITTED"; key: string }
