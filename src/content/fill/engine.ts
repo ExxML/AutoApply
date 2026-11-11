@@ -7,7 +7,7 @@ import type { FieldHandle } from "../scan/fields";
 import { nativeOptions } from "../scan/widgets";
 import { fillDropdown, harvestOptions, searchOptions } from "./dropdown";
 import { holdScroll, sleep, waitFor } from "./events";
-import { compatibleDoc, fillFile } from "./file";
+import { compatibleDoc, documentFits, fillFile } from "./file";
 import {
   clearValue,
   fillCheckbox,
@@ -80,6 +80,12 @@ export function serial<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const flag = (note: string): FillResult => ({ outcome: "flag", note });
+const KIND_NAMES = {
+  resume: "résumé",
+  cover_letter: "cover letter",
+  transcript: "transcript",
+  other: "document",
+} as const;
 const answerOf = (op: FillOp) =>
   op.type === "intended"
     ? op.answer
@@ -229,6 +235,9 @@ async function dispatchKind(h: FieldHandle, op: FillOp, deps: EngineDeps): Promi
       if (op.type !== "file") return flag("Upload the file manually");
       const meta = deps.documents.find((d) => d.id === op.documentId);
       if (!meta) return flag("Document not found");
+      // Every upload passes here (profile documents, the AI's and the review's picks, tailored and written ones).
+      if (!documentFits(h, meta.kind))
+        return flag(`Not a place for your ${KIND_NAMES[meta.kind]}: upload the right file`);
       const doc = compatibleDoc(meta, deps.documents, h.desc.accept);
       if (!doc) return flag(`No uploaded file matches ${h.desc.accept}`);
       const data = await deps.getDocument(doc.id);

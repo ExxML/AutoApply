@@ -12,7 +12,7 @@ import {
 import { abbreviates, fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
-import { fillFile, findDropzones } from "../../src/content/fill/file";
+import { documentFits, fillFile, findDropzones } from "../../src/content/fill/file";
 import { dropdownText, readValue } from "../../src/content/fill/verify";
 
 beforeAll(() => {
@@ -836,6 +836,127 @@ describe("file uploads", () => {
     expect(h.desc).toMatchObject({ kind: "file", required: true });
     expect(h.desc.label).toMatch(/^Resume\/CV/);
     expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+  });
+
+  it("takes only the documents an upload's own words ask for", () => {
+    const upload = (html: string) => {
+      setBody(html);
+      return scan(newScanState()).handles.find((h) => h.desc.kind === "file")!;
+    };
+    // Teck's cover letter got the transcript; a résumé box must never get a cover letter, nor the reverse.
+    const cover = upload(`<div><h4>Cover Letter</h4><p>Complement your resume with a cover letter.</p>
+      <label for="c">All files will be replaced on each upload</label><input id="c" type="file"></div>`);
+    expect(["cover_letter", "resume", "transcript"].map((k) => documentFits(cover, k as "resume"))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+    const resume = upload(`<label for="r">Resume/CV</label><input id="r" type="file">`);
+    expect(documentFits(resume, "resume")).toBe(true);
+    expect(documentFits(resume, "cover_letter")).toBe(false);
+    expect(documentFits(resume, "transcript")).toBe(false);
+    const transcript = upload(`<label for="t">Upload transcript</label><input id="t" type="file">`);
+    expect(documentFits(transcript, "transcript")).toBe(true);
+    expect(documentFits(transcript, "resume")).toBe(false);
+    // An upload naming no document takes what was chosen for it, as before.
+    const any = upload(`<label for="a">Attachments</label><input id="a" type="file">`);
+    expect(documentFits(any, "transcript")).toBe(true);
+  });
+
+  it("refuses to upload a document the field doesn't ask for", async () => {
+    setBody(`<label for="c">Cover letter</label><input id="c" type="file">`);
+    const h = scan(newScanState()).handles[0];
+    const transcript = { ...meta, id: "t", kind: "transcript" as const, fileName: "Transcript.pdf" };
+    const r = await fill(h, { type: "file", documentId: "t" }, {
+      documents: [transcript],
+      getDocument: async () => ({ meta: transcript, base64: btoa("%PDF") }),
+      signal: new AbortController().signal,
+    } as unknown as Parameters<typeof fill>[2]);
+    expect(r.outcome).toBe("flag");
+    expect((h.el as HTMLInputElement).files?.length ?? 0).toBe(0);
+  });
+
+  it("leaves any field inside a component on a step not shown, and reads a UI5 Select's options", async () => {
+    // SuccessFactors keeps earlier steps, hidden, on the page: "Identifies as Indigenous?" was asked for on a later one.
+    setBody(`<section style="display:none"><ui5-input-x id="old" accessible-name="Identifies as Indigenous?"></ui5-input-x></section>
+      <section><ui5-select-x id="yrs"><ui5-option-x ui5-option>Native</ui5-option-x><ui5-option-x ui5-option>1 year</ui5-option-x>
+      <ui5-option-x ui5-option>3 years</ui5-option-x></ui5-select-x></section>`);
+    const old = document
+      .getElementById("old")!
+      .attachShadow({ mode: "open" })
+      .appendChild(document.createElement("input"));
+    old.setAttribute("aria-label", "Identifies as Indigenous?");
+    const box = document
+      .getElementById("yrs")!
+      .attachShadow({ mode: "open" })
+      .appendChild(document.createElement("div"));
+    box.setAttribute("role", "combobox");
+    box.setAttribute("aria-label", "Years of Experience");
+    box.tabIndex = 0;
+    const { handles } = scan(newScanState());
+    expect(handles.some((h) => h.el === old)).toBe(false);
+    const h = handles.find((x) => x.el === box) ?? ({ el: box, desc: { kind: "dropdown" } } as unknown as FieldHandle);
+    expect(await harvestOptions(h)).toEqual(["Native", "1 year", "3 years"]);
+  });
+
+  it("leaves an uploader on a step not shown, which a later step keeps on the page", () => {
+    // SuccessFactors' wizard keeps step 1's résumé uploader, hidden, under step 2: filled there, it asked to overwrite
+    // the application with the résumé.
+    setBody(`<section id="s1" style="display:none"><h3>Resume</h3><ui5-file-uploader-x id="u1"></ui5-file-uploader-x></section>
+      <section id="s2"><h3>Cover Letter</h3><ui5-file-uploader-x id="u2"></ui5-file-uploader-x></section>`);
+    const inputs = ["u1", "u2"].map((id) =>
+      document
+        .getElementById(id)!
+        .attachShadow({ mode: "open" })
+        .appendChild(Object.assign(document.createElement("input"), { type: "file" })),
+    );
+    const files = scan(newScanState()).handles.filter((h) => h.desc.kind === "file");
+    expect(files.map((h) => h.el)).toEqual([inputs[1]]);
+  });
+
+  it("names a UI5 uploader's shadow input, labelled only by its tooltip, from the box around it", () => {
+    // Teck's Job-Specific step: "All files will be replaced on each upload" is the input's title; the box says what
+    // it takes. Read as the tooltip, the review asked for a transcript in the cover letter's uploader.
+    setBody(`<div class="block"><h4>Cover Letter</h4>
+      <p>Complement your resume with a cover letter that describes your interest for the job.</p>
+      <div><ui5-file-uploader-x id="up"></ui5-file-uploader-x><ui5-button-x role="button">Browse</ui5-button-x></div></div>`);
+    const input = document
+      .getElementById("up")!
+      .attachShadow({ mode: "open" })
+      .appendChild(Object.assign(document.createElement("input"), { type: "file" }));
+    input.title = "All files will be replaced on each upload";
+    const st = newScanState();
+    const { handles } = scan(st);
+    const h = handles.find((x) => x.el === input) ?? {
+      id: "u",
+      desc: { id: "u", kind: "file", label: input.title, required: false },
+      el: input,
+      container: input,
+      prefilled: false,
+      sensitive: false,
+      consent: false,
+    };
+    expect(findDropzones(handles.includes(h as FieldHandle) ? handles : [...handles, h as FieldHandle], st)).toEqual(
+      [],
+    );
+    expect(h.desc.label).toMatch(/^Cover Letter Complement your resume/);
+  });
+
+  it("attaches a résumé through a bare Browse button whose input is hidden (SuccessFactors' UI5 uploader, Teck)", async () => {
+    setBody(`<div class="sapMVBox"><h3>Resume</h3>
+      <p>Automatically prefill your application by uploading your resume. Supported format: .pdf, .doc, .docx</p>
+      <div class="sapUiFup"><form style="display:none"><input type="file" tabindex="-1"></form>
+      <button type="button" class="sapMBtn"><span>Browse</span></button><span class="name"></span></div></div>`);
+    const input = document.querySelector<HTMLInputElement>("input[type=file]")!;
+    let uploaded = "";
+    input.addEventListener("change", () => (uploaded = input.files![0].name));
+    const st = newScanState();
+    const { handles } = scan(st);
+    expect(findDropzones(handles, st)).toHaveLength(0); // no pseudo field: the scanned input is the field
+    const [h] = handles;
+    expect(h.desc).toMatchObject({ kind: "file", label: expect.stringMatching(/^Resume Automatically prefill/) });
+    expect(await fillFile(h, meta, btoa("%PDF"))).toMatchObject({ outcome: "ok" });
+    expect(uploaded).toBe(meta.fileName);
   });
 });
 

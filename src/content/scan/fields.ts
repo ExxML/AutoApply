@@ -211,6 +211,13 @@ export interface ScanResult {
   collected: Collected;
 }
 
+/** A component on a part of the page not shown: under display:none (a wizard's other steps), or invisible. */
+function unshown(c: Element): boolean {
+  if (getComputedStyle(c).visibility === "hidden") return true;
+  for (let n: Element | null = c; n; n = parentOf(n)) if (getComputedStyle(n).display === "none") return true;
+  return false;
+}
+
 export function scan(state: ScanState, root: Element | null = document.body): ScanResult {
   const collected = collect(root);
   const own = buildUnits(collected);
@@ -431,6 +438,14 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     if (el instanceof HTMLInputElement && el.type === "file" && el.accept) d.accept = el.accept;
     // Résumé parsers are no answer: Ashby's "Autofill from resume" re-renders the form, wiping fills, and
     // SmartRecruiters' "Easy Apply … autocomplete your application" adds half-parsed entries to clean up.
+    // A field inside a component is on the page while the component shows. SuccessFactors keeps its other steps,
+    // hidden, on the page: step 1's résumé uploader, filled again on step 2, asked to overwrite the application with
+    // the résumé and covered the page; an earlier step's "Identifies as Indigenous?" was asked for on a later one.
+    const component = (el.getRootNode() as ShadowRoot).host;
+    if (component && unshown(component)) {
+      skip("on a step not shown");
+      continue;
+    }
     if (kind === "file" && RE_AUTOFILL_UPLOAD.test(`${label} ${d.hint ?? ""} ${ownRegionText(el, u, units)}`)) {
       skip("résumé parser that rewrites the form (never used)");
       continue;
