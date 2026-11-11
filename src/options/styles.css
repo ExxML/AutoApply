@@ -974,6 +974,18 @@ main:has(.applications-table-scroll) {
   flex: 2 1 260px;
 }
 .add-application .row,
-.add-application .help {
+.add-application .help,
+.add-account .row,
+.add-account .help {
   margin: 0 0 8px;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 8px;
+}
+.section-heading h2 {
+  margin: 0;
 }

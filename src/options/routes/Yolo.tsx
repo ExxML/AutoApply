@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Field, NumberInput, SelectInput, TagInput, TextInput, Toggle } from "../components/controls";
 import { save, useStored } from "../store";
 import { isErr, send, type Responses } from "../../shared/messages";
@@ -87,32 +87,34 @@ function QueueOrder(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => voi
 }
 
 /** An account the user made on a site themselves, so YOLO signs in instead of signing up. */
-function AddAccount(props: { email: string; onAdded: () => void }) {
+function AddAccount(props: { email: string; onAdded: () => void; onClose: () => void }) {
   const blank = { url: "", email: props.email, password: "" };
   const [form, setForm] = useState(blank);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const ref = useRef<HTMLFormElement>(null);
+  // autofocus is ignored on inputs added after load: the first empty field.
+  useLayoutEffect(() => ref.current?.querySelector<HTMLInputElement>("input:invalid")?.focus(), []);
   const add = async (e: Event) => {
     e.preventDefault();
     if (adding) return;
     setAdding(true);
     setError("");
     await send({ type: "YOLO_ADD_ACCOUNT", ...form })
-      .then((r) => {
-        if (isErr(r)) return setError(r.error.message);
-        setForm(blank);
-        props.onAdded();
-      })
+      .then((r) => (isErr(r) ? setError(r.error.message) : props.onAdded()))
       .catch(() => setError("Couldn't save it. Try again."))
       .finally(() => setAdding(false));
   };
   return (
-    <details class="add-account">
-      <summary>Add an account you created yourself</summary>
-      <p class="help">
-        The site's sign-in page link names the account: for Workday, any page of that company's Workday works.
-      </p>
-      <form class="row" onSubmit={(e) => void add(e)}>
+    <form
+      ref={ref}
+      id="add-account"
+      class="add-account"
+      aria-label="Add an account you created yourself"
+      onSubmit={(e) => void add(e)}
+      onKeyDown={(e) => e.key === "Escape" && props.onClose()}
+    >
+      <div class="row">
         {(
           [
             ["url", "Sign-in page link", "url", "off"],
@@ -126,6 +128,7 @@ function AddAccount(props: { email: string; onAdded: () => void }) {
             autocomplete={autocomplete}
             placeholder={label}
             aria-label={label}
+            aria-describedby="add-account-help"
             value={form[k]}
             onInput={(e) => setForm({ ...form, [k]: e.currentTarget.value })}
           />
@@ -133,13 +136,76 @@ function AddAccount(props: { email: string; onAdded: () => void }) {
         <button type="submit" class="btn small primary" disabled={adding}>
           {adding ? "Adding…" : "Add"}
         </button>
-      </form>
+        <button type="button" class="btn small" onClick={props.onClose}>
+          Cancel
+        </button>
+      </div>
+      <p class="help" id="add-account-help">
+        An account you created yourself, so YOLO signs in instead of signing up. The sign-in page link names the
+        account: for Workday, any page of that company's Workday works.
+      </p>
       {error && (
         <p role="alert" class="err">
           {error}
         </p>
       )}
-    </details>
+    </form>
+  );
+}
+
+/** The saved accounts, with adding one at the top: the table can run long. */
+function SiteAccounts(props: { email: string }) {
+  const [adding, setAdding] = useState(false);
+  // Remounts Accounts after an add, so its list reloads.
+  const [added, setAdded] = useState(0);
+  const [confirm, setConfirm] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    setAdding(false);
+    toggle.current?.focus();
+  };
+  return (
+    <>
+      <div class="section-heading">
+        <h2>Site accounts</h2>
+        <button
+          type="button"
+          class="btn small"
+          ref={toggle}
+          title="Save an account you created on a site yourself, so YOLO signs in instead of signing up"
+          aria-expanded={adding}
+          aria-controls="add-account"
+          onClick={() => {
+            if (adding) return close();
+            setAdding(true);
+            setConfirm(false);
+          }}
+        >
+          Add account
+        </button>
+      </div>
+      <p class="intro">
+        Passwords are encrypted with a key that never leaves this browser, and not included in exports.
+      </p>
+      {adding ? (
+        <AddAccount
+          email={props.email}
+          onClose={close}
+          onAdded={() => {
+            setAdded(added + 1);
+            setConfirm(true);
+            close();
+          }}
+        />
+      ) : (
+        confirm && (
+          <p role="status" class="ok">
+            Account added.
+          </p>
+        )
+      )}
+      <Accounts key={added} />
+    </>
   );
 }
 
@@ -331,8 +397,6 @@ function RealInput(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void
 export function Yolo() {
   const y = useStored("yolo");
   const state = useStored("yoloState");
-  // Remounts Accounts after an add, so its list reloads.
-  const [accountsAdded, setAccountsAdded] = useState(0);
   if (!y) return <p>Loading…</p>;
   const set = (patch: Partial<YoloConfig>) => void save({ yolo: { ...y, ...patch } });
   const urls = (v: string[]) => v.filter((u) => /^https?:\/\//i.test(u));
@@ -538,12 +602,7 @@ export function Yolo() {
           onChange={(warnOnYoloApplied) => set({ warnOnYoloApplied })}
         />
       </div>
-      <h2>Site accounts</h2>
-      <p class="intro">
-        Passwords are encrypted with a key that never leaves this browser, and not included in exports.
-      </p>
-      <Accounts key={accountsAdded} />
-      <AddAccount email={y.email} onAdded={() => setAccountsAdded(accountsAdded + 1)} />
+      <SiteAccounts email={y.email} />
     </section>
   );
 }
