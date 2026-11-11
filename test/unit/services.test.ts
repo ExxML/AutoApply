@@ -2242,6 +2242,46 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.preferences.relocationNotes = "Only New York";
     profile.preferences.earliestStartDate = "2027-09-01";
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
+    // A search box, list unread (Uber's Oracle: only "CAN Toronto (121 Bloor Street East)"): the posting's city.
+    const office = async (location: string) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("f", { label: "Preferred Location", kind: "typeahead", section: "Preferred Locations" })],
+            profile,
+            documents: [],
+            job: { company: "Uber", title: "", jobTitle: "Intern", url: "", location, text: "", capturedAt: 0 },
+          },
+        )
+      ).decisions.map((d) => (d.intendedAnswer ? `${d.intendedAnswer}|${d.searchQuery}` : d.action));
+    profile.preferences.relocationNotes = "Anywhere";
+    expect(await office("Toronto, ON, Canada")).toEqual(["Toronto|Toronto"]);
+    // Oracle names the office with its address; its search finds nothing for the whole name.
+    expect(await office("CAN Toronto (121 Bloor Street East)")).toEqual([
+      "CAN Toronto (121 Bloor Street East)|CAN Toronto",
+    ]);
+    const listed = (
+      await mapFields(
+        { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+        {
+          fields: [
+            field("g", {
+              label: "Preferred Location",
+              kind: "dropdown",
+              options: ["CAN Toronto (121 Bloor Street East)", "USA New York"],
+            }),
+          ],
+          profile,
+          documents: [],
+          job: { company: "Uber", title: "", jobTitle: "", url: "", location: "Toronto, ON", text: "", capturedAt: 0 },
+        },
+      )
+    ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    expect(listed).toEqual(["CAN Toronto (121 Bloor Street East)"]);
+    expect(await office("")).toEqual(["flag"]);
+    profile.preferences.willingToRelocate = "no";
+    expect(await office("Toronto, ON, Canada")).toEqual(["flag"]);
   });
 
   it("picks the undergraduate GPA option on a 4.0 scale", async () => {

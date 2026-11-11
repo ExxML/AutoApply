@@ -1383,7 +1383,11 @@ function termLengthsDecision(f: FieldDescriptor, profile: Profile, job: JobConte
  * every one. Notion's got only "San Francisco, CA" of New York and San Francisco. "Preferred office location(s) …
  * Select 1-3" takes the first that many (Palantir's was left blank).
  */
-function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]): Decision | null {
+function relocateAllDecision(
+  f: FieldDescriptor,
+  prefs: Profile["preferences"],
+  job?: JobContext | null,
+): Decision | null {
   // MongoDB: "Which of the following locations are you open to living and working in Summer 2027?" (a multi-select).
   const all = /\ball\b[^?]*\blocations?\b|\blocations?\b[^?]*\b(all that apply|open to|willing to)\b/i.test(f.label);
   const preferred = /\bpreferred (office )?locations?\b/i.test(f.label);
@@ -1398,6 +1402,24 @@ function relocateAllDecision(f: FieldDescriptor, prefs: Profile["preferences"]):
       confidence: "high",
       sources: ["preferences.willingToRelocate", "preferences.preferredLocations"],
     };
+  // One pick: the posting's own city. Uber's Oracle lists only "CAN Toronto (121 Bloor Street East)" for a Toronto
+  // posting, and the model left the required field for the user. A list not read yet is searched for it.
+  const city = job?.location?.split(/[,;]/)[0].trim();
+  // Its list unread, a multi-pick search too (Oracle's Preferred Locations takes several): the city searched for.
+  if (preferred && city && (f.options ? !isMulti(f) : f.kind === "typeahead" || f.kind === "dropdown")) {
+    const at = f.options?.flatMap((o, i) => (` ${normalize(o)} `.includes(` ${normalize(city)} `) ? [i] : []));
+    if (at && at.length !== 1) return null;
+    return {
+      fieldId: f.id,
+      action: "fill",
+      // Searched without its address in parentheses: Oracle's search lists nothing for the whole name.
+      ...(at
+        ? { optionIndexes: at, intendedAnswer: f.options![at[0]] }
+        : { intendedAnswer: city, searchQuery: city.replace(/\s*\([^)]*\)\s*$/, "") || city }),
+      confidence: "high",
+      sources: ["preferences.willingToRelocate", "preferences.preferredLocations"],
+    };
+  }
   if (!f.options || !isMulti(f)) return null;
   const cap = Number(/\bselect (?:up to |\d+ ?[-–] ?|between \d+ and )?(\d+)\b/i.exec(f.label)?.[1] ?? Infinity);
   const picks = f.options
@@ -2513,7 +2535,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       cohortDecision(f, input.profile.preferences) ??
       termsDecision(f, input.profile) ??
       termLengthsDecision(f, input.profile, input.job) ??
-      relocateAllDecision(f, input.profile.preferences) ??
+      relocateAllDecision(f, input.profile.preferences, input.job) ??
       gpaDecision(f, input.profile.education) ??
       returnOfferDecision(f, input.profile) ??
       startOnDecision(f, input.profile.preferences) ??
