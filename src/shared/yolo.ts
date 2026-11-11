@@ -277,6 +277,10 @@ export const YoloStateSchema = z.object({
 });
 export type YoloState = z.infer<typeof YoloStateSchema>;
 
+/** A job-tabs read, kept in the background so a popup closed mid-read shows it when reopened. */
+export type TabsRead =
+  { added: number; others: number; skipped: { label: string; reason: string }[] } | { error: string };
+
 export interface YoloStatus {
   enabled: boolean;
   /** Search queries set: YOLO has something to look for. */
@@ -287,6 +291,9 @@ export interface YoloStatus {
   /** Job tabs (popup "YOLO apply to job tabs") not started yet, and whether one is being applied to now. */
   tabJobs?: number;
   tabRun?: boolean;
+  /** The popup's "YOLO apply to job tabs" is reading a window's tabs, and the latest read's outcome. */
+  tabsReading?: boolean;
+  tabsRead?: TabsRead | null;
   queueOnlyBatch?: boolean;
   needsYou: number;
   pendingReviews?: number;

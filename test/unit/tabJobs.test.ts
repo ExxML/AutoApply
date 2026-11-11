@@ -167,6 +167,26 @@ describe("YOLO apply to job tabs", () => {
     expect((await apps())?.at(-1)).not.toHaveProperty("companyGuessed");
   });
 
+  it("keeps the read for a popup closed while it ran", async () => {
+    const status = () => coordinator.yoloHandlers.YOLO_STATUS!({ type: "YOLO_STATUS" }, {});
+    const reading = apply();
+    expect(await status()).toMatchObject({ tabsReading: true, tabsRead: null });
+    await reading;
+    expect(await status()).toMatchObject({
+      tabsReading: false,
+      tabsRead: {
+        added: 1,
+        others: 2,
+        skipped: [
+          { label: "Tab 7", reason: "Already in Applications" },
+          { label: "Tab 8", reason: "Not loaded: open the tab once, then try again" },
+        ],
+      },
+    });
+    await coordinator.yoloHandlers.YOLO_TABS_STOP!({ type: "YOLO_TABS_STOP" }, {});
+    expect(await status()).toMatchObject({ tabsRead: null });
+  });
+
   it("stops before the tabs not started yet", async () => {
     tabs.push(tab(10, "https://jobs.lever.co/acme/2"));
     await apply();

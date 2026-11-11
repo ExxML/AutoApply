@@ -59,8 +59,6 @@ export function tabsText(y: YoloStatus): string {
     .join(" · ");
 }
 
-type TabsResult = { added: number; others: number; skipped: { label: string; reason: string }[] };
-
 const openOptions = (hash: string) =>
   void chrome.tabs.create({ url: chrome.runtime.getURL(`src/options/index.html#${hash}`) });
 
@@ -72,8 +70,12 @@ export function Popup() {
   const [startingBatch, setStartingBatch] = useState<"discover" | "queue" | null>(null);
   const [batchError, setBatchError] = useState("");
   const [readingTabs, setReadingTabs] = useState(false);
-  const [tabsResult, setTabsResult] = useState<TabsResult | null>(null);
   const [tabsError, setTabsError] = useState("");
+  // Kept by the background: a popup closed mid-read shows the read when reopened.
+  const reading = readingTabs || !!yolo?.tabsReading;
+  const tabsRead = reading ? null : yolo?.tabsRead;
+  const tabsResult = tabsRead && !("error" in tabsRead) ? tabsRead : null;
+  const tabsFailure = tabsError || (tabsRead && "error" in tabsRead ? tabsRead.error : "");
 
   const host = (() => {
     try {
@@ -89,7 +91,10 @@ export function Popup() {
     loadYolo();
     // Watch key names only; the background supplies the popup's status without exposing raw settings or jobs.
     const changed = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-      if (area === "local" && ["yolo", "yoloState", "yoloQueue", "applications"].some((key) => key in changes))
+      if (
+        (area === "local" && ["yolo", "yoloState", "yoloQueue", "applications"].some((key) => key in changes)) ||
+        (area === "session" && "yoloTabsRead" in changes)
+      )
         loadYolo();
     };
     chrome.storage.onChanged.addListener(changed);
@@ -120,17 +125,12 @@ export function Popup() {
   };
 
   const applyTabs = async () => {
-    if (readingTabs || tab?.windowId === undefined) return;
+    if (reading || tab?.windowId === undefined) return;
     setReadingTabs(true);
     setTabsError("");
-    setTabsResult(null);
     try {
-      const r = await send({ type: "YOLO_APPLY_TABS", windowId: tab.windowId });
-      if (isErr(r)) return setTabsError(r.error.message);
-      // Named by their tab titles: the links alone are hard to tell apart.
-      const titles = new Map((await chrome.tabs.query({ windowId: tab.windowId })).map((t) => [t.url, t.title]));
-      const skipped = r.skipped.map(({ url, reason }) => ({ label: titles.get(url) || url, reason }));
-      setTabsResult({ added: r.added, others: r.others, skipped });
+      // The background keeps the outcome (YOLO_STATUS tabsRead), so the read goes on if the popup closes.
+      await send({ type: "YOLO_APPLY_TABS", windowId: tab.windowId });
       setYolo(await send({ type: "YOLO_STATUS" }));
     } catch {
       setTabsError("Couldn't read this window's tabs. Please try again.");
@@ -141,7 +141,6 @@ export function Popup() {
 
   const stopTabs = async () => {
     await send({ type: "YOLO_TABS_STOP" });
-    setTabsResult(null);
     setYolo(await send({ type: "YOLO_STATUS" }));
   };
 
@@ -270,11 +269,11 @@ export function Popup() {
               type="button"
               class="btn"
               onClick={() => void applyTabs()}
-              disabled={readingTabs || tab?.windowId === undefined}
+              disabled={reading || tab?.windowId === undefined}
               aria-describedby="tabs-help"
-              aria-busy={readingTabs}
+              aria-busy={reading}
             >
-              {readingTabs ? "Reading tabs…" : "YOLO apply to job tabs"}
+              {reading ? "Reading tabs…" : "YOLO apply to job tabs"}
             </button>
             {!!yolo.tabJobs && (
               <button type="button" class="btn" onClick={() => void stopTabs()}>
@@ -310,9 +309,9 @@ export function Popup() {
               )}
             </div>
           )}
-          {tabsError && (
+          {tabsFailure && (
             <p class="err" role="alert">
-              {tabsError}
+              {tabsFailure}
             </p>
           )}
         </div>

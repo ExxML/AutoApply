@@ -30,7 +30,7 @@ import { getJobContext, setJobContext } from "../jobContext";
 import { realInput, realInputReady, releaseRealInput } from "./realInput";
 import { markApplicationSubmitted, recordApplication, updateApplications, updateQueue } from "./applicationStore";
 import { nextPendingResume, pendingResumeKeys, pendingResumeStarted, queuePendingResumes } from "./pendingResumes";
-import { tabJobs, updateTabJobs } from "./tabJobs";
+import { forgetTabsRead, readTabs, tabJobs, tabsRead, tabsReading, updateTabJobs } from "./tabJobs";
 import { completedSince, needsReviewTab, pendingReview, reviewReasons } from "./submissionReview";
 import {
   dismissReview,
@@ -1012,6 +1012,37 @@ async function readJobTab(t: chrome.tabs.Tab) {
   return job && { ...job, url, tabId: t.id };
 }
 
+async function applyJobTabs(windowId: number): Promise<Responses["YOLO_APPLY_TABS"]> {
+  // Checked now, not at each tab's turn: with YOLO off, the popup shows no pause reason.
+  const ctx = await deps.serviceCtx();
+  if ("error" in ctx) return { error: ctx.error };
+  const blocked = await resumeBlocker();
+  if (blocked) return { error: { kind: "other", message: blocked } };
+  const tabs = await chrome.tabs.query({ windowId });
+  const found = (await Promise.all(tabs.map(readJobTab))).filter((j) => !!j);
+  const { items, skipped } = await vetJobs(found);
+  // Memory saver unloaded it: its page can't be read until it loads again.
+  const unloaded = tabs.filter((t) => t.discarded && t.url && namesPosting(t.url));
+  for (const t of unloaded) skipped.push({ url: t.url!, reason: "Not loaded: open the tab once, then try again" });
+  // Each tab's own posting, kept for its run: before it can start.
+  for (const { job } of items) await setJobContext(job.tabId, job.context);
+  let added = 0;
+  await updateTabJobs((list) => {
+    const adding = newJobs(list, items, skipped, "Already in this run");
+    added = adding.length;
+    return [
+      ...list,
+      ...adding.map(({ item, job }) => ({
+        ...item,
+        tabId: job.tabId,
+        ...(job.companyGuessed && { companyGuessed: true }),
+      })),
+    ];
+  });
+  if (added) void pump();
+  return { ok: true, added, skipped, others: tabs.length - found.length - unloaded.length };
+}
+
 // ---------- messages ----------
 export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_STATUS() {
@@ -1031,6 +1062,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       queued: queue.length,
       tabJobs: (await tabJobs()).length,
       tabRun: run?.item.tabId !== undefined,
+      tabsReading: tabsReading(),
+      tabsRead: await tabsRead(),
       queueOnlyBatch: state.queueOnlyBatch,
       needsYou: apps.filter((a) => a.status === "needs").length,
       pendingReviews: apps.filter(pendingReview).length,
@@ -1227,39 +1260,22 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true, added, skipped };
   },
 
-  async YOLO_APPLY_TABS({ windowId }) {
-    // Checked now, not at each tab's turn: with YOLO off, the popup shows no pause reason.
-    const ctx = await deps.serviceCtx();
-    if ("error" in ctx) return { error: ctx.error };
-    const blocked = await resumeBlocker();
-    if (blocked) return { error: { kind: "other", message: blocked } };
-    const tabs = await chrome.tabs.query({ windowId });
-    const found = (await Promise.all(tabs.map(readJobTab))).filter((j) => !!j);
-    const { items, skipped } = await vetJobs(found);
-    // Memory saver unloaded it: its page can't be read until it loads again.
-    const unloaded = tabs.filter((t) => t.discarded && t.url && namesPosting(t.url));
-    for (const t of unloaded) skipped.push({ url: t.url!, reason: "Not loaded: open the tab once, then try again" });
-    // Each tab's own posting, kept for its run: before it can start.
-    for (const { job } of items) await setJobContext(job.tabId, job.context);
-    let added = 0;
-    await updateTabJobs((list) => {
-      const adding = newJobs(list, items, skipped, "Already in this run");
-      added = adding.length;
-      return [
-        ...list,
-        ...adding.map(({ item, job }) => ({
-          ...item,
-          tabId: job.tabId,
-          ...(job.companyGuessed && { companyGuessed: true }),
-        })),
-      ];
-    });
-    if (added) void pump();
-    return { ok: true, added, skipped, others: tabs.length - found.length - unloaded.length };
+  YOLO_APPLY_TABS({ windowId }) {
+    return readTabs(
+      () => applyJobTabs(windowId),
+      async (r) => {
+        if ("error" in r) return { error: r.error.message };
+        // Named by their tab titles: the links alone are hard to tell apart.
+        const titles = new Map((await chrome.tabs.query({ windowId })).map((t) => [t.url, t.title]));
+        const skipped = r.skipped.map(({ url, reason }) => ({ label: titles.get(url) || url, reason }));
+        return { added: r.added, others: r.others, skipped };
+      },
+    );
   },
 
   async YOLO_TABS_STOP() {
     await updateTabJobs(() => []);
+    await forgetTabsRead();
     return { ok: true };
   },
 
