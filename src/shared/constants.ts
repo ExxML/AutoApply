@@ -227,9 +227,13 @@ export const CAPTCHA_SELF_CLEAR_MS = 20_000;
 export const EMAIL_WAIT_MS = 5 * 60_000;
 /** A timer firing at least this late means the computer slept meanwhile (YOLO's watchdog ticks every 30 s). */
 export const SLEPT_MS = 60_000;
-/** A page confirming an application went through (YOLO's success check, and the user's own submissions). */
+/**
+ * A page confirming an application went through (YOLO's success check, and the user's own submissions). Not a
+ * sentence saying when that will be: Intel's Workday heads a mid-form step "Follow the steps until you reach the
+ * final page confirming that your application … has been successfully submitted", which ended a run as submitted.
+ */
 export const RE_APPLIED =
-  /thanks?( you)?( so much)? for (applying|your application|submitting)|application (has been |was )?(successfully )?(submitted|received|sent|completed?)\b|we('ve| have) (successfully )?received your application|successfully (applied|submitted)|your application (is|has been) (complete|submitted|received|on its way)|you('ve| have) (successfully )?applied|application submitted/i;
+  /(?<!\b(until|once(?! again)|after|when|if|before)\b[^.!?\n]*)(thanks?( you)?( so much)? for (applying|your application|submitting)|application (has been |was )?(successfully )?(submitted|received|sent|completed?)\b|we('ve| have) (successfully )?received your application|successfully (applied|submitted)|your application (is|has been) (complete|submitted|received|on its way)|you('ve| have) (successfully )?applied|application submitted)/i;
 export const RE_FORBIDDEN_CLICK = /submit|next|continue|apply|save|sign ?in|log ?in|sign ?up|register|finish|review/i;
 /** Button texts that are never answer choices (used to reject button-style choice groups). */
 export const RE_NAV_BUTTON =

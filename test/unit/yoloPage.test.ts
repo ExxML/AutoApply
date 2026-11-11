@@ -42,6 +42,20 @@ describe("YOLO page kinds", () => {
     // A form that merely mentions it is not done.
     setBody(`<p>Once your application has been submitted, we'll review it.</p><input><input><input>`);
     expect(classify(3)).toBe("form");
+    // Nor a step saying when it will be, with few fields (Intel's Workday, step 4 of 5).
+    const step = "Follow the steps until you reach the final page confirming that your application or profile has been";
+    setBody(`<h2>Voluntary Disclosures</h2><h3>${step} successfully submitted.</h3>
+      <input type="checkbox"><button>Save and Continue</button>`);
+    expect(classify(1)).not.toBe("success");
+    setBody(`<h2>Once you have successfully applied, we'll email you.</h2>`);
+    expect(classify(0)).not.toBe("success");
+    // A confirmation still is, however it goes on.
+    setBody(
+      `<h1>Application submitted</h1><p>Once again, thank you for applying! If you have questions, write us.</p>`,
+    );
+    expect(classify(0)).toBe("success");
+    setBody(`<p>Your application has been received. When you are invited to interview, we'll email you.</p>`);
+    expect(classify(0)).toBe("success");
     setBody(`<h1>This job is no longer accepting applications</h1>`);
     expect(classify(0)).toBe("closed");
     // Workday's, for a posting taken down.
