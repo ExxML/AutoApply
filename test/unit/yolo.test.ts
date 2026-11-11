@@ -116,6 +116,8 @@ describe("job keys", () => {
     expect(namesPosting("https://passport.amazon.jobs/")).toBe(false);
     expect(namesPosting("https://career5.successfactors.eu/careers?company=SAP")).toBe(false);
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en")).toBe(false);
+    expect(namesPosting("https://altera.wd1.myworkdayjobs.com/en-US/Altera/userHome")).toBe(false);
+    expect(namesPosting("https://altera.wd1.myworkdayjobs.com/en-US/Altera/job/San-Jose/Intern_JR1/apply")).toBe(true);
     expect(namesPosting("https://dfid.dayforcehcm.com/globalidentity/account/login?returnUrl=x")).toBe(false);
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en/job/13309/software-intern")).toBe(true);
     expect(namesPosting("https://jobs.bce.ca/bell/job/Montreal-Intern/1433151100")).toBe(true);

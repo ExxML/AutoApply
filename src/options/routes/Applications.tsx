@@ -33,7 +33,9 @@ function download(f: { name: string; base64?: string; text?: string }) {
 export async function readPosting(url: string): Promise<{ company: string; title: string }> {
   try {
     const r = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(10_000) });
-    const ld = r.ok ? jsonLdJobPosting(new DOMParser().parseFromString(await r.text(), "text/html")) : null;
+    // Its JSON-LD blocks alone: parsing the whole page logs a CSP violation for each inline event handler in it.
+    const blocks = r.ok ? (await r.text()).match(/<script[^>]*application\/ld\+json[^>]*>[\s\S]*?<\/script>/gi) : null;
+    const ld = blocks && jsonLdJobPosting(new DOMParser().parseFromString(blocks.join(""), "text/html"));
     const org = ld?.hiringOrganization;
     const text = (s: unknown) => (typeof s === "string" ? collapse(s).slice(0, 200) : "");
     return { company: text(typeof org === "string" ? org : org?.name), title: text(ld?.title) };
@@ -257,7 +259,11 @@ export function Applications() {
               aria-label="Job posting link"
               aria-describedby="add-application-help"
               value={added.url}
-              onInput={(e) => setAdded({ ...added, url: e.currentTarget.value })}
+              onInput={(e) => {
+                // Another link is another posting: its page is read again.
+                setAdded({ ...blank, url: e.currentTarget.value });
+                setAskDetails(false);
+              }}
             />
             {askDetails &&
               (

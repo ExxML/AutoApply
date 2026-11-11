@@ -71,6 +71,8 @@ export function jobKey(raw: string): string {
 export function namesPosting(raw: string): boolean {
   const key = jobKey(raw);
   if (/^[^/:]*successfactors\.(com|eu)\//.test(key)) return false; // SAP's is career5.successfactors.eu
+  // A Workday page without a requisition is the site's home, sign-in or candidate home ("…/Altera/userHome").
+  if (/^[^/:]*\.myworkday(jobs|site)\.com\//.test(key)) return false;
   const generic = /^[^/:]+\/([^?]*)$/.exec(key); // no ATS id and no id parameter
   if (!generic) return true;
   const segs = generic[1].split("/").filter((s) => s && !/^[a-z]{2}([-_][a-z]{2})?$/.test(s));
