@@ -57,11 +57,18 @@ export function controlLabel(el: HTMLElement): string {
   return ownName(el) || wrapperLabel(el);
 }
 
-/** A <label for> naming the control's wrapper: Ashby's "Start Date" labels the div holding month and year selects. */
+/**
+ * A <label for> naming the control's wrapper: Ashby's "Start Date" labels the div holding month and year selects. Or
+ * a wrapper holding no other control named by aria-labelledby: Workday's file upload ("Please upload your most recent
+ * transcript."), whose own input is nameless and whose dropzone text ("Drop files here") was read as its question.
+ */
 function wrapperLabel(el: HTMLElement): string {
   for (let p = el.parentElement, i = 0; p && i < 3; p = p.parentElement, i++) {
     const l = p.id ? rootOf(el).querySelector(`label[for="${esc(p.id)}"]`) : null;
     if (l && textOf(l)) return textOf(l);
+    const only = () => [...p!.querySelectorAll("input:not([type=hidden]),select,textarea")].every((c) => c === el);
+    const lb = p.hasAttribute("aria-labelledby") && only() ? byIds(p, "aria-labelledby", true) : "";
+    if (lb) return lb;
   }
   return "";
 }

@@ -452,6 +452,23 @@ describe("widget classification (Appendix C.3)", () => {
     expect(fields().map((h) => h.desc.kind)).toEqual(["file"]);
   });
 
+  it("names a file upload by its wrapper's aria-labelledby, not its dropzone text (Workday questionnaire)", () => {
+    // Ciena's Application Questions, as served.
+    setBody(
+      `<div data-automation-id="formField-"><div id="rich-label199"><div data-automation-id="richText"><p><b>Please upload your most recent transcript.</b><abbr title="required">*</abbr></p></div></div>` +
+        `<div><div data-automation-id="x-FileUpload" aria-labelledby="rich-label199"><div><div data-automation-id="file-upload-drop-zone">Drop files here or ` +
+        `<button type="button" data-automation-id="select-files">Select files</button></div><input type="file" data-automation-id="file-upload-input-ref" style="display:none"></div></div></div></div>`,
+    );
+    expect(fields().map((h) => [h.desc.kind, h.desc.label])).toEqual([
+      ["file", "Please upload your most recent transcript."],
+    ]);
+    // A labelled wrapper around more than one control names none of them.
+    setBody(
+      `<div id="s">Contact</div><div aria-labelledby="s"><div><label for="a">Email</label><input id="a"></div><input></div>`,
+    );
+    expect(fields().map((h) => h.desc.label)).not.toContain("Contact");
+  });
+
   it("a trigger whose aria-label names only its value falls back to the question (Workday questionnaire)", () => {
     setBody(
       `<div><fieldset><legend><div id="rich-label47"><p><b>Do you hold any licenses?</b><abbr>*</abbr></p></div></legend>` +
