@@ -2,7 +2,7 @@
 import { RE_NAV_BUTTON } from "../../shared/constants";
 import { collapse } from "../../shared/normalize";
 import type { FieldKind } from "../../shared/types";
-import { labelElementFor, precedingText, textOf } from "./labels";
+import { labelElementFor, precedingText, proxiedSelect, textOf } from "./labels";
 import type { Collected } from "./traverse";
 import { isVisible, parentOf } from "./visibility";
 import { isDropdownTrigger, isTextInput, wrapsSingleControl } from "./widgets";
@@ -154,7 +154,11 @@ function labelledFromOutside(b: HTMLElement): boolean {
     })
   )
     return true;
-  return !!b.id && !!labelElementFor(b);
+  if (b.id && labelElementFor(b)) return true;
+  // Or names the native <select> it stands in for, hidden beside it (GeoSpectrum's BambooHR: "Province", "Highest
+  // Education Obtained" went unscanned and unfilled).
+  const select = proxiedSelect(b);
+  return !!select && !!labelElementFor(select);
 }
 
 /** Popups (listboxes, menus) opened by a dropdown/combobox, found via aria-controls/aria-owns. */

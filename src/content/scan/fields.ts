@@ -29,6 +29,7 @@ import {
   labelElementFor,
   legendOf,
   precedingText,
+  proxiedSelect,
   sectionFor,
   textOf,
   unseenPlaceholder,
@@ -399,7 +400,7 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const section = sectionFor(el, collected.order, collected.headings);
     if (section && section !== label) d.section = section;
     const required =
-      [el, u.searchInput, u.groupEl, s2for, ...(members ?? [])].some(
+      [el, u.searchInput, u.groupEl, s2for, proxiedSelect(el), ...(members ?? [])].some(
         (n) => n && ((n as HTMLInputElement).required || n.getAttribute("aria-required") === "true"),
       ) ||
       /\*|\(required\)/i.test(rawLabel) ||

@@ -73,12 +73,25 @@ function wrapperLabel(el: HTMLElement): string {
   return "";
 }
 
+/**
+ * The one native <select> a popup button stands in for, hidden in the button's wrapper: BambooHR's Fabric select,
+ * whose <label for> names that select, not the button ("Province", read as its aria-label "Province –Select–").
+ */
+export function proxiedSelect(b: HTMLElement): HTMLSelectElement | null {
+  if (b.tagName !== "BUTTON" || !b.hasAttribute("aria-haspopup")) return null;
+  for (let p = b.parentElement, i = 0; p && i < 3; p = p.parentElement, i++) {
+    const sels = p.querySelectorAll("select");
+    if (sels.length) return sels.length === 1 ? sels[0] : null;
+  }
+  return null;
+}
+
 function ownName(el: HTMLElement): string {
   const lb = byIds(el, "aria-labelledby", true);
   if (lb) return lb;
-  const l = labelElementFor(el);
-  if (l) {
-    const t = textOf(l);
+  const select = proxiedSelect(el);
+  for (const l of [labelElementFor(el), select && labelElementFor(select)]) {
+    const t = l ? textOf(l) : "";
     if (t) return t;
   }
   if (/^(checkbox|switch|radio)$/.test(el.getAttribute("role") ?? "")) {

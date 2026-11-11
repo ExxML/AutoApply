@@ -1136,6 +1136,37 @@ describe("ARIA menu selects", () => {
     expect(await fillDropdown(h, ["British Columbia"])).toMatchObject({ outcome: "ok" });
     expect(b.textContent).toContain("British Columbia");
   });
+
+  it("scans one its label names through the hidden select, and reads its menu before mapping (GeoSpectrum)", async () => {
+    const { harvestOptions } = await import("../../src/content/fill/dropdown");
+    setBody(`<div><label for="educationLevelId">Highest Education Obtained<span aria-hidden="true"> *</span></label></div>
+      <div data-fabric-component="Select"><div><div><button type="button" aria-haspopup="true" aria-expanded="false"
+        data-menu-id="fab-menu40" aria-label="Highest Education Obtained –Select–"><div>–Select–</div></button></div></div>
+      <select id="educationLevelId" aria-hidden="true" required style="opacity:0;height:0;width:0;position:absolute"><option value=""></option></select></div>`);
+    const b = document.querySelector("button")!;
+    // Live, its menu showed about 400 ms after the latest click.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    b.addEventListener("click", () => {
+      if (b.getAttribute("aria-expanded") === "true") {
+        b.setAttribute("aria-expanded", "false");
+        document.getElementById("fab-menu40")?.remove();
+        return;
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        b.setAttribute("aria-expanded", "true");
+        const menu = Object.assign(document.createElement("div"), { id: "fab-menu40" });
+        menu.setAttribute("role", "menu");
+        menu.innerHTML = ["GED or Equivalent", "High School", "Some College"]
+          .map((t) => `<div role="menuitem">${t}</div>`)
+          .join("");
+        document.body.append(menu);
+      }, 400);
+    });
+    const h = scan(newScanState()).handles.find((x) => x.el === b)!;
+    expect([h.desc.kind, h.desc.label, h.desc.required]).toEqual(["dropdown", "Highest Education Obtained", true]);
+    expect(await harvestOptions(h, 400)).toEqual(["GED or Equivalent", "High School", "Some College"]);
+  });
 });
 
 describe("haltFill (overlay Stop)", () => {

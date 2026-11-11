@@ -725,6 +725,19 @@ describe("skipping and visibility (§11.3, §11.6)", () => {
     expect(hs.map((h) => [h.desc.kind, h.desc.label])).toEqual([["dropdown", "Country"]]);
   });
 
+  it("reads a popup button standing in for a hidden select its label names as a dropdown (GeoSpectrum's BambooHR)", () => {
+    const fab = (id: string, q: string) =>
+      `<div><label for="${id}">${q}<span aria-hidden="true"> *</span></label></div><div><div data-fabric-component="Select">` +
+      `<div style="display: inline-block;"><div><button type="button" aria-haspopup="true" aria-expanded="false" aria-label="${q} –Select–">` +
+      `<div><div>–Select–</div></div></button></div></div><select id="${id}" name="${id}" aria-hidden="true" required tabindex="-1" ` +
+      `style="height: 0px; opacity: 0; position: absolute; width: 0px;"><option value=""></option></select></div></div>`;
+    setBody(`<form>${fab("fab-select136", "Province")}${fab("educationLevelId", "Highest Education Obtained")}</form>`);
+    expect(fields().map((h) => [h.desc.kind, h.desc.label, h.desc.required])).toEqual([
+      ["dropdown", "Province", true],
+      ["dropdown", "Highest Education Obtained", true],
+    ]);
+  });
+
   it("labels a select2 by its question, not by the selection it names itself after (iCIMS)", () => {
     setBody(`<form><div><label for="q">Will you now or in the future require sponsorship? <span>*</span></label>
       <select id="q" class="select2-hidden-accessible" aria-hidden="true" tabindex="-1" required>
