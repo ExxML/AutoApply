@@ -80,6 +80,33 @@ describe("remote dropdowns (Select2 AJAX)", () => {
     expect(h.searchInput!.value).toBe("");
   });
 
+  it("takes a pick shown as a chip beside a multi-pick box that keeps the typed text (Oracle), clicking it once", async () => {
+    setBody(`<div role="region"><label for="loc">Preferred Location</label><div>
+      <input id="loc" name="preferredLocations" role="combobox" aria-autocomplete="list" aria-haspopup="listbox"
+        aria-controls="loc-listbox" aria-expanded="false"><ul id="loc-listbox" role="listbox"></ul></div>
+      <ul class="pills"></ul></div>`);
+    const h = scan(newScanState()).handles.find((x) => x.desc.label === "Preferred Location")!;
+    const input = h.el as HTMLInputElement;
+    const list = document.getElementById("loc-listbox")!;
+    const office = "CAN Toronto (121 Bloor Street East)";
+    let clicks = 0;
+    input.addEventListener("input", () => {
+      input.setAttribute("aria-expanded", "true");
+      list.innerHTML = office.toLowerCase().startsWith(input.value.toLowerCase())
+        ? `<li role="option">${office}</li>`
+        : "";
+      list.querySelector("li")?.addEventListener("click", () => {
+        clicks++;
+        // A click toggles the chip; the typed text stays in the box.
+        const pills = document.querySelector(".pills")!;
+        pills.innerHTML = pills.innerHTML ? "" : `<li>${office}</li>`;
+      });
+    });
+    const r = await fillTypeahead(h, "CAN Toronto", office, async () => null);
+    expect(r).toMatchObject({ outcome: "ok", shown: office });
+    expect([clicks, document.querySelector(".pills")!.textContent]).toEqual([1, office]);
+  });
+
   it("enters typed text in a suggest box whose list it can't read, which clears uncommitted text on leaving", async () => {
     // A suggest box with no list it can read: Enter or a pick commits, and leaving the box clears anything else.
     setBody(

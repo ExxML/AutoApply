@@ -203,8 +203,16 @@ export async function fillTypeahead(
       ? { outcome: "ok", shown: want }
       : { outcome: "mismatch", note: `Expected "${want}", shows "${dropdownText(h)}"` };
   const v = normalize(input.value || h.el.textContent || shownBeside(input));
+  // A multi-pick shows each pick as a chip beside its box, which keeps the typed text until left (Oracle's Preferred
+  // Location): the chip says it took, and another click would only take it off again.
+  const chip = () =>
+    [...h.container.querySelectorAll<HTMLElement>("li,[role=listitem]")].some(
+      (e) =>
+        !c!.contains(e) && !e.closest("[role=listbox],[role=option]") && normalize(e.innerText) === normalize(want),
+    );
   // Our own query left in the box ("Langley" of "Langley, BC") means the pick did not register.
-  const picked = kept || v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(typed));
+  const picked =
+    kept || v.includes(normalize(want)) || (normalize(want).includes(v) && v !== normalize(typed)) || chip();
   if (!v) return { outcome: "failed", note: `Expected "${want}", but the selection was cleared` };
   return picked
     ? { outcome: "ok", shown: want }
