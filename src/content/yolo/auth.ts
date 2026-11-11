@@ -15,8 +15,16 @@ const RE_TO_SIGNUP =
   /^(create (an |a |my |your )?(new )?(account|profile)|sign ?up|register|new user\??|don'?t have an account\?.*)$/i;
 const RE_TO_SIGNIN = /^(sign ?in|log ?in|already have an account\?.*)$/i;
 const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
-const RE_VERIFY_BTN =
-  /^(verify|confirm|continue|next|submit|sign ?in|send( (me )?(a |the )?(reset )?(link|email|code))?|reset( (my |your )?password)?)$/i;
+// What sends a reset or verification email from its form: never the "Sign In" beside it (Workday's sits below its
+// Reset Password, and the lowest match was pressed, so the email was never sent).
+const RE_SEND_BTN =
+  /^(verify|confirm|continue|next|submit|send( (me )?(a |the )?(reset )?(link|email|code))?|reset( (my |your )?password)?)$/i;
+// A code page's "Sign in" too: the code is the sign-in's second step.
+const RE_VERIFY_BTN = new RegExp(`${RE_SEND_BTN.source}|^sign ?in$`, "i");
+// What saves the new password on the page a reset link opens.
+const RE_RESET_BTN = /^((reset|change|update|set|save)( (my |your )?(new )?password)?|submit|continue|next|confirm)$/i;
+/** When this tab's page asked for an email (a password reset), so the sign-in it returns to waits for that email. */
+const EMAIL_ASKED = "autoapply-email-asked";
 
 /** The account a site's applications share: a Workday tenant's, a SuccessFactors company's, else the site's own. */
 export function siteKey(href = location.href): string {
@@ -147,7 +155,7 @@ export async function handleAuth(
   tickConsents();
   await acceptNotices();
   await sleep(300);
-  const b = findSignup();
+  const b = (kind === "reset" && findButton(RE_RESET_BTN)) || findSignup();
   if (!b) return { fail: "No create-account button" };
   press(b);
   return { ok: true };
@@ -178,6 +186,34 @@ export async function forgotPassword(): Promise<AuthOutcome> {
   return { ok: true };
 }
 
+/** This tab's note across the site's pages (null clears it); a frame refused storage keeps none. */
+function remember(key: string, value: string | null): string | null {
+  try {
+    const old = sessionStorage.getItem(key);
+    if (value === null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, value);
+    return old;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A sign-in shown again after its "forgot password" form sent the email (Workday's goes back to Sign In): the password
+ * held is the one it refused, so the run follows the emailed reset link instead. Null when this tab asked for no email
+ * in the last 20 minutes.
+ */
+export async function awaitReset(): Promise<AuthOutcome | null> {
+  const at = Number(remember(EMAIL_ASKED, null));
+  if (!at || Date.now() - at > 20 * 60_000) return null;
+  // A minute's slack: the email's timestamp and this clock can disagree.
+  const r = await send({ type: "YOLO_WAIT_EMAIL", since: at - 60_000, want: "link" });
+  if (isErr(r)) return { fail: r.error.message };
+  if (!r.link) return { fail: "No password reset link" };
+  location.href = r.link;
+  return { ok: true };
+}
+
 /** A "check your inbox" page: follows the emailed link, or types the emailed code. */
 export async function handleVerify(since: number, email: string): Promise<AuthOutcome> {
   const input = codeInput();
@@ -185,11 +221,14 @@ export async function handleVerify(since: number, email: string): Promise<AuthOu
   const ask = emailInputs().find((e) => !e.value);
   if (ask && !input) {
     await type(ask, email);
-    const b = findButton(RE_VERIFY_BTN);
+    const b = findButton(RE_SEND_BTN);
     if (!b) return { fail: "No button to send the reset email" };
     press(b);
+    remember(EMAIL_ASKED, String(Date.now()));
     return { ok: true };
   }
+  // This page waits for the email itself.
+  remember(EMAIL_ASKED, null);
   const r = await send({ type: "YOLO_WAIT_EMAIL", since, want: input ? "code" : "link" });
   if (isErr(r)) return { fail: r.error.message };
   if (r.link) {

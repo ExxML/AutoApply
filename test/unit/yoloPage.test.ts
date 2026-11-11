@@ -9,7 +9,7 @@ import { confirmation, confirmFirst, kindOf, verifyFailed } from "../../src/back
 const classify = (fields: number, hidden = false, requiredFields = 0) =>
   kindOf(pageFacts({ fields, requiredFields }), hidden);
 import { findApply, findNext, findSubmit, validationErrors } from "../../src/content/yolo/nav";
-import { handleAuth, siteKey } from "../../src/content/yolo/auth";
+import { awaitReset, handleAuth, handleVerify, siteKey } from "../../src/content/yolo/auth";
 import { realFor, setGraded, setRealMode } from "../../src/content/yolo/real";
 
 beforeAll(stubLayout);
@@ -395,6 +395,44 @@ describe("YOLO buttons", () => {
     document.querySelector("a")!.addEventListener("click", () => (forgot = true));
     expect(await handleAuth("signin", async () => undefined)).toEqual({ ok: true });
     expect(forgot).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("sends a reset email, never the Sign In beside it, and follows its link from the sign-in after", async () => {
+    const sent: { type: string; since?: number; want?: string }[] = [];
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: async (m: (typeof sent)[number]) =>
+          m.type === "YOLO_CREDENTIAL"
+            ? { email: "me@x.com", password: "Aa1!aaaaaaaaaaaaaa", created: true }
+            : (sent.push(m), { link: `${location.origin}/#reset-link` }),
+      },
+    });
+    sessionStorage.clear();
+    // Workday's Forgot Password: its Sign In link is the lowest button.
+    setBody(`<h2>Forgot Password</h2><input type="email" data-automation-id="email">
+      <button data-automation-id="resetPasswordButton">Reset Password</button><button data-automation-id="signInLink">Sign In</button>`);
+    const pressed: string[] = [];
+    for (const b of document.querySelectorAll("button"))
+      b.addEventListener("click", () => pressed.push(b.textContent!));
+    expect(await handleVerify(0, "me@x.com")).toEqual({ ok: true });
+    expect(pressed).toEqual(["Reset Password"]);
+    expect(document.querySelector("input")!.value).toBe("me@x.com");
+    expect(sent).toEqual([]);
+    // Back at Sign In: the emailed link, once; a sign-in nobody asked an email for signs in as before.
+    const t = Date.now();
+    expect(await awaitReset()).toEqual({ ok: true });
+    expect(sent).toEqual([{ type: "YOLO_WAIT_EMAIL", since: expect.any(Number), want: "link" }]);
+    expect(sent[0].since).toBeLessThanOrEqual(t - 60_000);
+    expect(location.hash).toBe("#reset-link");
+    expect(await awaitReset()).toBeNull();
+    // A reset link's page: its own Reset Password saves the new password.
+    setBody(`<h2>Reset Password</h2><input type="password"><input type="password"><button>Reset Password</button>`);
+    let saved = false;
+    document.querySelector("button")!.addEventListener("click", () => (saved = true));
+    sent.length = 0;
+    expect(await handleAuth("reset", async () => undefined)).toEqual({ ok: true });
+    expect(saved).toBe(true);
     vi.unstubAllGlobals();
   });
 

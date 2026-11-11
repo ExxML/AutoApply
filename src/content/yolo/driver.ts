@@ -11,6 +11,7 @@ import { deepQueryAll } from "../scan/traverse";
 import { isVisible, isVisibleAnyOpacity } from "../scan/visibility";
 import {
   acceptNotices,
+  awaitReset,
   emailSignIn,
   findSignup,
   forgotPassword,
@@ -355,8 +356,11 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
         case "signin":
         case "signup":
         case "reset": {
-          // Refused before: the address has an account we hold no password for, so reset it by email.
-          const r = step.refused ? await forgotPassword() : await handleAuth(kind, fill);
+          // Refused before: the address has an account we hold no password for, so reset it by email. Back at the
+          // sign-in after asking for that email: its link.
+          const r =
+            (kind === "signin" && (await awaitReset())) ||
+            (step.refused ? await forgotPassword() : await handleAuth(kind, fill));
           if ("fail" in r) {
             // A button its wording rules miss ("Create a new account"): the navigator's press, then the step again.
             const n = await navigateOn(`Account step: ${r.fail}`, facts, before);
