@@ -48,7 +48,7 @@ import {
 } from "./reviewTabs";
 import { dropParked, park, parkedKeys, takeParked } from "./parked";
 import { confirmation, confirmFirst, kindOf, refused, signature, verifyFailed } from "./classify";
-import { applied, discover, indeedSignedOutNow, inQueueOrder, readIndeed, RETRY } from "./discover";
+import { applied, discover, indeedSignedOutNow, inQueueOrder, readIndeed, RETRY, runnable } from "./discover";
 import {
   checkGmail,
   connectGmail,
@@ -453,7 +453,7 @@ async function pump() {
     // Requeued jobs were put back on purpose.
     else
       await updateQueue((q) => {
-        const ok = (i: QueueItem) => i.postedAt === RETRY || !applied(apps, i.key, i.alt, yolo.reapplyManual);
+        const ok = (i: QueueItem) => runnable(apps, i, yolo.reapplyManual);
         const [first, ...rest] = inQueueOrder(q.filter(ok), yolo);
         item = first;
         // Its other copies too: a requeued copy would skip the already-applied check above.

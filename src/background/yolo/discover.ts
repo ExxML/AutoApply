@@ -97,6 +97,18 @@ export function applied(apps: Application[], key: string, alt: string, reapplyMa
 
 /** A requeued job's `postedAt`: it runs next, whatever the order. */
 export const RETRY = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Whether a queued job may run: one not applied to, or a requeued copy (put back on purpose) unless its application
+ * was submitted since it was queued. GeoSpectrum's copy, requeued while its run waited at a CAPTCHA, refilled the
+ * form hours after that run's resume had submitted it.
+ */
+export function runnable(apps: Application[], i: QueueItem, reapplyManual: boolean): boolean {
+  if (i.postedAt !== RETRY) return !applied(apps, i.key, i.alt, reapplyManual);
+  return !apps.some(
+    (a) => a.status === "submitted" && a.at >= i.addedAt && (a.key === i.key || (!!i.alt && a.alt === i.alt)),
+  );
+}
 const groupOf = sourceGroup;
 
 type Ranked = Pick<Listing, "source" | "postedAt"> & { addedAt?: number };

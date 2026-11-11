@@ -38,13 +38,20 @@ import {
 import { letterText, LINES_PER_PAGE, textLines, textPdf, wrap } from "../../src/background/yolo/pdf";
 import { ONE_PAGE_WORDS, topLevelUrl } from "../../src/shared/constants";
 import { accountKey, accountSite, decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
-import { applied, discover, inQueueOrder, RETRY } from "../../src/background/yolo/discover";
+import { applied, discover, inQueueOrder, RETRY, runnable } from "../../src/background/yolo/discover";
 import { credit, overdue, woke, type Run } from "../../src/background/yolo/runner";
 import { mapFields } from "../../src/background/services/mapFields";
 import type { Gemini } from "../../src/background/gemini/client";
 import { defaultSettings } from "../../src/shared/settings";
 import { emptyProfile } from "../../src/shared/profileSchema";
-import { defaultYolo, YoloSchema, type Application, type Listing, type SourceCheck } from "../../src/shared/yolo";
+import {
+  defaultYolo,
+  YoloSchema,
+  type Application,
+  type Listing,
+  type QueueItem,
+  type SourceCheck,
+} from "../../src/shared/yolo";
 import type { FieldDescriptor } from "../../src/shared/types";
 
 beforeAll(() => loadPlaces(() => readFile(`public/${PLACES_FILE}`, "utf8")));
@@ -1644,6 +1651,22 @@ describe("queue order", () => {
       "jobright",
       "added",
     ]);
+  });
+
+  it("drops a retry whose job was submitted since it was queued, never one stopped mid-way", () => {
+    const item = { key: "geo", alt: "geo|dev", postedAt: RETRY, addedAt: 100 } as QueueItem;
+    const app = (status: Application["status"], at: number, key = "geo") =>
+      ({ key, alt: "geo|dev", status, at, mode: "yolo" }) as Application;
+    // Stopped mid-way (needs, failed, or no record yet): it runs.
+    expect(runnable([app("needs", 200)], item, false)).toBe(true);
+    expect(runnable([], item, false)).toBe(true);
+    // Submitted meanwhile, under its key or another copy's (GeoSpectrum): applying again would apply twice.
+    expect(runnable([app("submitted", 200)], item, false)).toBe(false);
+    expect(runnable([app("submitted", 200, "other")], item, false)).toBe(false);
+    // The user's own submission before it was queued, re-applying allowed: it runs.
+    expect(runnable([{ ...app("submitted", 50), mode: "manual" }], item, true)).toBe(true);
+    // Not a retry: the already-applied check as before.
+    expect(runnable([app("failed", 50)], { ...item, postedAt: 1 }, false)).toBe(false);
   });
 });
 
