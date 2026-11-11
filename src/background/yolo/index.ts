@@ -82,7 +82,7 @@ import {
   woke,
   type Run,
 } from "./runner";
-import { accountSite, addAccount, createAccount, deleteAccount, getAccount } from "./vault";
+import { accountKey, accountSite, addAccount, createAccount, deleteAccount, getAccount } from "./vault";
 
 const store = createStorage("background");
 const CHECK = "yolo";
@@ -842,10 +842,15 @@ export async function yoloJob(
 ): Promise<{ company: string; title: string; location: string } | null> {
   const run = await getRun();
   if (!fromRun(run, sender) || run.mode !== "apply" || run.item.source === "careers") return null;
-  // A job tab's guessed company ("recruiting" for UKG's recruiting.ultipro.ca) is left to the pages.
-  const company = run.item.companyGuessed ? "" : run.item.company;
-  return { company, title: run.item.title, location: run.item.location };
+  return { company: listedCompany(run), title: run.item.title, location: run.item.location };
 }
+
+/**
+ * The run's company as its source named it; "" when only guessed from an address: a job tab's ("recruiting" for UKG's
+ * recruiting.ultipro.ca) and a career site's, named after its host.
+ */
+const listedCompany = (run: Run) =>
+  run.mode === "apply" && run.item.source !== "careers" && !run.item.companyGuessed ? run.item.company : "";
 
 /** The run's tab as the rest of the background sees it; the hidden frame has none, so it stands in as tab -1. */
 export async function runTab(sender: chrome.runtime.MessageSender): Promise<chrome.tabs.Tab | undefined> {
@@ -1344,13 +1349,16 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
-  async YOLO_ADD_ACCOUNT({ url, email, password }) {
+  async YOLO_ADD_ACCOUNT({ url, company, email, password }) {
     const fail = (message: string) => ({ error: { kind: "other" as const, message } });
     url = url.trim();
     email = email.trim();
     if (!/^https?:\/\//i.test(url) || !URL.canParse(url)) return fail("Enter the link to the site's sign-in page.");
-    const site = accountSite(url);
-    if (!site) return fail("Use a SuccessFactors link with company= in it: accounts there are per company.");
+    const page = accountSite(url);
+    if (!page) return fail("Use a SuccessFactors link with company= in it: accounts there are per company.");
+    // Named by the link alone only on Workday and SuccessFactors: elsewhere one site holds many companies' accounts.
+    if (!/^(workday|sf):/.test(page) && !company.trim()) return fail("Enter the company the account is for.");
+    const site = accountKey(page, company);
     if (!email || !password) return fail("Enter the account's email and password.");
     if (!(await addAccount(site, email, password)))
       return fail(`An account for ${site} is already saved: forget it first to replace it.`);
@@ -1508,12 +1516,16 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   },
 
   async YOLO_CREDENTIAL({ site, create }, sender) {
-    if (!fromRun(await getRun(), sender)) return null;
+    const run = await getRun();
+    if (!fromRun(run, sender)) return null;
+    // The job's company tells apart the companies sharing a site; accounts saved before stay under the page's key.
+    const key = accountKey(site, listedCompany(run));
     if (!create) {
-      const a = await getAccount(site).catch(() => null);
+      const a =
+        (await getAccount(key).catch(() => null)) ?? (key === site ? null : await getAccount(site).catch(() => null));
       return a && { ...a, created: false };
     }
-    return { ...(await createAccount(site, await accountEmail())), created: true };
+    return { ...(await createAccount(key, await accountEmail())), created: true };
   },
 
   /** Parks the run's tab at its CAPTCHA for the user (parked.ts); the queue goes on meanwhile. */

@@ -29,7 +29,7 @@ import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { connectGmail, extract, feedTexts, GmailAuthError, gmailToken, siteOf } from "../../src/background/yolo/gmail";
 import { letterText, LINES_PER_PAGE, textLines, textPdf, wrap } from "../../src/background/yolo/pdf";
 import { ONE_PAGE_WORDS, topLevelUrl } from "../../src/shared/constants";
-import { accountSite, decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
+import { accountKey, accountSite, decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
 import { applied, discover, inQueueOrder, RETRY } from "../../src/background/yolo/discover";
 import { credit, overdue, woke, type Run } from "../../src/background/yolo/runner";
 import { mapFields } from "../../src/background/services/mapFields";
@@ -821,6 +821,25 @@ describe("vault", () => {
     );
     // No company: it would be no company's account, so it isn't saved.
     expect(accountSite("https://career4.successfactors.com/career")).toBeNull();
+  });
+
+  it("keys accounts on shared sites by the job's company", () => {
+    // One sign-in host for every employer, and sibling hosts on one site share the key.
+    expect(accountKey("signin-ca.ultipro.ca", "McCain Foods Limited")).toBe("ultipro.ca|mccain foods");
+    expect(accountKey("recruiting.ultipro.ca", "McCain Foods")).toBe("ultipro.ca|mccain foods");
+    expect(accountKey("dfid.dayforcehcm.com", "Acme, Inc.")).toBe("dayforcehcm.com|acme");
+    expect(accountKey("dfid.dayforcehcm.com", "Other Co")).toBe("dayforcehcm.com|other");
+    expect(accountKey("login.icims.com", "Kinaxis")).toBe(accountKey("careers-kinaxis.icims.com", "Kinaxis Inc."));
+    expect(accountKey("jobs.example.co.uk", "Acme")).toBe("example.co.uk|acme");
+    // The address names the company already.
+    expect(accountKey("workday:intel", "Intel Corporation")).toBe("workday:intel");
+    expect(accountKey("sf:career4.successfactors.com:teck", "Teck Resources")).toBe(
+      "sf:career4.successfactors.com:teck",
+    );
+    expect(accountKey("sf:career4.successfactors.com:", "Teck Resources")).toBe("successfactors.com|teck resources");
+    // No company known: the page's key, as before.
+    expect(accountKey("signin-ca.ultipro.ca", "")).toBe("signin-ca.ultipro.ca");
+    expect(accountKey("sf:career4.successfactors.com:", "")).toBe("sf:career4.successfactors.com:");
   });
 
   it("round-trips passwords and makes ones every ATS accepts", async () => {

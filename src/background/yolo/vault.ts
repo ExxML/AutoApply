@@ -1,6 +1,8 @@
 // Site accounts YOLO creates. Passwords are AES-GCM encrypted with a key generated non-extractable and kept in
 // IndexedDB: copied storage or an export can't be decrypted, yet runs need no passphrase after a browser restart.
+import { normalize } from "../../shared/normalize";
 import { createStorage } from "../../shared/storage";
+import { siteOf } from "./gmail";
 
 const store = createStorage("background");
 const b64 = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(b)));
@@ -92,6 +94,21 @@ export function accountSite(href: string): string | null {
   if (!/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/.test(h)) return h.replace(/^www\./, "");
   const company = [...u.searchParams].find(([k]) => k.toLowerCase() === "company")?.[1]?.toLowerCase();
   return company ? `sf:${h}:${company}` : null;
+}
+
+/**
+ * The key a run's account is saved under, from the page's key (accountSite/siteKey) and the run's company. An address
+ * that names the company (a Workday tenant, a SuccessFactors company) keys it; else the company on the page's site:
+ * one host can serve many companies' separate accounts (UKG's signin-ca.ultipro.ca, Dayforce's dfid.dayforcehcm.com)
+ * and sign up and sign in on sibling hosts. No company: the page's key, as before.
+ */
+export function accountKey(page: string, company: string): string {
+  const c = normalize(company)
+    .replace(/\b(inc|incorporated|llc|llp|ltd|limited|corp|corporation|co|plc|gmbh|ulc)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!c || page.startsWith("workday:") || /^sf:.+:.+$/.test(page)) return page;
+  return `${siteOf(page.replace(/^sf:|:$/g, ""))}|${c}`;
 }
 
 export async function deleteAccount(site: string) {

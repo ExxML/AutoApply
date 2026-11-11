@@ -159,7 +159,7 @@ export type Message =
   | { type: "YOLO_REVEAL"; site: string }
   | { type: "YOLO_DELETE_ACCOUNT"; site: string }
   /** A site account the user created themselves, so YOLO signs in rather than signing up again. */
-  | { type: "YOLO_ADD_ACCOUNT"; url: string; email: string; password: string }
+  | { type: "YOLO_ADD_ACCOUNT"; url: string; company: string; email: string; password: string }
   /** An export was just imported: its API keys' states, and the job its browser was mid-application on. */
   | { type: "IMPORTED"; keyState?: Record<string, KeyState> }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }

@@ -91,7 +91,7 @@ function QueueOrder(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => voi
 
 /** An account the user made on a site themselves, so YOLO signs in instead of signing up. */
 function AddAccount(props: { email: string; onAdded: () => void; onClose: () => void }) {
-  const blank = { url: "", email: props.email, password: "" };
+  const blank = { url: "", company: "", email: props.email, password: "" };
   const [form, setForm] = useState(blank);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
@@ -121,13 +121,14 @@ function AddAccount(props: { email: string; onAdded: () => void; onClose: () => 
         {(
           [
             ["url", "Sign-in page link", "url", "off"],
+            ["company", "Company", "text", "organization"],
             ["email", "Email", "email", "off"],
             ["password", "Password", "password", "new-password"],
           ] as const
         ).map(([k, label, type, autocomplete]) => (
           <input
             type={type}
-            required
+            required={k !== "company"}
             autocomplete={autocomplete}
             placeholder={label}
             aria-label={label}
@@ -144,8 +145,8 @@ function AddAccount(props: { email: string; onAdded: () => void; onClose: () => 
         </button>
       </div>
       <p class="help" id="add-account-help">
-        An account you created yourself, so YOLO signs in instead of signing up. The sign-in page link names the
-        account: for Workday, any page of that company's Workday works.
+        An account you created yourself, so YOLO signs in instead of signing up. The sign-in page link and the company
+        name the account. For Workday, any page of that company's Workday works and the company can be left empty.
       </p>
       {error && (
         <p role="alert" class="err">
@@ -232,7 +233,7 @@ function Accounts() {
       <tbody>
         {rows.map((a) => (
           <tr>
-            <td>{a.site}</td>
+            <td>{a.site.replace("|", " · ")}</td>
             <td>{a.email}</td>
             <td class="muted">{formatDateTime(a.createdAt)}</td>
             <td>
