@@ -59,7 +59,7 @@ import {
   waitForFeedCode,
 } from "./gmail";
 import { closeFrame, closeTab, openTab } from "./host";
-import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "./jobKey";
+import { altKey, applyUrl, jobKey, leftPosting, namesPosting, restartUrl } from "./jobKey";
 import { findOnEmployerBoard } from "./careers";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
@@ -1456,6 +1456,14 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     if (!fromRun(run, sender)) return { kind: "unknown", stop: "Not running" };
     // Without the tab retry, a bot check in the frame is the user's, like anywhere else.
     let kind = kindOf(facts, run.host === "frame" && yolo.tabFallback);
+    // The posting's own link redirected to the site's general job list: the posting is gone (D2L's).
+    if (
+      !run.steps.length &&
+      !facts.fields &&
+      /^(job|unknown)$/.test(kind) &&
+      leftPosting(run.item.url, sender.url ?? url)
+    )
+      kind = "closed";
     let stop: string | undefined;
     // An emailed link must land back on the run's sites (a click tracker's destination is only known now). The browser
     // says where the page is, not the page.

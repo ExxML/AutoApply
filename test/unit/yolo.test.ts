@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
-import { altKey, applyUrl, jobKey, namesPosting, restartUrl } from "../../src/background/yolo/jobKey";
+import { altKey, applyUrl, jobKey, leftPosting, namesPosting, restartUrl } from "../../src/background/yolo/jobKey";
 import {
   glassdoorMore,
   glassdoorSearch,
@@ -133,6 +133,12 @@ describe("job keys", () => {
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en")).toBe(false);
     expect(namesPosting("https://altera.wd1.myworkdayjobs.com/en-US/Altera/userHome")).toBe(false);
     expect(namesPosting("https://altera.wd1.myworkdayjobs.com/en-US/Altera/job/San-Jose/Intern_JR1/apply")).toBe(true);
+    // A closed posting's link landing on the site's job list (D2L), not a posting page or another site's.
+    const d2l = "https://www.d2l.com/careers/jobs/?job_id=8289767&gh_jid=8289767";
+    expect(leftPosting(d2l, "https://www.d2l.com/careers/jobs/")).toBe(true);
+    expect(leftPosting(d2l, d2l)).toBe(false);
+    expect(leftPosting(d2l, "https://job-boards.greenhouse.io/d2l/jobs/8289767")).toBe(false);
+    expect(leftPosting("https://www.d2l.com/careers/", "https://www.d2l.com/careers/jobs/")).toBe(false);
     expect(namesPosting("https://dfid.dayforcehcm.com/globalidentity/account/login?returnUrl=x")).toBe(false);
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en/job/13309/software-intern")).toBe(true);
     expect(namesPosting("https://jobs.bce.ca/bell/job/Montreal-Intern/1433151100")).toBe(true);

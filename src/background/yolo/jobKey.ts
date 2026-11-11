@@ -79,6 +79,19 @@ export function namesPosting(raw: string): boolean {
   return segs.length > 0 && !segs.every((s) => /log-?in|sign-?(in|on|up)|auth|sso|identity|account|register/.test(s));
 }
 
+/**
+ * A posting link the site sent elsewhere on its own host, to a page naming no posting: D2L's closed Greenhouse posting
+ * (".../careers/jobs/?gh_jid=8289767") lands on its general job list, whose "Apply now" leads back to that list.
+ */
+export function leftPosting(start: string, now: string): boolean {
+  const generic = (u: string) => /^[^/:]+\/[^?]*$/.test(jobKey(u));
+  try {
+    return !generic(start) && generic(now) && namesPosting(now) && new URL(start).host === new URL(now).host;
+  } catch {
+    return false;
+  }
+}
+
 const TITLE_FORMS: [RegExp, string][] = [
   [/\b(20\d\d|summer|fall|autumn|winter|spring|\d+ ?months?|full ?time|part ?time)\b/g, ""],
   [/\bengineering\b/g, "engineer"],
