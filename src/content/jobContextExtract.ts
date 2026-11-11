@@ -84,7 +84,7 @@ function ldLocation(ld: JobPosting): string {
   return collapse([...new Set(places.filter(Boolean))].join("; ")).slice(0, 300);
 }
 
-function jsonLdJobPosting(doc: Document): JobPosting | null {
+export function jsonLdJobPosting(doc: Document): JobPosting | null {
   for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
     try {
       const data = JSON.parse(s.textContent ?? "");

@@ -1,6 +1,8 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { namesPosting } from "../../background/yolo/jobKey";
+import { jsonLdJobPosting } from "../../content/jobContextExtract";
 import { send } from "../../shared/messages";
-import { normalize } from "../../shared/normalize";
+import { collapse, normalize } from "../../shared/normalize";
 import { formatDateTime } from "../../shared/time";
 import { isPendingApplication, type Application } from "../../shared/yolo";
 import { useStored } from "../store";
@@ -24,6 +26,22 @@ function download(f: { name: string; base64?: string; text?: string }) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * A posting's company and job title, from the JSON-LD job boards and ATSs publish for search engines (Greenhouse,
+ * Lever, Ashby, Workday, LinkedIn): empty where the page has none. Sent without the user's cookies.
+ */
+export async function readPosting(url: string): Promise<{ company: string; title: string }> {
+  try {
+    const r = await fetch(url, { credentials: "omit", signal: AbortSignal.timeout(10_000) });
+    const ld = r.ok ? jsonLdJobPosting(new DOMParser().parseFromString(await r.text(), "text/html")) : null;
+    const org = ld?.hiringOrganization;
+    const text = (s: unknown) => (typeof s === "string" ? collapse(s).slice(0, 200) : "");
+    return { company: text(typeof org === "string" ? org : org?.name), title: text(ld?.title) };
+  } catch {
+    return { company: "", title: "" };
+  }
+}
+
 export function Applications() {
   const apps = useStored("applications");
   const queue = useStored("yoloQueue");
@@ -37,18 +55,55 @@ export function Applications() {
   const [busy, setBusy] = useState("");
   const [forgetting, setForgetting] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [added, setAdded] = useState({ url: "", company: "", title: "" });
+  const blank = { url: "", company: "", title: "" };
+  const [addOpen, setAddOpen] = useState(false);
+  const [added, setAdded] = useState(blank);
+  // Company and title are asked for only when the posting's page doesn't name them.
+  const [askDetails, setAskDetails] = useState(false);
   const [addError, setAddError] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [addedText, setAddedText] = useState("");
+  const [adding, setAdding] = useState<"" | "reading" | "adding">("");
+  const addToggle = useRef<HTMLButtonElement>(null);
+  const addForm = useRef<HTMLFormElement>(null);
+  // autofocus is ignored on inputs added after load: the first empty field, on opening and when details are asked.
+  useLayoutEffect(
+    () => addForm.current?.querySelector<HTMLInputElement>("input:invalid")?.focus(),
+    [addOpen, askDetails],
+  );
+  const openAdd = (open: boolean) => {
+    setAddOpen(open);
+    setAdded(blank);
+    setAskDetails(false);
+    setAddError("");
+    if (open) setAddedText("");
+    else addToggle.current?.focus();
+  };
   const addApplication = async (e: Event) => {
     e.preventDefault();
     if (adding) return;
-    setAdding(true);
     setAddError("");
-    await send({ type: "YOLO_ADD_APPLICATION", job: added })
-      .then((r) => ("error" in r ? setAddError(r.error.message) : setAdded({ url: "", company: "", title: "" })))
+    const url = added.url.trim();
+    if (!namesPosting(url)) return setAddError("Enter the link to the job posting itself.");
+    let job = added;
+    if (!askDetails) {
+      setAdding("reading");
+      job = { ...(await readPosting(url)), url };
+      if (!job.company || !job.title) {
+        setAdding("");
+        setAdded(job);
+        setAskDetails(true);
+        return;
+      }
+    }
+    setAdding("adding");
+    await send({ type: "YOLO_ADD_APPLICATION", job })
+      .then((r) => {
+        if ("error" in r) return setAddError(r.error.message);
+        openAdd(false);
+        setAddedText(`Added ${job.company.trim()} – ${job.title.trim()}.`);
+      })
       .catch(() => setAddError("Couldn't add it. Try again."))
-      .finally(() => setAdding(false));
+      .finally(() => setAdding(""));
   };
   const failedCount = apps?.filter((a) => a.status === "failed").length ?? 0;
   const pendingCount = apps?.filter(isPendingApplication).length ?? 0;
@@ -125,35 +180,6 @@ export function Applications() {
         </p>
       )}
       <SourceCheck />
-      <details class="add-application">
-        <summary>Add an application you submitted yourself</summary>
-        <form class="row" onSubmit={(e) => void addApplication(e)}>
-          {(
-            [
-              ["url", "Job posting link", "url"],
-              ["company", "Company", "text"],
-              ["title", "Job title", "text"],
-            ] as const
-          ).map(([k, label, type]) => (
-            <input
-              type={type}
-              required
-              placeholder={label}
-              aria-label={label}
-              value={added[k]}
-              onInput={(e) => setAdded({ ...added, [k]: e.currentTarget.value })}
-            />
-          ))}
-          <button type="submit" class="btn small primary" disabled={adding}>
-            {adding ? "Adding…" : "Add"}
-          </button>
-        </form>
-        {addError && (
-          <p role="alert" class="err">
-            {addError}
-          </p>
-        )}
-      </details>
       <div class="row">
         <input
           type="search"
@@ -169,6 +195,17 @@ export function Applications() {
             <option value={v}>{t}</option>
           ))}
         </select>
+        <button
+          type="button"
+          class="btn small"
+          ref={addToggle}
+          title="Record a job you applied to outside AutoApply, so YOLO never applies to it"
+          aria-expanded={addOpen}
+          aria-controls="add-application"
+          onClick={() => openAdd(!addOpen)}
+        >
+          Add application
+        </button>
         <button
           type="button"
           class="btn small"
@@ -202,6 +239,66 @@ export function Applications() {
           {forgetting ? "Forgetting…" : "Forget all failed applications"}
         </button>
       </div>
+      {addOpen ? (
+        <form
+          ref={addForm}
+          id="add-application"
+          class="add-application"
+          aria-label="Add an application you submitted yourself"
+          onSubmit={(e) => void addApplication(e)}
+          onKeyDown={(e) => e.key === "Escape" && openAdd(false)}
+        >
+          <div class="row">
+            <input
+              type="url"
+              class="add-application-link"
+              required
+              placeholder="Paste the job posting link"
+              aria-label="Job posting link"
+              aria-describedby="add-application-help"
+              value={added.url}
+              onInput={(e) => setAdded({ ...added, url: e.currentTarget.value })}
+            />
+            {askDetails &&
+              (
+                [
+                  ["company", "Company"],
+                  ["title", "Job title"],
+                ] as const
+              ).map(([k, label]) => (
+                <input
+                  required
+                  placeholder={label}
+                  aria-label={label}
+                  value={added[k]}
+                  onInput={(e) => setAdded({ ...added, [k]: e.currentTarget.value })}
+                />
+              ))}
+            <button type="submit" class="btn small primary" disabled={!!adding}>
+              {adding === "reading" ? "Reading posting…" : adding === "adding" ? "Adding…" : "Add"}
+            </button>
+            <button type="button" class="btn small" onClick={() => openAdd(false)}>
+              Cancel
+            </button>
+          </div>
+          <p class="help" id="add-application-help">
+            {askDetails
+              ? "That page doesn't name its company and job title. Enter them, so YOLO won't apply to this job again through another site."
+              : "A job you applied to outside AutoApply: YOLO won't apply to it. The company and job title are read from the posting."}
+          </p>
+          {addError && (
+            <p role="alert" class="err">
+              {addError}
+            </p>
+          )}
+        </form>
+      ) : (
+        addedText && (
+          <p role="status" class="ok">
+            {addedText}
+          </p>
+        )
+      )}
       {showLogs &&
         settings.debugLogging &&
         (logs.length ? (

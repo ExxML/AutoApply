@@ -72,3 +72,30 @@ describe("popup status line", () => {
     );
   });
 });
+
+describe("add an application by its link", () => {
+  const page = (ld: string) => `<html><head><script type="application/ld+json">${ld}</script></head></html>`;
+  const serve = (body: string, ok = true) =>
+    (globalThis.fetch = (async () => new Response(body, { status: ok ? 200 : 404 })) as typeof fetch);
+  it("reads the company and title from the posting's JSON-LD, else leaves them empty", async () => {
+    const { readPosting } = await import("../../src/options/routes/Applications");
+    const real = globalThis.fetch;
+    try {
+      serve(page(`{"@type":"JobPosting","title":" Security  Engineer ","hiringOrganization":{"name":"Ramp"}}`));
+      expect(await readPosting("https://jobs.ashbyhq.com/ramp/1")).toEqual({
+        company: "Ramp",
+        title: "Security Engineer",
+      });
+      serve(page(`{"@graph":[{"@type":"JobPosting","title":"Intern","hiringOrganization":"Acme"}]}`));
+      expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "Acme", title: "Intern" });
+      serve("<html><title>Careers</title></html>");
+      expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "", title: "" });
+      serve(page(`{"@type":"JobPosting","title":"Intern","hiringOrganization":"Acme"}`), false);
+      expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "", title: "" });
+      globalThis.fetch = (async () => Promise.reject(new TypeError("offline"))) as typeof fetch;
+      expect(await readPosting("https://x.com/jobs/1")).toEqual({ company: "", title: "" });
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});

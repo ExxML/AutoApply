@@ -967,3 +967,13 @@ main:has(.applications-table-scroll) {
   flex: 1 1 200px;
   width: auto;
 }
+.add-application input {
+  flex-basis: 140px;
+}
+.add-application .add-application-link {
+  flex: 2 1 260px;
+}
+.add-application .row,
+.add-application .help {
+  margin: 0 0 8px;
+}
