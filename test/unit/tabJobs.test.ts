@@ -170,7 +170,7 @@ describe("YOLO apply to job tabs", () => {
   it("keeps the read for a popup closed while it ran", async () => {
     const status = () => coordinator.yoloHandlers.YOLO_STATUS!({ type: "YOLO_STATUS" }, {});
     const reading = apply();
-    expect(await status()).toMatchObject({ tabsReading: true, tabsRead: null });
+    expect(await status()).toMatchObject({ tabsReading: true });
     await reading;
     expect(await status()).toMatchObject({
       tabsReading: false,

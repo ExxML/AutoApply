@@ -25,8 +25,9 @@ export const forgetTabsRead = () => session.remove(READ);
 /** Runs a read of the window's tabs, keeping its outcome for the popup, which may close before it ends. */
 export async function readTabs<T>(read: () => Promise<T>, outcome: (r: T) => Promise<TabsRead>): Promise<T> {
   reading++;
-  await forgetTabsRead();
   let kept: TabsRead = { error: "Couldn't read this window's tabs. Please try again." };
+  // Kept now: a worker that dies mid-read leaves this, not silence (the popup hides it while reading).
+  await session.set(READ, kept);
   try {
     const r = await read();
     kept = await outcome(r);
