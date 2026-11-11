@@ -62,8 +62,10 @@ const clickable = (el: HTMLElement, label: string) =>
  * Save buttons, or an always-open first entry.
  */
 function entryCount(section: Element): number {
-  const numbered = deepQueryAll(HEADINGS, section).filter((h) => /\s\d+$/.test(textOf(h))).length;
-  const buttons = deepQueryAll(BUTTONS, section).map(textOf);
+  // "Education 2", or the number first: SuccessFactors' "1. Language Skills" (each resumed run added another row).
+  const numbered = deepQueryAll(HEADINGS, section).filter((h) => /\s\d+$|^\d+[.)]\s/.test(textOf(h))).length;
+  // Its Delete is a link (UI5's ui5-link) as often as a button.
+  const buttons = deepQueryAll(`${BUTTONS},a,[role=link],[ui5-link]`, section).map(textOf);
   // SmartRecruiters names the entry: "Delete experience Software Engineer Intern FORM Swim".
   const entries = buttons.filter((t) => /^(delete|remove)\b/i.test(t) || RE_SAVE.test(t)).length;
   const open = deepQueryAll("input:not([type=hidden]),textarea,select", section).length ? 1 : 0;

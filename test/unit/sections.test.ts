@@ -61,6 +61,20 @@ describe("addEntries", () => {
     expect(scan(newScanState()).handles.map((h) => h.desc.section)).toEqual(["Work Experience 1", "Work Experience 2"]);
   });
 
+  it("counts rows numbered first, with Delete links, and adds only the missing ones", async () => {
+    // SuccessFactors: "1. Language Skills" with a Delete link; each resumed run counted no rows and added another.
+    const row = (n: number) => `<div><h4>${n}. Language Skills</h4><a href="#" role="link">Delete</a></div>`;
+    setBody(`<section><h3>Language Skills</h3><button id="add">Add</button>${row(1)}<div id="rows"></div></section>`);
+    let added = 1;
+    document
+      .getElementById("add")!
+      .addEventListener("click", () => document.getElementById("rows")!.insertAdjacentHTML("beforeend", row(++added)));
+    await addEntries({ ...none, languages: 2 }, new AbortController().signal);
+    expect(added).toBe(2);
+    await addEntries({ ...none, languages: 2 }, new AbortController().signal); // a resumed run adds none
+    expect(added).toBe(2);
+  });
+
   it("adds to a section that already has entries", async () => {
     setBody(workdaySection("Education", 1));
     wireAdds();
