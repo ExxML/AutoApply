@@ -4,7 +4,7 @@ import { botWall, captchaShown, embeddedForm, pageFacts } from "../../src/conten
 import { cardText } from "../../src/content/yolo/driver";
 import { isVisible, isVisibleAnyOpacity } from "../../src/content/scan/visibility";
 import { indeedCardsInPage, parseIndeed } from "../../src/background/yolo/sources";
-import { confirmation, confirmFirst, kindOf, verifyFailed } from "../../src/background/yolo/classify";
+import { confirmation, confirmFirst, kindOf, refused, verifyFailed } from "../../src/background/yolo/classify";
 
 const classify = (fields: number, hidden = false, requiredFields = 0) =>
   kindOf(pageFacts({ fields, requiredFields }), hidden);
@@ -96,6 +96,15 @@ describe("YOLO page kinds", () => {
     expect(classify(0)).toBe("verify");
     setBody(`<h2>Forgot your password?</h2><input type="email"><button>Submit</button>`);
     expect(classify(1)).toBe("verify");
+    // EA's Avature opens its reset form in place, under the login's heading, beside a résumé upload.
+    setBody(`<h2>Log into your EA Careers account</h2><div>Reset Password</div><p>Enter the email address associated with
+      your account, then click Continue. We'll email you a link to reset your password</p><input type="email"><button>Continue</button>
+      <h2>First time applicant</h2><input type="file"><button>Upload</button>`);
+    expect(classify(2)).toBe("verify");
+    // Its sign-up turning away an address it knows: refused, so the password is reset instead.
+    setBody(`<h2>Register</h2><div role="alert">There's an existing record with that email.</div>
+      <input type="email"><input type="password"><input type="password">`);
+    expect(refused(pageFacts({ fields: 3, requiredFields: 3 }))).toBe(true);
     // Workday's sign-in refusing an unverified account.
     setBody(`<h2>Sign In</h2><div role="alert">Verify your account before you sign in or request a verification email.</div>
       <input type="email" value="a@b.c"><input type="password"><button>Sign In</button>`);

@@ -26,7 +26,9 @@ const RE_FLAGGED =
   /flagged as (possible )?spam|(detected|due to|because of) (some )?(unusual or )?suspicious activity|recaptcha (verification )?failed/i;
 /** The site turned down our sign-up or sign-in: the address has an account whose password we don't hold. */
 const RE_REFUSED =
-  /already (exists|registered|in use|have an account)|account (with|for) this email|email (address )?is (already )?(taken|registered)|incorrect|invalid (email|password|credentials|username|login)|wrong (email|password|credentials)|account (might|may) be locked|not recognized/i;
+  /already (exists|registered|in use|have an account)|account (with|for) this email|email (address )?is (already )?(taken|registered)|existing (record|account|profile) with (that|this) e-?mail|incorrect|invalid (email|password|credentials|username|login)|wrong (email|password|credentials)|account (might|may) be locked|not recognized/i;
+/** A "forgot password" form shown in place, under no heading of its own (EA's Avature: "Reset Password … Continue"). */
+const RE_RESET_ASK = /\b(e-?mail|send) you an? (link|code|e-?mail)\b[^.]{0,40}\breset (your )?password/i;
 
 /**
  * `hidden`: the run is in the hidden frame, where bot checks fail but a tab often passes them, or never shows them:
@@ -57,7 +59,7 @@ function stepKind(f: PageFacts, hidden: boolean): StepKind {
   // sign-in turning an unverified account away with an alert over its form. A form merely mentioning email is a form.
   if ((RE_VERIFY.test(f.text) && (f.codeInput || (!f.passwords && f.fields < 3))) || RE_VERIFY.test(f.alerts))
     return "verify";
-  if (!f.passwords && RE_FORGOT.test(f.headings)) return "verify";
+  if (!f.passwords && (RE_FORGOT.test(f.headings) || (f.fields < 3 && RE_RESET_ASK.test(f.text)))) return "verify";
   if (f.passwords >= 2) return RE_RESET.test(f.headings) ? "reset" : "signup";
   // TikTok's /create-account is headed "Sign in" like its login: the address says which it is.
   if (f.passwords === 1)
