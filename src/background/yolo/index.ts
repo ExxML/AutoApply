@@ -1140,16 +1140,20 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       hostOf(url) !== hostOf(run.item.url) &&
       namesPosting(url)
     ) {
-      run.atsUrl = url;
       if (
         applied(
-          (await store.get("applications")).filter((a) => a.key !== (run.reviewKey ?? run.resumeKey)),
+          // Never the run's own record: a resumed Needs-you job (Teck, from Indeed) matched itself.
+          (await store.get("applications")).filter(
+            (a) => a.key !== (run.reviewKey ?? run.resumeKey) && a.key !== run.item.key,
+          ),
           jobKey(url),
           run.item.alt,
           yolo.reapplyManual,
         )
       )
+        // Recorded under the queued listing's key: the posting's own record (submitted, say) stays as it was.
         stop = "Already applied through another link";
+      else run.atsUrl = url;
     }
     if (run.steps.filter((s) => s === sig).length >= 3)
       stop = kind === "flagged" ? "The site kept flagging it as automated" : `Stuck at the same ${kind} step`;

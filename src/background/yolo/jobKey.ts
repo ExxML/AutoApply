@@ -65,8 +65,17 @@ export function jobKey(raw: string): string {
 /**
  * Whether the address names one posting. SuccessFactors' shared application page ("career4.successfactors.com/careers
  * ?company=X") names none: as every Acuity job's key, the first one's record read as "already applied" for the next.
+ * Nor does a site's root, a locale root ("careers.x.com/us/en") or a sign-in page ("passport.amazon.jobs/"): one
+ * Amazon job that failed at sign-in skipped the next as applied.
  */
-export const namesPosting = (raw: string): boolean => !/^[^/:]*successfactors\.com\//.test(jobKey(raw));
+export function namesPosting(raw: string): boolean {
+  const key = jobKey(raw);
+  if (/^[^/:]*successfactors\.(com|eu)\//.test(key)) return false; // SAP's is career5.successfactors.eu
+  const generic = /^[^/:]+\/([^?]*)$/.exec(key); // no ATS id and no id parameter
+  if (!generic) return true;
+  const segs = generic[1].split("/").filter((s) => s && !/^[a-z]{2}([-_][a-z]{2})?$/.test(s));
+  return segs.length > 0 && !segs.every((s) => /log-?in|sign-?(in|on|up)|auth|sso|identity|account|register/.test(s));
+}
 
 const TITLE_FORMS: [RegExp, string][] = [
   [/\b(20\d\d|summer|fall|autumn|winter|spring|\d+ ?months?|full ?time|part ?time)\b/g, ""],

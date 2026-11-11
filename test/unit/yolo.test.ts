@@ -112,6 +112,14 @@ describe("job keys", () => {
     expect(namesPosting("https://career4.successfactors.com/careers?company=acuitybrands")).toBe(false);
     expect(namesPosting("https://careers.acuityinc.com/job/Brossard-Intern/1433678100/?ats=successfactors")).toBe(true);
     expect(namesPosting(qc("1"))).toBe(true);
+    // A site's root, locale root or sign-in page is shared by every posting there.
+    expect(namesPosting("https://passport.amazon.jobs/")).toBe(false);
+    expect(namesPosting("https://career5.successfactors.eu/careers?company=SAP")).toBe(false);
+    expect(namesPosting("https://careers.zimmerbiomet.com/us/en")).toBe(false);
+    expect(namesPosting("https://dfid.dayforcehcm.com/globalidentity/account/login?returnUrl=x")).toBe(false);
+    expect(namesPosting("https://careers.zimmerbiomet.com/us/en/job/13309/software-intern")).toBe(true);
+    expect(namesPosting("https://jobs.bce.ca/bell/job/Montreal-Intern/1433151100")).toBe(true);
+    expect(namesPosting("https://www.d2l.com/careers/jobs/?job_id=8289767")).toBe(true);
   });
 
   it("opens an iCIMS page's own frame as its mobile view in a tab", () => {
