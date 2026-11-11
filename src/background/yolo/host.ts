@@ -49,4 +49,9 @@ export async function openTab(url: string, visible: boolean): Promise<number> {
   return tab.id!;
 }
 
-export const closeTab = (id: number) => chrome.tabs.remove(id).catch(() => undefined);
+/**
+ * Never waits on the page: a "Leave site?" prompt keeps tabs.remove pending, and the run ending behind it stalled the
+ * queue with the job unrecorded (AMD, 2026-11-09).
+ */
+export const closeTab = (id: number) =>
+  Promise.race([chrome.tabs.remove(id).catch(() => undefined), new Promise<void>((r) => setTimeout(r, 5000))]);

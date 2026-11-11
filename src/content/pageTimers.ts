@@ -26,6 +26,22 @@ document.addEventListener("autoapply-fill-end", () => {
   if (!inHost) swap(false);
 });
 
+// A hidden YOLO run's page never asks "Leave site?": the run navigates and closes it itself. Chrome shows the prompt
+// once the page had a click (real input's count), and it held AMD's background tab open, stalling the queue behind it.
+// Ours is the page's first beforeunload listener, so the page's own never run; the driver's (content/yolo/driver.ts)
+// hears it as autoapply-leaving instead.
+let yoloPage = inHost;
+document.addEventListener("autoapply-yolo", () => (yoloPage = true));
+addEventListener(
+  "beforeunload",
+  (e) => {
+    if (!yoloPage) return;
+    e.stopImmediatePropagation();
+    document.dispatchEvent(new Event("autoapply-leaving"));
+  },
+  true,
+);
+
 const pending = new Map<string, () => void>();
 const set = window.setTimeout;
 const clear = window.clearTimeout;

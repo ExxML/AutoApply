@@ -38,3 +38,16 @@ test("the host page's short timers are relayed to the extension only around one 
   expect(ran).toEqual([1]); // relayed and the page's own timer: it runs once
   document.dispatchEvent(new Event("autoapply-fill-end"));
 });
+
+test("a hidden run's page never asks to confirm leaving, and the driver still hears it leave", () => {
+  const ran: string[] = [];
+  addEventListener("beforeunload", (e) => {
+    ran.push("page");
+    e.preventDefault(); // "Leave site? Changes you made may not be saved."
+  });
+  document.addEventListener("autoapply-leaving", () => ran.push("driver"));
+  const e = new Event("beforeunload", { cancelable: true });
+  dispatchEvent(e);
+  expect(ran).toEqual(["driver"]);
+  expect(e.defaultPrevented).toBe(false);
+});

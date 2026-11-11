@@ -130,12 +130,15 @@ let driving = false;
  */
 let leaving = false;
 addEventListener("beforeunload", () => (leaving = true));
+document.addEventListener("autoapply-leaving", () => (leaving = true)); // pageTimers.ts stops the page's beforeunload
 
 export async function drive(deps: DriverDeps) {
   if (driving) return;
   driving = true;
   const hello = await send({ type: "YOLO_HELLO", url: location.href }).catch(() => null);
   if (!hello) return void (driving = false);
+  // A hidden run's page never asks "Leave site?" (pageTimers.ts); a visible one's user can answer it.
+  if (!hello.visible) document.dispatchEvent(new Event("autoapply-yolo"));
   setRealMode(hello.realInput);
   const result = (r: YoloResult) =>
     void send({ type: "YOLO_RESULT", result: r, runId: hello.runId }).catch(() => undefined);
