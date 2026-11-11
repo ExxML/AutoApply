@@ -250,6 +250,8 @@ function locationText(doc: Document): string {
   for (const el of doc.querySelectorAll<HTMLElement>('[class*="location" i]')) {
     if (el.closest("form,header,footer,nav") || el.querySelector("input,select,textarea") || !isVisible(el)) continue;
     const t = collapse(el.textContent ?? "");
+    // Not the label before it: Oracle's "Locations" over "CAN Toronto (121 Bloor Street East)".
+    if (/^(job |work )?locations?\s*:?$/i.test(t)) continue;
     if (t.length >= 2 && t.length <= 100) return t;
   }
   return "";

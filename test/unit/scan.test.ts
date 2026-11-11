@@ -990,6 +990,10 @@ describe("job context (§11.7)", () => {
     setBody(`<h1>Engineer</h1><div class="job__location"><svg></svg>San Francisco, California, United States</div>
       <form><div class="location-field"><label>Location <input></label></div></form>`);
     expect(extractJobContext(document, location).location).toBe("San Francisco, California, United States");
+    // Oracle Recruiting labels it in a location-classed span of its own.
+    setBody(`<h1>2027 Software Engineering Intern, Canada</h1><span class="job-meta__title job-meta__title--locations">Locations</span>
+      <span class="job-meta__locations">CAN Toronto (121 Bloor Street East)</span>`);
+    expect(extractJobContext(document, location).location).toBe("CAN Toronto (121 Bloor Street East)");
     // Company pages embedding the form: a plain place under the title (Ripple, Fivetran).
     setBody(`<h1>Senior Staff, Developer Relations</h1><span>New York, NY, United States</span><p>Apply Now</p>`);
     expect(extractJobContext(document, location).location).toBe("New York, NY, United States");
