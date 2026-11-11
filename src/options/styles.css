@@ -962,7 +962,8 @@ main:has(.applications-table-scroll) {
 .source-rows {
   padding-left: 16px;
 }
-.add-application input {
+.add-application input,
+.add-account input {
   flex: 1 1 200px;
   width: auto;
 }

@@ -29,7 +29,7 @@ import { loadPlaces, PLACES_FILE } from "../../src/background/yolo/places";
 import { connectGmail, extract, feedTexts, GmailAuthError, gmailToken, siteOf } from "../../src/background/yolo/gmail";
 import { letterText, LINES_PER_PAGE, textLines, textPdf, wrap } from "../../src/background/yolo/pdf";
 import { ONE_PAGE_WORDS, topLevelUrl } from "../../src/shared/constants";
-import { decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
+import { accountSite, decrypt, encrypt, newPassword } from "../../src/background/yolo/vault";
 import { applied, discover, inQueueOrder, RETRY } from "../../src/background/yolo/discover";
 import { credit, overdue, woke, type Run } from "../../src/background/yolo/runner";
 import { mapFields } from "../../src/background/services/mapFields";
@@ -710,6 +710,7 @@ describe("filters", () => {
     expect(applied([a("yolo", "failed")], "k", "", true)).toBe(true);
     expect(applied([a("manual", "submitted")], "k", "", false)).toBe(true);
     expect(applied([a("manual", "submitted")], "k", "", true)).toBe(false);
+    expect(applied([a("added", "submitted")], "k", "", true)).toBe(true); // added by hand: never re-applied
     expect(applied([a("yolo", "submitted")], "other", "", false)).toBe(false);
   });
 });
@@ -730,7 +731,6 @@ describe("verification emails", () => {
     expect(extract(html, "link", [siteOf("jobs.other.com")])).toBeNull();
     // A click tracker hides where it leads: only its Verify button, never its other links or an unknown host's.
     const tracked = `<a href="https://u1.ct.sendgrid.net/ls/click?upn=aaa">Unsubscribe</a>
-    expect(applied([a("added", "submitted")], "k", "", true)).toBe(true); // added by hand: never re-applied
       <a href="https://evil.example/c/xyz"><b>Confirm email</b></a>
       <a href="https://u1.ct.sendgrid.net/ls/click?upn=bbb"><span>Verify my email</span></a>`;
     expect(extract(tracked, "link", ["acme.com"])).toBe("https://u1.ct.sendgrid.net/ls/click?upn=bbb");
@@ -811,6 +811,16 @@ describe("cover letter PDF", () => {
 });
 
 describe("vault", () => {
+  it("names a user-added account as the sign-in page will", () => {
+    expect(accountSite("https://acme.wd5.myworkdayjobs.com/en-US/careers/login")).toBe("workday:acme");
+    expect(accountSite("https://www.careers.example.com/signin")).toBe("careers.example.com");
+    expect(accountSite("https://career4.successfactors.com/career?company=Teck&x=1")).toBe(
+      "sf:career4.successfactors.com:teck",
+    );
+    // No company: it would be no company's account, so it isn't saved.
+    expect(accountSite("https://career4.successfactors.com/career")).toBeNull();
+  });
+
   it("round-trips passwords and makes ones every ATS accepts", async () => {
     const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
     const e = await encrypt(key, "s3cret!");

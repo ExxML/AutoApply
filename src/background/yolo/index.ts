@@ -73,7 +73,7 @@ import {
   woke,
   type Run,
 } from "./runner";
-import { createAccount, deleteAccount, getAccount } from "./vault";
+import { accountSite, addAccount, createAccount, deleteAccount, getAccount } from "./vault";
 
 const store = createStorage("background");
 const CHECK = "yolo";
@@ -985,14 +985,6 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
-  async YOLO_FORGET({ key }) {
-    await releaseReview(key);
-    await updateApplications((apps) => apps.filter((a) => a.key !== key));
-    void pump();
-    return { ok: true };
-  },
-
-  async YOLO_FORGET_FAILED() {
   async YOLO_ADD_APPLICATION({ job }) {
     const [url, company, title] = [job.url.trim(), job.company.trim(), job.title.trim()];
     const fail = (message: string) => ({ error: { kind: "other" as const, message } });
@@ -1033,6 +1025,14 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { ok: true };
   },
 
+  async YOLO_FORGET({ key }) {
+    await releaseReview(key);
+    await updateApplications((apps) => apps.filter((a) => a.key !== key));
+    void pump();
+    return { ok: true };
+  },
+
+  async YOLO_FORGET_FAILED() {
     let failed: Application[] = [];
     // Use the current history and serialize with submissions so their records cannot be lost.
     await updateApplications((apps) => {
@@ -1084,6 +1084,19 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
 
   async YOLO_DELETE_ACCOUNT({ site }) {
     await deleteAccount(site);
+    return { ok: true };
+  },
+
+  async YOLO_ADD_ACCOUNT({ url, email, password }) {
+    const fail = (message: string) => ({ error: { kind: "other" as const, message } });
+    url = url.trim();
+    email = email.trim();
+    if (!/^https?:\/\//i.test(url) || !URL.canParse(url)) return fail("Enter the link to the site's sign-in page.");
+    const site = accountSite(url);
+    if (!site) return fail("Use a SuccessFactors link with company= in it: accounts there are per company.");
+    if (!email || !password) return fail("Enter the account's email and password.");
+    if (!(await addAccount(site, email, password)))
+      return fail(`An account for ${site} is already saved: forget it first to replace it.`);
     return { ok: true };
   },
 

@@ -86,6 +86,63 @@ function QueueOrder(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => voi
   );
 }
 
+/** An account the user made on a site themselves, so YOLO signs in instead of signing up. */
+function AddAccount(props: { email: string; onAdded: () => void }) {
+  const blank = { url: "", email: props.email, password: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState("");
+  const [adding, setAdding] = useState(false);
+  const add = async (e: Event) => {
+    e.preventDefault();
+    if (adding) return;
+    setAdding(true);
+    setError("");
+    await send({ type: "YOLO_ADD_ACCOUNT", ...form })
+      .then((r) => {
+        if (isErr(r)) return setError(r.error.message);
+        setForm(blank);
+        props.onAdded();
+      })
+      .catch(() => setError("Couldn't save it. Try again."))
+      .finally(() => setAdding(false));
+  };
+  return (
+    <details class="add-account">
+      <summary>Add an account you created yourself</summary>
+      <p class="help">
+        The site's sign-in page link names the account: for Workday, any page of that company's Workday works.
+      </p>
+      <form class="row" onSubmit={(e) => void add(e)}>
+        {(
+          [
+            ["url", "Sign-in page link", "url", "off"],
+            ["email", "Email", "email", "off"],
+            ["password", "Password", "password", "new-password"],
+          ] as const
+        ).map(([k, label, type, autocomplete]) => (
+          <input
+            type={type}
+            required
+            autocomplete={autocomplete}
+            placeholder={label}
+            aria-label={label}
+            value={form[k]}
+            onInput={(e) => setForm({ ...form, [k]: e.currentTarget.value })}
+          />
+        ))}
+        <button type="submit" class="btn small primary" disabled={adding}>
+          {adding ? "Adding…" : "Add"}
+        </button>
+      </form>
+      {error && (
+        <p role="alert" class="err">
+          {error}
+        </p>
+      )}
+    </details>
+  );
+}
+
 function Accounts() {
   const [rows, setRows] = useState<Responses["YOLO_ACCOUNTS"]>([]);
   const [shown, setShown] = useState<Record<string, string>>({});
@@ -274,6 +331,8 @@ function RealInput(props: { y: YoloConfig; set: (p: Partial<YoloConfig>) => void
 export function Yolo() {
   const y = useStored("yolo");
   const state = useStored("yoloState");
+  // Remounts Accounts after an add, so its list reloads.
+  const [accountsAdded, setAccountsAdded] = useState(0);
   if (!y) return <p>Loading…</p>;
   const set = (patch: Partial<YoloConfig>) => void save({ yolo: { ...y, ...patch } });
   const urls = (v: string[]) => v.filter((u) => /^https?:\/\//i.test(u));
@@ -483,7 +542,8 @@ export function Yolo() {
       <p class="intro">
         Passwords are encrypted with a key that never leaves this browser, and not included in exports.
       </p>
-      <Accounts />
+      <Accounts key={accountsAdded} />
+      <AddAccount email={y.email} onAdded={() => setAccountsAdded(accountsAdded + 1)} />
     </section>
   );
 }
