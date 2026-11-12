@@ -28,6 +28,7 @@ import {
   jobrightFeed,
   linkedinPage,
   linkedinSearch,
+  feedFile,
   parseFeed,
   parseGlassdoor,
   parseIndeed,
@@ -217,7 +218,7 @@ export async function discover(d: DiscoverDeps): Promise<number> {
     return safely(row, async () => {
       // Conditional: GitHub answers 304 while the file is unchanged (most polls), so only changes are downloaded.
       const c = s.feedCache[url];
-      const r = await d.fetch(url, {
+      const r = await d.fetch(feedFile(url), {
         headers: {
           ...(c?.etag ? { "if-none-match": c.etag } : {}),
           ...(c?.modified ? { "if-modified-since": c.modified } : {}),

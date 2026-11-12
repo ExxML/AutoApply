@@ -40,6 +40,10 @@ interface FeedRow {
   is_visible?: boolean;
 }
 
+/** A file's page on GitHub → the file itself: the page leaves a large README unrendered, with no job table to read. */
+export const feedFile = (url: string) =>
+  url.replace(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/blob\//, "https://raw.githubusercontent.com/$1/");
+
 /** A Simplify-style listings.json, or a README whose tables hold Company | Role | Location | Apply link. */
 export function parseFeed(body: string, source: string): Listing[] {
   const t = body.trimStart();

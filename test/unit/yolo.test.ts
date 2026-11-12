@@ -14,6 +14,7 @@ import {
   glassdoorMore,
   glassdoorSearch,
   indeedSearch,
+  feedFile,
   jobrightFeed,
   parseFeed,
   parseGlassdoor,
@@ -287,6 +288,15 @@ describe("sources", () => {
       ["Closed Co", "Open Intern", "NYC", "https://jobs.lever.co/closedco/3"],
       ["Paren Co", "HW Intern", "QC", "https://careers.example.com/job/Intern-(hardware)-QC/12/?ats=sf"],
     ]);
+  });
+
+  it("reads a GitHub file page's list from the file itself", () => {
+    expect(feedFile("https://github.com/SimplifyJobs/Summer2027-Internships/blob/dev/README.md")).toBe(
+      "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/README.md",
+    );
+    const raw = "https://raw.githubusercontent.com/o/r/dev/.github/scripts/listings.json";
+    expect(feedFile(raw)).toBe(raw);
+    expect(feedFile("https://example.com/o/r/blob/main/jobs.md")).toBe("https://example.com/o/r/blob/main/jobs.md");
   });
 
   it("reads LinkedIn's logged-out search cards", () => {
