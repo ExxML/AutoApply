@@ -18,7 +18,8 @@ const RE_CONFIRM_FIRST =
 /** The emailed link or code didn't take. */
 const RE_VERIFY_FAILED =
   /\b(not|n't|unable to|failed to) (be |been )?(verified|confirmed|activated)|expired|invalid|no longer valid|already (been )?used|went wrong/i;
-const RE_RESET = /(reset|new|change|create) (your )?password/i;
+// SuccessFactors heads its page "Career Opportunities: Password Reset".
+const RE_RESET = /(reset|new|change|create) (your )?password|password (reset|change)/i;
 const RE_SIGNUP = /create (an |your )?account|sign ?up|register|new (user|candidate)/i;
 const RE_SIGNUP_PATH = /(^|[/_-])(create[-_]?account|sign[-_]?up|register|registration)([/_.-]|$)/i;
 /** "Report suspicious activity here" in a careers site's fraud banner (AMD) is not a flag on us. */

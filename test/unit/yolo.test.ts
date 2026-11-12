@@ -1905,5 +1905,9 @@ describe("embedded steps", () => {
     };
     expect(kindOf(page, false)).toBe("signup");
     expect(kindOf({ ...page, path: "/login" }, false)).toBe("signin");
+    // Two password boxes under SuccessFactors' "Password Reset" set a new password, not a new account (L3Harris).
+    const reset = { ...page, path: "/career", passwords: 2, fields: 2 };
+    expect(kindOf({ ...reset, headings: "Career Opportunities: Password Reset" }, false)).toBe("reset");
+    expect(kindOf({ ...reset, headings: "Career Opportunities: Create an Account" }, false)).toBe("signup");
   });
 });
