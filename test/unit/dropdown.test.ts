@@ -577,6 +577,39 @@ describe("icon-only triggers (intl-tel-input's country flag)", () => {
   });
 });
 
+describe("multi-pick boxes given their whole answer (select2 chips)", () => {
+  it("takes off the picks outside it by their chips' remove buttons, never a remove-all", async () => {
+    setBody(`<div><label id="q">Please select your area of specialization</label>
+      <select multiple hidden><option>Robotics</option><option>Embedded Systems</option><option>None of the above</option></select>
+      <span class="select2-selection select2-selection--multiple" role="combobox" aria-haspopup="true"
+        aria-expanded="false" aria-labelledby="q" tabindex="0"><ul class="rendered"></ul>
+        <span class="remove-all" role="button" aria-label="Remove all items">×</span></span></div>`);
+    const ul = document.querySelector(".rendered")!;
+    const picked = ["Embedded Systems", "None of the above"];
+    const render = () => {
+      ul.innerHTML = picked
+        .map(
+          (t) =>
+            `<li title="${t}"><span class="choice__remove" role="button" aria-label="Remove ${t}">×</span>${t}</li>`,
+        )
+        .join("");
+      for (const r of ul.querySelectorAll(".choice__remove"))
+        r.addEventListener("click", () => {
+          picked.splice(picked.indexOf(r.parentElement!.title), 1);
+          render();
+        });
+    };
+    render();
+    let cleared = false;
+    document.querySelector(".remove-all")!.addEventListener("click", () => (cleared = true));
+    const h = scan(newScanState()).handles.find((x) => x.el.matches(".select2-selection"))!;
+    const all = ["Robotics", "Embedded Systems", "None of the above"];
+    expect(await fillDropdown(h, ["Embedded Systems"], undefined, all)).toMatchObject({ outcome: "ok" });
+    expect(picked).toEqual(["Embedded Systems"]);
+    expect(cleared).toBe(false);
+  });
+});
+
 describe("text fills", () => {
   it("ends on a key released, for a box that is checked on keyup alone (intl-tel-input)", async () => {
     setBody(`<label for="p">Phone</label><input id="p" type="tel">`);

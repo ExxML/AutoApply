@@ -485,8 +485,33 @@ async function pickOne(h: FieldHandle, text: string, within?: string): Promise<b
   return took();
 }
 
-/** `within`: the answer to pick in the list a picked category opens (Workday's hierarchical prompts). */
-export async function fillDropdown(h: FieldHandle, texts: string[], within?: string): Promise<FillResult> {
+const CHIP_REMOVE =
+  '[aria-label^="Remove" i],[aria-label^="Delete" i],[title^="Remove" i],[class*="remove" i],[class*="delete" i]';
+
+/** A multi-pick box's picked options outside `keep`, each with the remove button of its chip (select2's "×"). */
+function extraChips(h: FieldHandle, keep: string[], options: string[]): HTMLElement[] {
+  const kept = new Set(keep.map(normalize));
+  const known = new Set(options.map(normalize));
+  return [...h.el.querySelectorAll<HTMLElement>(CHIP_REMOVE)].filter((r) => {
+    const chip = r.parentElement?.cloneNode(true) as HTMLElement | undefined;
+    chip?.querySelectorAll(CHIP_REMOVE).forEach((n) => n.remove());
+    // Only a chip naming one of the field's own options: never a "Remove all".
+    const t = normalize(chip?.textContent ?? "");
+    return isVisible(r) && known.has(t) && !kept.has(t);
+  });
+}
+
+/**
+ * `within`: the answer to pick in the list a picked category opens (Workday's hierarchical prompts).
+ * `only`: the field's options, when `texts` is the whole answer of a multi-pick box: its other picks come off (the
+ * review's "Embedded Systems | Database" left Amazon's earlier "None of the above" beside them).
+ */
+export async function fillDropdown(
+  h: FieldHandle,
+  texts: string[],
+  within?: string,
+  only?: string[],
+): Promise<FillResult> {
   if (h.listbox) {
     for (const text of texts) {
       const o = optionElements(h.listbox).find((x) => normalize(optText(x)) === normalize(text));
@@ -512,8 +537,15 @@ export async function fillDropdown(h: FieldHandle, texts: string[], within?: str
       sel.dispatchEvent(new Event("change", { bubbles: true }));
     });
   }
+  // Chips re-render as each comes off, so each is found afresh.
+  for (let i = 0, extra; only && i < 20 && (extra = extraChips(h, texts, only)[0]); i++) {
+    realClick(extra);
+    await sleep(40);
+  }
   const open = findOptionsContainer(h, { boxes: new Set(), options: new Set() });
   if (open) await closeDropdown(h, open);
+  if (only && extraChips(h, texts, only).length)
+    return { outcome: "mismatch", note: `Expected only ${texts.join(", ")}, shows "${dropdownText(h)}"` };
   return texts.every((t) => shows(h, t) || showsPart(h, t))
     ? { outcome: "ok", shown: dropdownText(h) }
     : { outcome: "mismatch", note: `Expected ${texts.join(", ")}, shows "${dropdownText(h)}"` };

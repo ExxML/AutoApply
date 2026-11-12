@@ -158,8 +158,9 @@ async function dispatchKind(h: FieldHandle, op: FillOp, deps: EngineDeps): Promi
       return fillSelect(h, kind === "select" ? texts.slice(0, 1) : texts);
     }
     case "dropdown": {
-      if (op.type === "options") return fillDropdown(h, op.texts);
       let options = h.desc.options ?? deps.harvested.get(h.id) ?? null;
+      if (op.type === "options")
+        return fillDropdown(h, op.texts, undefined, (op.exact && h.desc.multiple && options) || undefined);
       if (!options) {
         // Fast path: the intended answer is usually an exact option (scrolls virtualized lists to it).
         const direct = await fillDropdown(h, [answerOf(op)]);
