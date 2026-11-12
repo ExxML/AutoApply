@@ -1237,6 +1237,9 @@ describe("ARIA menu selects", () => {
         menu.innerHTML = ["GED or Equivalent", "High School", "Some College"]
           .map((t) => `<div role="menuitem">${t}</div>`)
           .join("");
+        // A list that scrolls, read within the budget once open: the budget used to count the slow opening too.
+        menu.style.overflowY = "auto";
+        Object.defineProperties(menu, { scrollHeight: { value: 400 }, clientHeight: { value: 200 } });
         document.body.append(menu);
       }, 400);
     });

@@ -299,9 +299,11 @@ export async function collectOptions(
 
 /** Harvest options of a closed dropdown (§14.5.1); null if it cannot open or exceeds `budgetMs`. */
 export async function harvestOptions(h: FieldHandle, budgetMs = Infinity): Promise<string[] | null> {
-  const deadline = Date.now() + budgetMs;
   const c = await openDropdown(h);
   if (!c) return null;
+  // Reading the list, not opening it: BambooHR's menu took 800 ms to show, and a budget counted from the click had run
+  // out, so its whole list, read, was dropped and "Highest Education Obtained" mapped blind.
+  const deadline = Date.now() + budgetMs;
   // A row still loading (Select2's "Loading more results…") means another page plus QUIET_MS: past a short budget.
   const loading =
     budgetMs < QUIET_MS && [...c.querySelectorAll(OPTION_SELECTORS)].some((o) => /^loading/i.test(optText(o)));
