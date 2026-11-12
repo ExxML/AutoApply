@@ -1306,14 +1306,24 @@ function termFits(o: string, profile: Profile): boolean | null {
  * "Which term(s) would you like to be considered for?" (checklist of seasons): each term inside the availability
  * window and among the co-op terms the profile lists ("All" for any). Etched's "Winter (January - May)" and "Summer
  * (May - August)" were left blank. Asked for one ("which term works for you?", "winter or summer internship?"),
- * the first that fits: Vercel's and Verkada's were left blank.
+ * the term the posting is for ("… Intern - Summer 2027": Amazon's first choice of season got "Winter" beside summer
+ * dates), else the first that fits: Vercel's and Verkada's were left blank. Not a second or later choice, which
+ * depends on the first: Amazon's got the first choice's season again.
  */
-function termsDecision(f: FieldDescriptor, profile: Profile): Decision | null {
+function termsDecision(f: FieldDescriptor, profile: Profile, job: JobContext | null): Decision | null {
   const asks = isMulti(f) ? /\b(terms?|semesters?|seasons?)\b/i : /\b(terms?|semesters?|seasons?|internship)\b/i;
   if (!f.options || !asks.test(f.label) || !profile.preferences.earliestStartDate) return null;
+  if (/\b(second|2nd|third|3rd|next|alternat\w+|back-?up)\s+(choice|preference|option|pick)\b/i.test(f.label))
+    return null;
   const fits = f.options.map((o) => termFits(o, profile));
   if (fits.includes(null) || !fits.includes(true)) return null;
-  const picks = fits.flatMap((ok, i) => (ok ? [i] : [])).slice(0, isMulti(f) ? undefined : 1);
+  const fit = fits.flatMap((ok, i) => (ok ? [i] : []));
+  // The posting's season: its title's, else the one season the top of its page names (an apply page's header).
+  const top = [job?.header, job?.text].map((t) => (t ?? "").slice(0, 300)).join(" ");
+  const seasons = [job?.jobTitle ?? "", top].map((t) => TERM_MID.filter(([re]) => re.test(t)));
+  const named = (seasons[0].length ? seasons[0] : seasons[1].length === 1 ? seasons[1] : [])[0]?.[0];
+  const own = named ? fit.filter((i) => named.test(f.options![i])) : [];
+  const picks = isMulti(f) ? fit : (own.length ? own : fit).slice(0, 1);
   return {
     fieldId: f.id,
     action: "fill",
@@ -2550,7 +2560,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       pronunciationDecision(f, input.profile.personal) ??
       attachedDecision(f, input.uploads) ??
       cohortDecision(f, input.profile.preferences) ??
-      termsDecision(f, input.profile) ??
+      termsDecision(f, input.profile, input.job ?? null) ??
       termLengthsDecision(f, input.profile, input.job) ??
       relocateAllDecision(f, input.profile.preferences, input.job) ??
       gpaDecision(f, input.profile.education) ??

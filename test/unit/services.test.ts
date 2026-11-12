@@ -530,6 +530,28 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       },
     );
     expect(one.decisions[0].intendedAnswer).toBe("Winter 2027");
+    // Asked for one season, the posting's own; a second choice depends on the first, so it isn't decided here (Amazon).
+    const seasons = async (label: string) =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("s", { label, kind: "dropdown", options: ["Winter", "Summer", "Fall"] })],
+            profile,
+            documents: [],
+            job: {
+              company: "Amazon",
+              title: "",
+              jobTitle: "Software Development Engineer Intern - Summer 2027 (CAN)",
+              url: "",
+              text: "",
+              capturedAt: 0,
+            },
+          },
+        )
+      ).decisions[0].intendedAnswer ?? "flag";
+    expect(await seasons("Please indicate your first choice for internship season.")).toBe("Summer");
+    expect(await seasons("Please indicate your second choice for internship season.")).toBe("flag");
   });
 
   it("ticks the work term lengths the profile accepts", async () => {
