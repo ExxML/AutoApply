@@ -52,7 +52,8 @@
           if (order[i] === "account" && document.getElementById("pw").value !== document.getElementById("pw2").value)
             bad.push(document.getElementById("pw2"));
           // Workday's acknowledgement is logically required, but is not exposed as a native required control.
-          if (order[i] === "account" && !document.getElementById("tos").checked) bad.push(document.getElementById("tos"));
+          if (order[i] === "account" && !document.getElementById("tos").checked)
+            bad.push(document.getElementById("tos"));
           app.querySelector("[role=alert]")?.remove();
           if (bad.length) {
             app

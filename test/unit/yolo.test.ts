@@ -160,10 +160,14 @@ describe("job keys", () => {
   it("opens an iCIMS page's own frame as its mobile view in a tab", () => {
     const u = new URL(topLevelUrl("https://campuscanada-amd.icims.com/jobs/90305/login?_gl=x&in_iframe=1"));
     expect(u.pathname).toBe("/jobs/90305/login");
-    expect([u.searchParams.get("in_iframe"), u.searchParams.get("mobile"), u.searchParams.get("needsRedirect")]).toEqual(
-      [null, "true", "false"],
+    expect([
+      u.searchParams.get("in_iframe"),
+      u.searchParams.get("mobile"),
+      u.searchParams.get("needsRedirect"),
+    ]).toEqual([null, "true", "false"]);
+    expect(topLevelUrl("https://careers.amd.com/jobs/90305?icims=1")).toBe(
+      "https://careers.amd.com/jobs/90305?icims=1",
     );
-    expect(topLevelUrl("https://careers.amd.com/jobs/90305?icims=1")).toBe("https://careers.amd.com/jobs/90305?icims=1");
     expect(topLevelUrl("https://job-boards.greenhouse.io/x/jobs/1")).toBe("https://job-boards.greenhouse.io/x/jobs/1");
   });
 

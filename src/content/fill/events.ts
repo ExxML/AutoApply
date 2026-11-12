@@ -41,7 +41,10 @@ export const sleep = (ms: number): Promise<void> =>
     }, ms);
     // Not a long wait (a CAPTCHA's, 10 min): it needs no precision, and would keep the worker up throughout.
     if (ms < 60_000 && (document.hidden || (IN_HOST && performance.now() - lateAt < 10_000)))
-      send({ type: "SLEEP", ms }).then(() => resolve(), () => undefined);
+      send({ type: "SLEEP", ms }).then(
+        () => resolve(),
+        () => undefined,
+      );
   });
 
 let scrollHolds = 0;

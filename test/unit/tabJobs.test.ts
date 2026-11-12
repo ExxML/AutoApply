@@ -60,7 +60,10 @@ beforeEach(async () => {
       }),
       // Memory Saver's unloaded tab loads again.
       reload: vi.fn(async (id: number) => {
-        Object.assign(tabs.find((t) => t.id === id)!, { discarded: false, status: "complete" });
+        Object.assign(
+          tabs.find((t) => t.id === id)!,
+          { discarded: false, status: "complete" },
+        );
       }),
       remove: vi.fn(async () => undefined),
       group: vi.fn(async () => 1),

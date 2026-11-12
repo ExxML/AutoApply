@@ -28,7 +28,7 @@ test("the host page's short timers are relayed to the extension only around one 
   expect(asked).toEqual([]); // on time: each would be a round trip through the extension for nothing
   // Held up past 250 ms, as Chrome's throttling would.
   const late = new Promise((r) => setTimeout(r, 10));
-  for (const until = performance.now() + 300; performance.now() < until; );
+  for (const until = performance.now() + 300; performance.now() < until;);
   await late;
   const ran: number[] = [];
   const id = setTimeout(() => ran.push(1), 50);
