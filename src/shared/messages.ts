@@ -174,11 +174,11 @@ export type Message =
   | { type: "ABORT"; groupId: string }
   | { type: "SLEEP"; ms: number }
   | { type: "BROADCAST_FILL"; rerun: boolean }
-  | { type: "BROADCAST_STOP" }
+  | { type: "BROADCAST_STOP"; error?: ApiError }
   | { type: "OPEN_OPTIONS"; hash: string }
   // B/popup → C
   | { type: "TRIGGER_FILL"; force: boolean; rerun?: boolean }
-  | { type: "STOP_FILL" }
+  | { type: "STOP_FILL"; error?: ApiError }
   | { type: "FOCUS_FIELD"; frameId: number; fieldId: string }
   /** Regenerate a field's failed tailored résumé or cover letter (overlay, routed to its frame like FOCUS_FIELD). */
   | { type: "REGEN_DOC"; frameId: number; fieldId: string }

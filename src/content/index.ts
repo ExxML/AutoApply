@@ -13,7 +13,7 @@ import {
   RE_RESUME_ONLY,
 } from "../shared/constants";
 import { parseEssayLimits, wordCount } from "../shared/essay";
-import { isErr, send, type Message, type Responses } from "../shared/messages";
+import { isErr, send as sendMessage, type Message, type Responses } from "../shared/messages";
 import { resumeProblem, TAILOR_PLACEHOLDER } from "../shared/resumeMode";
 import { SCREENING_SOURCE } from "../shared/screening";
 import type {
@@ -332,6 +332,14 @@ function badgeTarget(h: FieldHandle): HTMLElement {
 }
 
 // ---------- helpers ----------
+/** Observe usage limits before a caller can treat an AI failure as an optional step or a missing answer. */
+async function send<M extends Message>(msg: M): Promise<Responses[M["type"]]> {
+  const run = current;
+  const r = await sendMessage(msg);
+  if (isErr(r) && (!run || run === current)) rateLimited(r.error);
+  return r;
+}
+
 /** Opens an uploaded document in a new tab (the browser's PDF viewer), fetched only when clicked. */
 async function openDoc(id: string) {
   const d = await send({ type: "GET_DOCUMENT", id }).catch(() => null);
@@ -426,6 +434,10 @@ async function drainChoose() {
   chooseBusy = true;
   await sleep(0);
   while (chooseQueue.length) {
+    if (lastError?.kind === "allKeysExhausted") {
+      for (const b of chooseQueue.splice(0)) b.resolve(null);
+      break;
+    }
     const batch = chooseQueue.splice(0, 20);
     const r = await send({
       type: "CHOOSE_OPTIONS",
@@ -936,11 +948,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
           ...(uploads.length ? { uploads } : {}),
         });
         if (isErr(res)) {
-          lastError = res.error;
+          if (lastError?.kind !== "allKeysExhausted") lastError = res.error;
           for (const h of hs) setStatus(h, "needs", res.error.message);
-          scheduleAutoRetry(res.error);
           return;
         }
+        if (ctrl.signal.aborted) return;
         usedModel = res.usedModel;
         const essays: EssayItem[] = [];
         for (const d of res.decisions) {
@@ -978,6 +990,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
       mark("map");
     }
     await Promise.all(jobs);
+    // YOLO starts tailoring before finding an upload box; its usage limit must still stop this page.
+    if (tailoring) await tailoring;
     mark("done");
     // Résumé parsers (SmartRecruiters) re-render the form, emptying fields filled before: re-apply those answers.
     // Answers can also reveal follow-up questions (Greenhouse: Hispanic/Latino "No" → race): fill them in another pass.
@@ -1003,8 +1017,11 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
     // Entry editors we opened (SmartRecruiters' Experience) are saved once nothing more will be filled in them.
     if (!queued && !ctrl.signal.aborted && unsaved.length) await saveEntries(unsaved.splice(0));
   } catch (e) {
-    lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
+    if (lastError?.kind !== "allKeysExhausted")
+      lastError = { kind: "other", message: (e as Error)?.message ?? String(e) };
   } finally {
+    // A stopped widget can reject while other fill jobs are unwinding. Finish them before another fill starts.
+    if (ctrl.signal.aborted) await Promise.allSettled(jobs);
     running = false;
     haltFill(false);
     document.dispatchEvent(new Event("autoapply-fill-end"));
@@ -1078,7 +1095,7 @@ function reviewUpload(h: FieldHandle, groupId: string, ctrl: AbortController, wh
 /**
  * One review round: the page as text and the fields on it to the AI, then its verdicts applied. "fresh": fields
  * appeared (adopted, revealed or shown by a correction) for a fill pass; "changed": answers were corrected, for
- * another round to check; "none": nothing to do. Fails open: an AI error leaves the fills as they are.
+ * another round to check; "none": nothing to do. Ordinary AI errors leave the fills as they are; usage limits stop.
  */
 /** The page as text (./review/snapshot.ts) with the fields shown on it, for the review and YOLO's navigator. */
 function pageSnapshot() {
@@ -1252,10 +1269,10 @@ async function coverLetter(h: FieldHandle, ctrl: AbortController) {
   setStatus(h, "working", "Drafting a cover letter…");
   const r = await send({ type: "COVER_LETTER_PDF", question: h.desc.label });
   if (isErr(r)) {
-    rateLimited(r.error);
     regen.set(h.id, { kind: "cover_letter", note: r.error.message });
     return setStatus(h, "needs", r.error.message);
   }
+  if (ctrl.signal.aborted) return;
   config.documentsIndex = [...config.documentsIndex, r.meta];
   regen.delete(h.id);
   aiDocs.add(r.meta.id);
@@ -1269,6 +1286,8 @@ async function regenerate(id: string) {
   const r = regen.get(id);
   if (!h || !r || running) return;
   haltFill(false);
+  lastError = null;
+  clearTimeout(retryTimer);
   const me = (current = { groupId: crypto.randomUUID(), ctrl: new AbortController() });
   try {
     if (r.kind === "cover_letter") await coverLetter(h, me.ctrl);
@@ -1285,7 +1304,6 @@ async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortContr
   for (const i of items) setStatus(handles.get(i.fieldId)!, "working", "Drafting…");
   const r = await send({ type: "DRAFT_ESSAYS", items, groupId });
   if (isErr(r)) {
-    rateLimited(r.error);
     for (const i of items) setStatus(handles.get(i.fieldId)!, "needs", r.error.message);
     return;
   }
@@ -1315,17 +1333,29 @@ async function draftEssays(items: EssayItem[], groupId: string, ctrl: AbortContr
   mark("essays");
 }
 
-/** A rate limit on a drafting call ends the fill as a mapping call's does: retried, or YOLO waits or requeues. */
-function rateLimited(err: ApiError) {
+/** Every AI step stops the same way on exhausted usage, preserving the warning while cancelled work unwinds. */
+function rateLimited(err: ApiError, broadcast = true) {
   if (err.kind !== "allKeysExhausted") return;
+  if (lastError?.kind === "allKeysExhausted") return;
   lastError = err;
-  scheduleAutoRetry(err);
+  queued = null;
+  clearTimeout(retryTimer);
+  haltFill(true);
+  if (current && !current.ctrl.signal.aborted) {
+    current.ctrl.abort();
+    void sendMessage({ type: "ABORT", groupId: current.groupId }).catch(() => undefined);
+  }
+  for (const [id, s] of states) if (s.status === "working") setStatus(handles.get(id)!, "needs", err.message);
+  report();
+  if (broadcast) void sendMessage({ type: "BROADCAST_STOP", error: err }).catch(() => undefined);
+  if (!yolo) scheduleAutoRetry(err);
 }
 
 function scheduleAutoRetry(err: ApiError) {
-  if (err.kind !== "allKeysExhausted" || !err.earliestRetryAt) return;
+  if (!TOP || err.kind !== "allKeysExhausted" || !err.earliestRetryAt) return;
   const wait = err.earliestRetryAt - Date.now();
-  if (wait > 0 && wait <= 90_000) retryTimer = setTimeout(() => void runPipeline({ rerun: true }), wait + 250);
+  if (wait > 0 && wait <= 90_000)
+    retryTimer = setTimeout(() => void sendMessage({ type: "BROADCAST_FILL", rerun: true }), wait + 250);
 }
 
 // ---------- user edits & learning (§12 cancellation, §16.3) ----------
@@ -1412,15 +1442,13 @@ async function yoloFill(): Promise<FillReport> {
     await runPipeline({ rerun: true });
     while (running || queued) await sleep(100);
     if (lastError?.kind === "allKeysExhausted") {
-      // A short wait for a rate limit is spent here; a longer one, or one still there on the last pass, sends the job
-      // back to the queue rather than to the user.
-      const wait = (lastError.earliestRetryAt ?? 0) - Date.now();
+      // Stop the application now; the coordinator keeps it queued until usage is available again.
       clearTimeout(retryTimer);
-      if (wait > 0 && wait <= 90_000 && pass < 3) {
-        await sleep(wait + 250);
-        continue;
-      }
-      return { unfilled: [], retryAt: lastError.earliestRetryAt ?? nextMidnightPacific() };
+      return {
+        unfilled: [],
+        retryAt: lastError.earliestRetryAt ?? nextMidnightPacific(),
+        limitMessage: lastError.message,
+      };
     }
     if (yoloFatal) return { unfilled: [], fatal: yoloFatal };
     if (!unfilledRequired().length || pass >= 1) break;
@@ -1498,7 +1526,8 @@ async function startYolo() {
     navigate: async (why, facts) => {
       const { snap } = pageSnapshot();
       const r = await send({ type: "NAVIGATE", page: snap.text, facts, url: location.href, why }).catch(() => null);
-      if (!r || isErr(r)) return null;
+      if (!r) return null;
+      if (isErr(r)) return r.error.kind === "allKeysExhausted" ? r : null;
       return { reply: r, el: r.ref ? snap.refs.get(r.ref) : undefined };
     },
     guesses: () => [...guesses.values()],
@@ -1577,7 +1606,8 @@ function onMessage(msg: Message, _sender: unknown, sendResponse: (r: unknown) =>
       sendResponse({ ready: reviewContext?.key === msg.key && reviewContext.ready });
       return false;
     case "STOP_FILL":
-      stop();
+      if (msg.error?.kind === "allKeysExhausted") rateLimited(msg.error, false);
+      else stop();
       break;
     case "TRIGGER_FILL":
       lastReview = null;

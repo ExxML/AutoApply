@@ -1,13 +1,13 @@
 // AI résumé tailoring: the user's LaTeX résumé edited for one job, compiled in the offscreen document. Every failure
 // (no job description, an AI error, edits that don't fit, a compile error, a longer résumé, a timeout) gives the
-// untailored PDF made when the .tex was uploaded instead; an application is never held up by it. With the one-page
+// untailored PDF made when the .tex was uploaded instead, except usage limits, which stop the application. With the one-page
 // limit on (settings.tailorOnePage), the AI also ranks what to cut, the fewest of those cuts that fit are applied, and
 // no résumé over one page is ever uploaded: not the tailored one, nor a fallback.
 import { applyOps, describe, errorLines, parseTex, planCuts, type TailorOps } from "../../shared/latex";
 import type { createStorage } from "../../shared/storage";
 import { session } from "../../shared/storage";
 import type { DocumentMeta, JobContext, Profile } from "../../shared/types";
-import { BadOutputError, BlockedError } from "../gemini/errors";
+import { AllKeysExhaustedError, BadOutputError, BlockedError } from "../gemini/errors";
 import { tailorSystem } from "../gemini/prompts";
 import { TAILOR_CUT_SCHEMA, TAILOR_SCHEMA, TailorZ } from "../gemini/schemas";
 import { releaseOffscreen, useOffscreen } from "../offscreen";
@@ -66,6 +66,7 @@ export async function tailor(
     );
     ops = r.data;
   } catch (e) {
+    if (e instanceof AllKeysExhaustedError) throw e;
     if (e instanceof DOMException && e.name === "AbortError") return { note: "Stopped", transient: true };
     const why =
       e instanceof BlockedError ? "AI declined" : e instanceof BadOutputError ? "AI gave unusable edits" : null;
@@ -275,13 +276,17 @@ export async function tailoredResume(
         ]);
         return { meta, tailored: true, note: r.note };
       } catch (e) {
+        if (e instanceof AllKeysExhaustedError) throw e;
         return fallback(`Tailoring failed: ${(e as Error)?.message ?? e}`, true);
       } finally {
         await c.done();
       }
     })();
     inFlight.set(key, p);
-    void p.finally(() => inFlight.delete(key));
+    void p.then(
+      () => inFlight.delete(key),
+      () => inFlight.delete(key),
+    );
   }
   const r = await p;
   // A passing failure (an AI error, a stopped fill) isn't this job's answer: the next fill tries again.

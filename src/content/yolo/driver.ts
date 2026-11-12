@@ -2,7 +2,8 @@
 // (Apply → account → each form page → Submit). A step that loads a new document ends this script there; the new
 // page's driver asks the background where the run stands and carries on.
 import { CAPTCHA_SELF_CLEAR_MS, CAPTCHA_WAIT_MS, topLevelUrl } from "../../shared/constants";
-import { send, type PageFacts, type StepKind, type YoloResult } from "../../shared/messages";
+import { isErr, send, type Err, type PageFacts, type StepKind, type YoloResult } from "../../shared/messages";
+import { nextMidnightPacific } from "../../shared/time";
 import type { NavReply } from "../../background/gemini/schemas";
 import { collapse } from "../../shared/normalize";
 import type { Guess } from "../../shared/yolo";
@@ -45,6 +46,8 @@ export interface FillReport {
   fatal?: string;
   /** The AI's quota or usage limit ran out; retry after this time. */
   retryAt?: number;
+  /** The provider's usage-limit warning, retained in the paused run. */
+  limitMessage?: string;
 }
 
 export interface DriverDeps {
@@ -68,7 +71,17 @@ export interface DriverDeps {
   /** The same for a posting the run went past, read from its address. */
   readPosting(url: string): Promise<void>;
   /** The AI navigator's next step on this page (background/services/navigate.ts), with the control it names. */
-  navigate(why: string, facts: PageFacts): Promise<{ reply: NavReply; el?: HTMLElement } | null>;
+  navigate(why: string, facts: PageFacts): Promise<{ reply: NavReply; el?: HTMLElement } | Err | null>;
+}
+
+/** Carries a usage stop through every driver branch, including a fill requested by the AI navigator. */
+class UsageLimitError extends Error {
+  constructor(
+    message: string,
+    public retryAt: number,
+  ) {
+    super(message);
+  }
 }
 
 /** Navigator calls per page load: it is the way out of a stuck step, not a loop of its own. */
@@ -155,7 +168,15 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
   const result = (r: YoloResult) =>
     void send({ type: "YOLO_RESULT", result: r, runId: hello.runId }).catch(() => undefined);
   // The fill pipeline marks its own end; the run is still working after it.
-  const fill = () => deps.fill().finally(() => busy(true));
+  const fill = async () => {
+    try {
+      const r = await deps.fill();
+      if (r.retryAt) throw new UsageLimitError(r.limitMessage ?? "AI usage limit reached", r.retryAt);
+      return r;
+    } finally {
+      busy(true);
+    }
+  };
   /** Every protected final action must receive explicit permission from the current run. */
   const beforeSubmit = async (ambiguous = false): Promise<boolean> => {
     if (!hello.submissionReview) return true;
@@ -197,6 +218,11 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
     navCalls++;
     const nav = await deps.navigate(why, facts).catch(() => null);
     if (!nav) return null;
+    if (isErr(nav)) {
+      if (nav.error.kind === "allKeysExhausted")
+        throw new UsageLimitError(nav.error.message, nav.error.earliestRetryAt ?? nextMidnightPacific());
+      return null;
+    }
     const { reply, el } = nav;
     if (reply.action === "done") {
       if (reply.state !== "success") return null;
@@ -429,7 +455,6 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
             guesses: deps.guesses(),
             hasGuessedAnswers: deps.hasGuessedAnswers?.() ?? false,
           }).catch(() => undefined);
-          if (rep.retryAt) return result({ status: "failed", reason: "AI usage limit reached", retryAt: rep.retryAt });
           if (rep.fatal) return needs(rep.fatal);
           if (rep.unfilled.length) return needs(`Couldn't fill: ${rep.unfilled.slice(0, 3).join(", ")}`);
           await acceptNotices();
@@ -524,6 +549,8 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
     }
     return result({ status: "failed", reason: "Too many steps", guesses: deps.guesses() });
   } catch (e) {
+    if (e instanceof UsageLimitError)
+      return result({ status: "failed", reason: e.message, retryAt: e.retryAt, guesses: deps.guesses() });
     return result({ status: "failed", reason: (e as Error)?.message ?? String(e), guesses: deps.guesses() });
   } finally {
     busy(false);

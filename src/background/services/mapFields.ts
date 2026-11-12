@@ -36,7 +36,7 @@ import { normalize } from "../../shared/normalize";
 import { emptyProfile } from "../../shared/profileSchema";
 import { todayIso } from "../../shared/time";
 import type { Gemini } from "../gemini/client";
-import { BadOutputError, BlockedError } from "../gemini/errors";
+import { AllKeysExhaustedError, BadOutputError, BlockedError } from "../gemini/errors";
 import { AUDIT_PROMPT, BEST_GUESS_PROMPT, MAP_FIELDS_PROMPT } from "../gemini/prompts";
 import { AUDIT_SCHEMA, AuditZ, MAPPING_SCHEMA, MappingZ, type RawDecision } from "../gemini/schemas";
 
@@ -2300,7 +2300,7 @@ async function auditFills(
       d.action === "fill" && unsupported.has(d.fieldId) ? flag(d.fieldId, NOT_IN_PROFILE) : d,
     );
   } catch (e) {
-    if (ctx.signal?.aborted) throw e;
+    if (ctx.signal?.aborted || e instanceof AllKeysExhaustedError) throw e;
     return decisions;
   }
 }
@@ -2416,7 +2416,7 @@ async function guessFlagged(
       return g && g.action !== "flag" ? g : d;
     });
   } catch (e) {
-    if (ctx.signal?.aborted) throw e;
+    if (ctx.signal?.aborted || e instanceof AllKeysExhaustedError) throw e;
     return decisions;
   }
 }

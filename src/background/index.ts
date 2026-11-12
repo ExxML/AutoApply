@@ -593,9 +593,9 @@ const handlers: Handlers = {
     return { ok: true };
   },
 
-  // The overlay's Stop: this tab's frames only, never another tab's fill or a YOLO run's.
-  async BROADCAST_STOP(_msg, sender) {
-    if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "STOP_FILL" });
+  // Stop this tab's frames together, carrying a usage-limit warning when an AI step cannot continue.
+  async BROADCAST_STOP({ error }, sender) {
+    if (sender.tab?.id !== undefined) await sendToTab(sender.tab.id, { type: "STOP_FILL", ...(error && { error }) });
     return { ok: true };
   },
 

@@ -21,6 +21,8 @@ import {
   type YoloState,
 } from "../../shared/yolo";
 import { RELEVANCE_PROMPT } from "../gemini/prompts";
+import { AllKeysExhaustedError } from "../gemini/errors";
+import { nextMidnightPacific } from "../../shared/time";
 import { RELEVANCE_SCHEMA, RelevanceZ } from "../gemini/schemas";
 import { draftEssays } from "../services/draftEssays";
 import { FALLBACK, tailoredDoc } from "../services/tailorResume";
@@ -258,7 +260,14 @@ function cycle(topUp = false): Promise<void> {
     let added = 0;
     try {
       if (!yolo.enabled || !yolo.queries.length) return;
-      if (!topUp) await setState({ batchAt: Date.now(), queueOnlyBatch: false, pauseReason: "" });
+      if (!topUp) {
+        const state = await store.get("yoloState");
+        await setState({
+          batchAt: Date.now(),
+          queueOnlyBatch: false,
+          ...(state.pausedUntil > Date.now() ? {} : { pauseReason: "" }),
+        });
+      }
       const [busy, state] = await Promise.all([getRun(), store.get("yoloState")]);
       batchAt = state.batchAt;
       added = await discover({
@@ -275,6 +284,21 @@ function cycle(topUp = false): Promise<void> {
       await setState({ lastCheckAt: Date.now() });
     } catch (e) {
       console.warn("[AutoApply] YOLO check failed:", (e as Error)?.message);
+      if (e instanceof AllKeysExhaustedError) {
+        const retryAt = e.earliestRetryAt ?? nextMidnightPacific();
+        await pause(retryAt, "AI usage limit reached");
+        const run = await getRun();
+        if (run?.mode === "apply") {
+          if (run.tabId !== undefined)
+            await chrome.tabs
+              .sendMessage(run.tabId, {
+                type: "STOP_FILL",
+                error: { kind: "allKeysExhausted", message: e.message, earliestRetryAt: retryAt },
+              })
+              .catch(() => undefined);
+          await finish(run, { status: "failed", reason: e.message, retryAt });
+        }
+      }
       await failSourceCheck(plainError(e)).catch(() => undefined);
     } finally {
       cycling = null;
@@ -362,7 +386,10 @@ async function relevance(items: Listing[]): Promise<Set<number>> {
       },
       { model: ctx.model, fallback: ctx.fallback },
     )
-    .catch(() => null);
+    .catch((e) => {
+      if (e instanceof AllKeysExhaustedError) throw e;
+      return null;
+    });
   return r ? new Set(r.data.keep) : all;
 }
 
@@ -628,6 +655,7 @@ async function finish(run: Run, r: YoloResult) {
   if (r.status !== "submitted" && r.status !== "scraped" && r.retryAt) {
     await requeue(run.item, run.resumeKey);
     await pause(r.retryAt, "AI usage limit reached");
+    if (run.host === "frame") await closeFrame();
     return;
   }
   const a = await outcome(run, r);

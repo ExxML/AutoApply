@@ -17,7 +17,7 @@ const sender = (run: Run) =>
     ...(run.tabId === undefined ? {} : { tab: { id: run.tabId } }),
   }) as chrome.runtime.MessageSender;
 
-async function setup(config: Partial<Yolo> = {}, state = {}) {
+async function setup(config: Partial<Yolo> = {}, state = {}, ctx = {} as ServiceCtx) {
   await chrome.storage.local.set({
     yolo: {
       ...defaultYolo(),
@@ -47,7 +47,7 @@ async function setup(config: Partial<Yolo> = {}, state = {}) {
   vi.spyOn(discovery, "discover").mockResolvedValue(0);
   coordinator = await import("../../src/background/yolo");
   runner = await import("../../src/background/yolo/runner");
-  await coordinator.initYolo({ logLimit: () => 0, serviceCtx: async () => ({}) as ServiceCtx });
+  await coordinator.initYolo({ logLimit: () => 0, serviceCtx: async () => ctx });
 }
 
 async function running(key: string) {
@@ -109,6 +109,40 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("apply queued jobs", () => {
+  it("stops and requeues an active application when the discovery relevance check hits a usage limit", async () => {
+    // Import after resetModules, so the coordinator and test use the same error class.
+    const { ClaudeLimitError } = await import("../../src/background/gemini/errors");
+    const until = Date.now() + 300_000;
+    await setup({ enabled: true, aiRelevanceCheck: true }, {}, {
+      ai: {
+        call: async () => {
+          throw new ClaudeLimitError(until);
+        },
+      },
+      settings: {},
+      model: "m",
+      fallback: null,
+    } as unknown as ServiceCtx);
+    await request();
+    await running("first");
+    vi.mocked(discovery.discover).mockImplementationOnce(async (d) => {
+      await d.relevance!([job("candidate")]);
+      return 0;
+    });
+    await coordinator.yoloHandlers.YOLO_CHECK_NOW!({ type: "YOLO_CHECK_NOW" }, {});
+    await vi.waitFor(async () => expect((await status()).paused).toBe("AI usage limit reached"));
+    await vi.waitFor(async () => expect(await runner.getRun()).toBeNull());
+    expect(
+      (await chrome.storage.local.get<{ yoloQueue: { key: string }[] }>("yoloQueue")).yoloQueue.map((j) => j.key),
+    ).toEqual(["first", "second", "third"]);
+    expect((await chrome.storage.local.get("applications")).applications ?? []).toEqual([]);
+    expect((await chrome.storage.local.get<{ yoloState: YoloState }>("yoloState")).yoloState.pausedUntil).toBe(until);
+    // A later scheduled check retains the warning while the limit is active.
+    await coordinator.yoloHandlers.YOLO_CHECK_NOW!({ type: "YOLO_CHECK_NOW" }, {});
+    await vi.waitFor(() => expect(discovery.discover).toHaveBeenCalledTimes(2));
+    expect((await status()).paused).toBe("AI usage limit reached");
+  });
+
   it.each([false, true])(
     "starts without source checks with YOLO enabled=%s and respects the batch limit",
     async (enabled) => {
