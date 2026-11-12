@@ -1521,7 +1521,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       postingNumber(sender.url ?? url, id) !== id
         ? applyUrl(run.item.url)
         : undefined;
-    if (goto) run.returned = true;
+    if (goto) run.returned = run.steps.length;
     const sig = signature(kind, facts);
     run.guesses = mergeGuesses(run.guesses, guesses);
     // The page reloads to retry a submission flagged as spam: its steps repeat from the start, only the flags count.
@@ -1555,7 +1555,9 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
         stop = "Already applied through another link";
       else run.atsUrl = url;
     }
-    if (run.steps.filter((s) => s === sig).length >= 3)
+    // Steps before a return to the posting were another pass: L3Harris's posting, seen twice on the way to a password
+    // reset, read as a loop when the run came back to it.
+    if (run.steps.slice(run.returned ?? 0).filter((s) => s === sig).length >= 3)
       stop = kind === "flagged" ? "The site kept flagging it as automated" : `Stuck at the same ${kind} step`;
     if (run.steps.length > 40) stop = "Too many steps";
     await saveRun(run);

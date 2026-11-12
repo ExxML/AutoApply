@@ -37,8 +37,8 @@ export interface Run {
   confirming?: boolean;
   /** An emailed link was just handed out: the sites its page must land on. */
   linkSites?: string[];
-  /** Sent back to the posting once, after an account step left the application (YOLO_STEP). */
-  returned?: boolean;
+  /** Sent back to the posting once, after an account step left the application (YOLO_STEP): its steps by then. */
+  returned?: number;
   /** When the computer last woke from sleeping during the run. */
   wokeAt?: number;
   reviewPolicy?: SubmissionReview;
