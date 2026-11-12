@@ -61,7 +61,7 @@ import {
   waitForFeedCode,
 } from "./gmail";
 import { closeFrame, closeTab, openTab } from "./host";
-import { altKey, applyUrl, jobKey, leftPosting, namesPosting, restartUrl } from "./jobKey";
+import { altKey, applyUrl, jobKey, leftPosting, namesPosting, postingNumber, restartUrl } from "./jobKey";
 import { findOnEmployerBoard } from "./careers";
 import { indeedCardsInPage, JOBRIGHT_PING } from "./sources";
 import { failSourceCheck, plainError } from "./sourceCheck";
@@ -1509,6 +1509,19 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     // Submitted: never applied to again after a browser restart.
     if (run.confirming && !held && run.host !== "visible")
       await store.set({ yoloInFlight: { ...run.item, submitted: true } });
+    // Back from an account step (a sign-up, a password set, an emailed link) on a page without the posting's number:
+    // EA sent a run to its careers home once its password was reset, and the navigator gave the job up. Once a run.
+    const id = postingNumber(run.item.url);
+    const goto =
+      !run.returned &&
+      !stop &&
+      /^(signup|reset|verify)\|/.test(run.steps.at(-1) ?? "") &&
+      /^(form|job|unknown)$/.test(kind) &&
+      id &&
+      postingNumber(sender.url ?? url, id) !== id
+        ? applyUrl(run.item.url)
+        : undefined;
+    if (goto) run.returned = true;
     const sig = signature(kind, facts);
     run.guesses = mergeGuesses(run.guesses, guesses);
     // The page reloads to retry a submission flagged as spam: its steps repeat from the start, only the flags count.
@@ -1551,7 +1564,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       refused: /^(signin|signup|reset)$/.test(kind) && refused(facts),
       // Turned down as a bot each time (a visible tab, the user's browser, usually passes), or already sent: the
       // user's to finish, never a failure.
-      ...(stop ? { stop, needs: kind === "flagged" || kind === "captcha" || !!run.confirming } : {}),
+      ...(stop ? { stop, needs: kind === "flagged" || kind === "captcha" || !!run.confirming } : goto ? { goto } : {}),
     };
   },
 

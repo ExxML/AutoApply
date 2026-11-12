@@ -302,6 +302,10 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
         guesses: deps.guesses(),
       });
       let kind: StepKind = step.kind;
+      if (step.goto) {
+        location.href = IN_HOST ? step.goto : topLevelUrl(step.goto);
+        return;
+      }
       if (step.stop)
         return result({
           status: /already/i.test(step.stop) ? "skipped" : step.needs ? "needs" : "failed",

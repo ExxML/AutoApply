@@ -92,6 +92,22 @@ export function leftPosting(start: string, now: string): boolean {
   }
 }
 
+/**
+ * A posting's number in its address: the last run of 4+ digits ("…/JobDetail/…/216226", "…_JR0287933"). With `want`,
+ * that number if the address holds it anywhere (EA's application pages carry "?jobId=216226").
+ */
+export function postingNumber(raw: string, want?: string): string | undefined {
+  let u = raw;
+  try {
+    u = decodeURIComponent(raw);
+  } catch {
+    // a stray % in the address: read as it is
+  }
+  if (want) return u.includes(want) ? want : undefined;
+  // Not the host's own digits.
+  return /(\d{4,})(?!.*\d{4,})/.exec(u.replace(/^[a-z]+:\/\/[^/]+/i, ""))?.[1];
+}
+
 const TITLE_FORMS: [RegExp, string][] = [
   [/\b(20\d\d|summer|fall|autumn|winter|spring|\d+ ?months?|full ?time|part ?time)\b/g, ""],
   [/\bengineering\b/g, "engineer"],

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
-import { altKey, applyUrl, jobKey, leftPosting, namesPosting, restartUrl } from "../../src/background/yolo/jobKey";
+import { altKey, applyUrl, jobKey, leftPosting, namesPosting, postingNumber, restartUrl } from "../../src/background/yolo/jobKey";
 import {
   glassdoorMore,
   glassdoorSearch,
@@ -139,6 +139,13 @@ describe("job keys", () => {
     expect(leftPosting(d2l, d2l)).toBe(false);
     expect(leftPosting(d2l, "https://job-boards.greenhouse.io/d2l/jobs/8289767")).toBe(false);
     expect(leftPosting("https://www.d2l.com/careers/", "https://www.d2l.com/careers/jobs/")).toBe(false);
+    // A posting's number, and whether a page still carries it (EA's careers home after a password reset doesn't).
+    const ea = "https://jobs.ea.com/en_US/careers/JobDetail/Software-Engineer-Intern-Summer-2027-8-months-UFC/216226";
+    expect(postingNumber(ea)).toBe("216226");
+    expect(postingNumber("https://jobs.ea.com/en_US/careers/ApplicationEEO?jobId=216226", "216226")).toBe("216226");
+    expect(postingNumber("https://jobs.ea.com/en_US/careers", "216226")).toBeUndefined();
+    expect(postingNumber("https://intel.wd1.myworkdayjobs.com/external/job/Toronto/Intern_JR0287933")).toBe("0287933");
+    expect(postingNumber("https://jobs.lever.co/acme/backend-intern")).toBeUndefined();
     expect(namesPosting("https://dfid.dayforcehcm.com/globalidentity/account/login?returnUrl=x")).toBe(false);
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en/job/13309/software-intern")).toBe(true);
     expect(namesPosting("https://jobs.bce.ca/bell/job/Montreal-Intern/1433151100")).toBe(true);

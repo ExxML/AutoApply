@@ -269,7 +269,8 @@ export interface Responses {
   } | null;
   /** `refused`: the site turned down our sign-in or sign-up (an account we hold no password for). */
   /** `needs`: a `stop` the user can finish (flagged as automated, or the application was already sent). */
-  YOLO_STEP: { kind: StepKind; stop?: string; refused?: boolean; needs?: boolean };
+  /** `goto`: the page has lost the application; load this instead. */
+  YOLO_STEP: { kind: StepKind; stop?: string; refused?: boolean; needs?: boolean; goto?: string };
   YOLO_RESULT: Ok;
   /** `ok` false: not done (no debugger, the user cancelled the debugging bar): the caller uses script input. */
   REAL_INPUT: { ok: boolean };
