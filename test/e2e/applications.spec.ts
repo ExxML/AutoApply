@@ -2,6 +2,8 @@ import type { Page, Worker } from "@playwright/test";
 import { ApplicationSchema, QueueItemSchema, type Application, type QueueItem } from "../../src/shared/yolo";
 import { BASE, expect, seed, storage, test } from "./extension";
 
+const EMPTY_QUEUE_TEXT = "No queued jobs. Jobs will appear here when YOLO finds new matches, or when you add them.";
+
 async function applicationsPage(sw: Worker, page: Page, count = 90, queued = 45) {
   await seed(sw);
   const applications = Array.from({ length: count }, (_, i) =>
@@ -458,7 +460,7 @@ test("queue search and removal preserve other jobs; Clear queue also clears sear
   await expect(search).toBeFocused();
   expect((await storage<QueueItem[]>(sw, "yoloQueue")).map((i) => i.key)).toEqual(["queued-0", "queued-2"]);
   await panel.getByRole("button", { name: "Clear queue", exact: true }).click();
-  await expect(panel.getByText("No queued jobs. Jobs will appear here when YOLO finds new matches.")).toBeVisible();
+  await expect(panel.getByText(EMPTY_QUEUE_TEXT, { exact: true })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Clear queue", exact: true })).toBeDisabled();
   expect(await storage(sw, "yoloQueue")).toEqual([]);
   expect(await storage<unknown[]>(sw, "applications")).toHaveLength(2);
@@ -471,8 +473,18 @@ test("an empty queue stays accessible and storage updates never open the panel",
   await sw.evaluate(() => chrome.storage.local.set({ yoloQueue: [] }));
   const panel = page.getByRole("dialog", { name: "Queued jobs", exact: true });
   await page.getByRole("button", { name: "Queued jobs 0", exact: true }).click();
-  await expect(panel.getByText("No queued jobs. Jobs will appear here when YOLO finds new matches.")).toBeVisible();
+  await expect(panel.getByText(EMPTY_QUEUE_TEXT, { exact: true })).toBeVisible();
+  const addForm = panel.getByRole("form", { name: "Add jobs to the queue", exact: true });
+  await expect(addForm).toBeVisible();
+  await expect(addForm.getByRole("textbox", { name: "Job posting links", exact: true })).toBeFocused();
+  // Escape closes the nested add form first, then the queue dialog.
   await page.keyboard.press("Escape");
+  await expect(addForm).not.toBeVisible();
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Add jobs", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(panel).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Queued jobs 0", exact: true })).toBeFocused();
   await sw.evaluate((item) => chrome.storage.local.set({ yoloQueue: [item] }), job);
   const trigger = page.getByRole("button", { name: "Queued jobs 1", exact: true });
   await expect(trigger).toBeVisible();
@@ -481,7 +493,7 @@ test("an empty queue stays accessible and storage updates never open the panel",
   await expect(panel.getByRole("listitem")).toHaveCount(1);
   await sw.evaluate(() => chrome.storage.local.set({ yoloQueue: [] }));
   await expect(panel).toBeVisible();
-  await expect(panel.getByText("No queued jobs. Jobs will appear here when YOLO finds new matches.")).toBeVisible();
+  await expect(panel.getByText(EMPTY_QUEUE_TEXT, { exact: true })).toBeVisible();
   // Browser navigation can unmount an open modal; its scroll lock must be released.
   await page.evaluate(() => (location.hash = "/behavior"));
   await expect(page.getByRole("heading", { name: "Behavior", exact: true })).toBeVisible();
