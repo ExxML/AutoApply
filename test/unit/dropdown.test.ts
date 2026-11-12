@@ -850,6 +850,56 @@ describe("file uploads", () => {
     uploadedAt: 0,
   } as const;
 
+  it.each(["%PDF-new", "%PDF-longer-content"])(
+    "replaces changed content with the same filename: %s",
+    async (content) => {
+      setBody(`<label for="r">Resume</label><input type="file" id="r">`);
+      const input = document.querySelector<HTMLInputElement>("input")!;
+      const dt = new DataTransfer();
+      dt.items.add(new File(["%PDF-old"], meta.fileName, { type: meta.mimeType }));
+      input.files = dt.files;
+      const events: string[] = [];
+      for (const type of ["input", "change"]) input.addEventListener(type, () => events.push(type));
+      const [h] = scan(newScanState()).handles;
+
+      expect(await fillFile(h, meta, btoa(content))).toMatchObject({ outcome: "ok", shown: meta.fileName });
+      expect(await input.files![0].text()).toBe(content);
+      expect(events).toEqual(["input", "change"]);
+    },
+  );
+
+  it("keeps an identical file without repeating its upload events", async () => {
+    setBody(`<label for="r">Resume</label><input type="file" id="r">`);
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    const dt = new DataTransfer();
+    const original = new File(["%PDF-same"], meta.fileName, { type: meta.mimeType });
+    dt.items.add(original);
+    input.files = dt.files;
+    const events: string[] = [];
+    for (const type of ["input", "change"]) input.addEventListener(type, () => events.push(type));
+    const [h] = scan(newScanState()).handles;
+
+    expect(await fillFile(h, meta, btoa("%PDF-same"))).toMatchObject({ outcome: "ok" });
+    expect(input.files![0]).toBe(original);
+    expect(events).toEqual([]);
+  });
+
+  it("replaces an unreadable selected file instead of assuming its contents match", async () => {
+    setBody(`<label for="r">Resume</label><input type="file" id="r">`);
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    const dt = new DataTransfer();
+    const original = new File(["%PDF-old"], meta.fileName, { type: meta.mimeType });
+    original.arrayBuffer = async () => {
+      throw new DOMException("File unavailable", "NotReadableError");
+    };
+    dt.items.add(original);
+    input.files = dt.files;
+    const [h] = scan(newScanState()).handles;
+
+    expect(await fillFile(h, meta, btoa("%PDF-new"))).toMatchObject({ outcome: "ok" });
+    expect(await input.files![0].text()).toBe("%PDF-new");
+  });
+
   it("count as done when the widget lists the file inside its shadow root (SmartRecruiters)", async () => {
     setBody(`<div><label for="r">Resume</label><x-drop><input type="file" id="r"></x-drop></div>`);
     const drop = document.querySelector("x-drop")!;

@@ -27,6 +27,9 @@ const uploadedBase64 = (page: Page) =>
     return btoa(s);
   });
 
+const resumeRecovery = (page: Page) =>
+  page.locator("autoapply-root .needs li").filter({ has: page.getByRole("button", { name: /^Resume\/CV/ }) });
+
 test("tailor: a .tex upload is test-compiled into the untailored PDF; unsupported packages are named", async ({
   page,
   sw,
@@ -106,9 +109,9 @@ test("tailor: a fill uploads the résumé tailored for the job, after the AI's e
     "Ada_Lovelace_Resume.pdf",
   );
   expect(await uploadedBase64(page)).not.toBe((fallback as { base64: string }).base64);
-  await expect(page.locator("autoapply-root .panel .notice")).not.toContainText("Untailored");
   // The panel shows, on request, the job details the résumé was tailored from.
   await page.locator("autoapply-root .fab").click();
+  await expect(resumeRecovery(page)).toHaveCount(0);
   const jobInfo = page.locator("autoapply-root .jobinfo");
   await jobInfo.locator("summary").click();
   await expect(jobInfo.locator("dl")).toContainText("Software Developer Co-op");
@@ -129,7 +132,7 @@ test("tailor: a fill uploads the résumé tailored for the job, after the AI's e
   expect(mock.calls_("tailor")).toHaveLength(1);
 });
 
-test("tailor: unusable AI edits fall back to the untailored résumé, with a note in the panel", async ({
+test("tailor: unusable AI edits show a field-specific fallback reason and can be regenerated", async ({
   page,
   sw,
   mock,
@@ -154,9 +157,24 @@ test("tailor: unusable AI edits fall back to the untailored résumé, with a not
   await waitDone(page);
   await expect(badge(page, "Resume/CV")).toHaveAttribute("data-color", "green", { timeout: 30_000 });
   expect(await uploadedBase64(page)).toBe((fallback as { base64: string }).base64);
-  await expect(page.locator("autoapply-root .panel .notice")).toContainText("Untailored résumé used");
+  await expect(badge(page, "Resume/CV")).toHaveAttribute("title", /^Untailored résumé/);
+  await page.locator("autoapply-root .fab").click();
+  const recovery = resumeRecovery(page);
+  await expect(recovery).toContainText("Untailored résumé used: None of the AI's edits fit the résumé's format");
+  await expect(recovery.getByRole("button", { name: "Regenerate", exact: true })).toBeVisible();
   // No AI wrote it: no job details are offered.
   await expect(page.locator("autoapply-root .jobinfo")).toBeHidden();
+
+  // Regenerate retries the cached failure, changing only the résumé field.
+  const otherCalls = mock.calls.filter((c) => c.kind !== "tailor");
+  mock.tailorOps = null;
+  await recovery.getByRole("button", { name: "Regenerate", exact: true }).click();
+  await expect(badge(page, "Resume/CV")).toHaveAttribute("title", /^AI-tailored résumé/, { timeout: 30_000 });
+  expect(await uploadedBase64(page)).not.toBe((fallback as { base64: string }).base64);
+  await expect(recovery).toHaveCount(0);
+  await expect(page.locator("autoapply-root .jobinfo")).toBeVisible();
+  expect(mock.calls_("tailor")).toHaveLength(2);
+  expect(mock.calls.filter((c) => c.kind !== "tailor")).toEqual(otherCalls);
 });
 
 test("tailor: Flag for me leaves the résumé upload to the user", async ({ page, sw }) => {
@@ -211,14 +229,16 @@ test("tailor: an uploaded fallback PDF is used instead of the untailored one whe
   expect((await storage<{ fallback: { fileName: string } | null }>(sw, "tailorResume")).fallback?.fileName).toBe(
     "mine.pdf",
   );
-  mock.tailorOps = () => ({ edits: [{ id: "S2.E1.B1", text: "\newfancything{x}" }], add: [], remove: [], order: [] });
+  mock.tailorOps = () => ({ edits: [{ id: "S2.E1.B1", text: "\\newfancything{x}" }], add: [], remove: [], order: [] });
 
   await page.goto(BASE + "plain.html");
   await fillPage(page, sw);
   await waitDone(page);
   await expect(badge(page, "Resume/CV")).toHaveAttribute("data-color", "green", { timeout: 30_000 });
   expect(await uploadedBase64(page)).toBe(pdf.toString("base64"));
-  await expect(page.locator("autoapply-root .panel .notice")).toContainText("Untailored résumé used");
+  await page.locator("autoapply-root .fab").click();
+  await expect(resumeRecovery(page)).toContainText("Untailored résumé used");
+  await expect(resumeRecovery(page).getByRole("button", { name: "Regenerate", exact: true })).toBeVisible();
 });
 
 const BULLETS = [
@@ -252,7 +272,9 @@ test("tailor: with one page on, the fewest of the AI's ranked cuts that fit are 
   await fillPage(page, sw);
   await waitDone(page);
   await expect(badge(page, "Resume/CV")).toHaveAttribute("data-color", "green", { timeout: 30_000 });
-  await expect(page.locator("autoapply-root .panel .notice")).toContainText("ran to 2 pages instead of 1");
+  await page.locator("autoapply-root .fab").click();
+  await expect(resumeRecovery(page)).toContainText("ran to 2 pages instead of 1");
+  await expect(resumeRecovery(page).getByRole("button", { name: "Regenerate", exact: true })).toBeVisible();
   expect(mock.calls_("tailor")[0].payload).not.toHaveProperty("pages");
 
   await sw.evaluate(async () => {
@@ -264,7 +286,8 @@ test("tailor: with one page on, the fewest of the AI's ranked cuts that fit are 
   await waitDone(page);
   await expect(badge(page, "Resume/CV")).toHaveAttribute("data-color", "green", { timeout: 60_000 });
   await expect(badge(page, "Resume/CV")).toHaveAttribute("title", /20 changes for this job; \d cuts? to fit one page/);
-  await expect(page.locator("autoapply-root .panel .notice")).not.toContainText("Untailored");
+  await page.locator("autoapply-root .fab").click();
+  await expect(resumeRecovery(page)).toHaveCount(0);
   expect(mock.calls_("tailor")[1].payload).toMatchObject({ pages: 1 });
 });
 

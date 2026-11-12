@@ -77,10 +77,17 @@ function uploadedIn(h: FieldHandle, name: string, before?: string): boolean {
 }
 
 export async function fillFile(h: FieldHandle, meta: DocumentMeta, base64: string): Promise<FillResult> {
-  if ((fileInputIn(h.el) ?? fileInputIn(h.container))?.files?.[0]?.name === meta.fileName)
-    return { outcome: "ok", shown: meta.fileName };
-  const before = collapse(deepText(h.container));
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const current = (fileInputIn(h.el) ?? fileInputIn(h.container))?.files?.[0];
+  // Regenerated documents keep their filename: skip an upload only when its bytes also match.
+  if (current?.name === meta.fileName && current.size === bytes.length) {
+    const previous = await current.arrayBuffer().then(
+      (buffer) => new Uint8Array(buffer),
+      () => null,
+    );
+    if (previous && bytes.every((b, i) => b === previous[i])) return { outcome: "ok", shown: meta.fileName };
+  }
+  const before = collapse(deepText(h.container));
   const file = new File([bytes], meta.fileName, { type: meta.mimeType });
   const dt = new DataTransfer();
   dt.items.add(file);
