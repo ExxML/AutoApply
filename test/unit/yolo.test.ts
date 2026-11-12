@@ -1,7 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { installChromeMock } from "./chromeMock";
-import { altKey, applyUrl, jobKey, leftPosting, namesPosting, postingNumber, restartUrl } from "../../src/background/yolo/jobKey";
+import {
+  altKey,
+  applyUrl,
+  jobKey,
+  leftPosting,
+  namesPosting,
+  postingNumber,
+  restartUrl,
+} from "../../src/background/yolo/jobKey";
 import {
   glassdoorMore,
   glassdoorSearch,
