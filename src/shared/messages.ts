@@ -161,7 +161,7 @@ export type Message =
   /** A site account the user created themselves, so YOLO signs in rather than signing up again. */
   | { type: "YOLO_ADD_ACCOUNT"; url: string; company: string; email: string; password: string }
   /** An export was just imported: its API keys' states, and the job its browser was mid-application on. */
-  | { type: "IMPORTED"; keyState?: Record<string, KeyState> }
+  | { type: "IMPORTED"; keyState?: Record<string, KeyState>; recoverInFlight?: boolean }
   | { type: "CHOOSE_OPTIONS"; items: ChooseItem[]; groupId: string }
   /** YOLO's navigator: the next step on a page its wording rules can't read (content/yolo/driver.ts). */
   | { type: "NAVIGATE"; page: string; facts: PageFacts; url: string; why: string }

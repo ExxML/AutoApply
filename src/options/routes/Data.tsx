@@ -1,68 +1,27 @@
-import { useState } from "preact/hooks";
-import { z } from "zod";
-import { ProfileSchema } from "../../shared/profileSchema";
-import { SettingsSchema } from "../../shared/settings";
+import { useRef, useState } from "preact/hooks";
 import {
-  ApiKeyEntrySchema,
-  DocumentMetaSchema,
-  LOCAL_SCHEMAS,
-  type LocalKey,
-  type LocalValues,
-} from "../../shared/storage";
+  applyImportPlan,
+  buildImportPlan,
+  CARRIED,
+  ExportSchema,
+  readImportSnapshot,
+  type Export,
+  type ImportPlan,
+} from "../importData";
 import { send } from "../../shared/messages";
-import { migrateYoloReview } from "../../shared/yolo";
-import { markSaved, save, store } from "../store";
-
-/**
- * What else lets another browser carry on where this one left off: YOLO's queue, source check, AI fit verdicts and
- * lookups, and the model caches. Left behind: what belongs to this browser (sign-ins, the Claude connection, the
- * encrypted vault, debug logs, a run's session state) and the feed validators, cleared anyway when searches change.
- */
-const CARRIED = [
-  "modelCatalog",
-  "modelListFetchedAt",
-  "modelCapabilities",
-  "yoloQueue",
-  "yoloInFlight",
-  "yoloSourceCheck",
-  "yoloRejected",
-  "yoloTabHosts",
-  "employerBoards",
-] as const satisfies LocalKey[];
-
-const ExportSchema = z.object({
-  app: z.literal("autoapply"),
-  version: z.literal(1),
-  profile: z.unknown(),
-  settings: z.unknown(),
-  documents: z.array(z.object({ meta: DocumentMetaSchema, base64: z.string() })).optional(),
-  apiKeys: z.array(ApiKeyEntrySchema).optional(),
-  selectedModel: z.string().nullable(),
-  fallbackModel: z.string().nullable(),
-  reviewModel: z.string().nullable().optional(),
-  // YOLO's settings and its log of applications (what is never applied to again). Site passwords stay behind:
-  // their key can't leave this browser.
-  yolo: z.unknown().optional(),
-  applications: z.unknown().optional(),
-  /** CARRIED's keys, the current batch (`yoloState`) and, with the API keys, their states (`keyState`). */
-  local: z.record(z.string(), z.unknown()).optional(),
-  /** The LaTeX résumé for AI tailoring: its source, untailored PDF and optional fallback PDF (base64). */
-  tailorResume: z
-    .object({
-      info: LOCAL_SCHEMAS.tailorResume.unwrap(),
-      tex: z.string(),
-      pdf: z.string(),
-      fallbackPdf: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
-});
-type Export = z.infer<typeof ExportSchema>;
+import { ImportPreview } from "../components/ImportPreview";
+import { markSaved, store } from "../store";
 
 export function Data() {
   const [withKeys, setWithKeys] = useState(true);
   const [withDocs, setWithDocs] = useState(true);
-  const [pending, setPending] = useState<{ data: Export; summary: string[] } | null>(null);
+  const [pending, setPending] = useState<{ plan: ImportPlan; fileName: string } | null>(null);
+  const [selected, setSelected] = useState(new Set<string>());
+  const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [error, setError] = useState("");
+  const readVersion = useRef(0);
+  const applying = useRef(false);
   const [msg, setMsg] = useState("");
   const [resetStep, setResetStep] = useState(0);
 
@@ -125,81 +84,48 @@ export function Data() {
   };
 
   const readImport = async (file: File) => {
+    const version = ++readVersion.current;
     setMsg("");
+    setError("");
+    setPending(null);
+    setReading(true);
     try {
       const r = ExportSchema.safeParse(JSON.parse(await file.text()));
-      if (!r.success) return setMsg("That file is not an AutoApply export.");
-      const cur = await store.getMany(["profile", "settings", "documentsIndex", "apiKeys"]);
-      const incoming = ProfileSchema.parse(r.data.profile);
-      const summary = [
-        `Profile: ${incoming.personal.firstName || "(no name)"} ${incoming.personal.lastName} replaces ${cur.profile.personal.firstName || "(empty profile)"} ${cur.profile.personal.lastName}`,
-        `Saved answers: ${cur.profile.learnedAnswers.length} → ${incoming.learnedAnswers.length}`,
-        r.data.documents
-          ? `Documents: ${cur.documentsIndex.length} → ${r.data.documents.length}`
-          : "Documents: unchanged",
-        "Settings: replaced",
-        "Models: replaced",
-        r.data.apiKeys ? `API keys: ${cur.apiKeys.length} → ${r.data.apiKeys.length}` : "API keys: unchanged",
-        ...(r.data.applications
-          ? ["YOLO settings and applications: replaced (YOLO stays off until you turn it on)"]
-          : []),
-        ...(r.data.local ? ["YOLO queue, batch, source check and model caches: replaced"] : []),
-      ];
-      setPending({ data: r.data, summary });
+      if (version !== readVersion.current) return;
+      if (!r.success) return setError("That file is not an AutoApply export.");
+      const plan = buildImportPlan(r.data, await readImportSnapshot(store));
+      if (version !== readVersion.current) return;
+      setSelected(new Set(plan.changes.map((c) => c.id)));
+      setPending({ plan, fileName: file.name });
     } catch {
-      setMsg("Could not read that file as JSON.");
+      if (version === readVersion.current) setError("Could not read that file as an AutoApply JSON export.");
+    } finally {
+      if (version === readVersion.current) setReading(false);
     }
   };
 
   const applyImport = async () => {
-    if (!pending) return;
-    const { data } = pending;
-    const settings = SettingsSchema.parse(data.settings);
-    // Exports from before these were carried have no `local`: the current ones stay.
-    const local: Record<string, unknown> = {};
-    const keys: LocalKey[] = [...CARRIED, ...(data.apiKeys ? ["keyState" as const] : [])];
-    for (const k of keys) if (data.local && k in data.local) local[k] = LOCAL_SCHEMAS[k].parse(data.local[k]);
-    if (data.local?.yoloState) {
-      // Only the batch: the rest is this browser's sign-ins and Gmail connection, or a pause whose alarm stayed behind.
-      const { batchAt, queueOnlyBatch } = LOCAL_SCHEMAS.yoloState.parse(data.local.yoloState);
-      local.yoloState = { ...(await store.get("yoloState")), batchAt, queueOnlyBatch };
+    if (!pending || applying.current || !selected.size) return;
+    applying.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const values = await applyImportPlan(pending.plan, selected, store);
+      if (values.keyState || Object.hasOwn(values, "yoloInFlight"))
+        await send({
+          type: "IMPORTED",
+          keyState: values.keyState,
+          recoverInFlight: Object.hasOwn(values, "yoloInFlight"),
+        }).catch(() => undefined);
+      markSaved();
+      setPending(null);
+      setMsg("Selected changes imported.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not import the selected changes. Please try again.");
+    } finally {
+      applying.current = false;
+      setBusy(false);
     }
-    if (data.documents) {
-      const old = await store.get("documentsIndex");
-      for (const d of old) await store.removeDoc(d.id);
-      for (const d of data.documents) await store.setDoc(d.meta.id, d.base64);
-    }
-    // Exports from before AI tailoring have no tailorResume: the current one stays.
-    if (data.tailorResume !== undefined) {
-      await store.removeDoc("tailor-tex");
-      await store.removeDoc("tailor-pdf");
-      await store.removeDoc("tailor-fallback-pdf");
-      const fallbackPdf = data.tailorResume?.fallbackPdf;
-      if (data.tailorResume) {
-        await store.setDoc("tailor-tex", data.tailorResume.tex);
-        await store.setDoc("tailor-pdf", data.tailorResume.pdf);
-        if (fallbackPdf) await store.setDoc("tailor-fallback-pdf", fallbackPdf);
-      }
-      const info = data.tailorResume?.info;
-      await store.set({ tailorResume: info ? { ...info, fallback: fallbackPdf ? info.fallback : null } : null });
-    }
-    await store.set({ profile: ProfileSchema.parse(data.profile) });
-    await save({
-      settings,
-      ...(data.documents ? { documentsIndex: data.documents.map((d) => d.meta) } : {}),
-      ...(data.apiKeys ? { apiKeys: data.apiKeys } : {}),
-      selectedModel: data.selectedModel,
-      fallbackModel: data.fallbackModel,
-      ...(data.reviewModel !== undefined ? { reviewModel: data.reviewModel } : {}),
-      ...(data.yolo ? { yolo: { ...migrateYoloReview(data.yolo, settings.reviewFills), enabled: false } } : {}),
-      ...(data.applications ? { applications: LOCAL_SCHEMAS.applications.parse(data.applications) } : {}),
-      ...local,
-    });
-    await send({ type: "IMPORTED", keyState: local.keyState as LocalValues["keyState"] | undefined }).catch(
-      () => undefined,
-    );
-    setPending(null);
-    setMsg("Imported.");
   };
 
   const reset = async () => {
@@ -233,39 +159,48 @@ export function Data() {
       </div>
       <div class="panel-box">
         <h2>Import</h2>
+        <p>Choose an AutoApply JSON export to review its changes before importing.</p>
         <input
           type="file"
           accept="application/json,.json"
           aria-label="Import JSON file"
+          disabled={busy}
           onChange={(e) => {
             const f = e.currentTarget.files?.[0];
             if (f) void readImport(f);
             e.currentTarget.value = "";
           }}
         />
+        {reading && <p role="status">Preparing import preview…</p>}
         {pending && (
-          <div class="confirm">
-            <p>This import will change:</p>
-            <ul>
-              {pending.summary.map((s) => (
-                <li>{s}</li>
-              ))}
-            </ul>
-            <div class="row">
-              <button type="button" class="btn primary" onClick={() => void applyImport()}>
-                Import
-              </button>
-              <button type="button" class="btn" onClick={() => setPending(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
+          <ImportPreview
+            key={readVersion.current}
+            plan={pending.plan}
+            fileName={pending.fileName}
+            selected={selected}
+            busy={busy}
+            error={error}
+            onSelect={(choices) => {
+              setSelected(choices);
+              setError("");
+            }}
+            onImport={() => void applyImport()}
+            onCancel={() => {
+              setPending(null);
+              setError("");
+            }}
+          />
+        )}
+        {error && !pending && (
+          <p class="err" role="alert">
+            {error}
+          </p>
         )}
       </div>
       <div class="panel-box danger-zone">
         <h2>Reset everything</h2>
         <p>Deletes your profile, documents, saved answers, keys and settings from this browser.</p>
-        <button type="button" class="btn danger" onClick={() => void reset()}>
+        <button type="button" class="btn danger" disabled={busy} onClick={() => void reset()}>
           {["Reset everything", "Are you sure? Click again", "This cannot be undone — click to reset"][resetStep]}
         </button>
         {resetStep > 0 && (

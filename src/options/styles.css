@@ -104,6 +104,178 @@ main {
 .saved.show {
   opacity: 1;
 }
+/* Import review is local to the Data page; it adds no background work. */
+.import-preview {
+  margin-top: 20px;
+  min-width: 0;
+}
+.import-preview > h3 {
+  font-size: 18px;
+  margin-bottom: 2px;
+}
+.import-filename {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin-top: 0;
+}
+.import-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  padding: 12px 0;
+  border-block: 1px solid var(--line);
+  margin: 16px 0;
+}
+.import-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px);
+  gap: 12px;
+}
+.import-tools label {
+  font-weight: 600;
+  font-size: 13px;
+}
+.import-tools input,
+.import-tools select {
+  display: block;
+  margin-top: 4px;
+  font-weight: normal;
+}
+.import-bulk {
+  flex-wrap: wrap;
+  margin-block: 12px;
+}
+.import-page {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 12px;
+}
+.import-group-heading,
+.import-change-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+.import-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.import-select input {
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.import-select .muted {
+  white-space: nowrap;
+  font-weight: normal;
+  font-size: 12px;
+}
+.import-section {
+  border-top: 1px solid var(--line);
+  margin-inline: 12px;
+}
+.import-change {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+.import-change.selected {
+  border-inline-start: 3px solid var(--accent);
+}
+.import-change-heading {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.import-action {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: color-mix(in srgb, var(--muted) 12%, var(--panel));
+  white-space: nowrap;
+}
+.import-action.add {
+  color: var(--good);
+}
+.import-action.remove {
+  color: var(--bad);
+}
+.import-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.import-comparison > div {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 0;
+}
+.import-comparison h4 {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.import-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font: inherit;
+}
+.import-object {
+  margin: 0;
+  font-size: 12px;
+}
+.import-object > div {
+  margin-bottom: 6px;
+}
+.import-object dt {
+  color: var(--muted);
+}
+.import-object dd {
+  margin-inline-start: 0;
+}
+.import-list {
+  padding-inline-start: 20px;
+  margin: 0;
+}
+.import-list li + li {
+  margin-top: 6px;
+}
+.import-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+  margin-top: 16px;
+}
+.import-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .import-tools,
+  .import-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .import-group-heading {
+    flex-wrap: wrap;
+  }
+}
 .subnav {
   display: flex;
   flex-wrap: wrap;
