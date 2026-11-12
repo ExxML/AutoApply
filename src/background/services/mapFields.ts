@@ -1532,8 +1532,16 @@ function languageYearsDecision(f: FieldDescriptor, languages: Profile["skills"][
   return i < 0 ? null : { ...base, optionIndexes: [i], intendedAnswer: f.options[i] };
 }
 
+/**
+ * What a student may also be in or hold, which studying doesn't answer: Amazon's "Are you currently a part of a study
+ * abroad or student exchange program with your current university?" got "Yes" for being enrolled.
+ */
+const RE_STUDENT_OTHER =
+  /\bstud(?:y|ying|ies) abroad\b|\b(?:student|study|academic) exchange\b|\bexchange (?:program(?:me)?|student|term|semester)\b|\bstudent (?:visa|permit|loans?|debt)\b/i;
+
 function currentStudentDecision(f: FieldDescriptor, education: Profile["education"]): Decision | null {
   if (!RE_CURRENT_STUDENT.test(f.label) || RE_NEGATED_CURRENT_STUDENT.test(f.label)) return null;
+  if (RE_STUDENT_OTHER.test(f.label)) return null;
   const section = RE_ENTRY_SECTION.exec(f.section ?? "");
   const scoped = section && /education/i.test(section[1]) ? education[(Number(section[2]) || 1) - 1] : undefined;
   // Asked only about graduate programs (Profluent: "enrolled in a PhD or master's program, or have you graduated from

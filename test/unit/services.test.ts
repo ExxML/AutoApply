@@ -1992,6 +1992,22 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.education[0].currentlyEnrolled = "no";
     expect((await run()).decisions.map((d) => d.intendedAnswer ?? d.checked)).toEqual([false, false, "No"]);
     expect(asked).toEqual([]);
+    // In an exchange program or on a student visa is not "enrolled": the profile doesn't say (Amazon).
+    const other = [
+      "Are you currently a part of a study abroad or student exchange program with your current university?",
+      "Are you currently on a student visa?",
+    ].map((label, i) => field(`o${i}`, { label, kind: "dropdown", options: ["Yes", "No"] }));
+    const others = await mapFields(
+      { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+      {
+        fields: other,
+        profile: { ...profile, education: [{ ...profile.education[0], currentlyEnrolled: "yes" }] },
+        documents: [],
+        job: null,
+      },
+    );
+    expect(others.decisions.map((d) => d.action)).toEqual(["flag", "flag"]);
+    asked.length = 0;
     // Asked about graduate programs only: a bachelor's student is not in one (Profluent).
     profile.education[0] = { ...profile.education[0], currentlyEnrolled: "yes", degree: "Bachelor of Science" };
     fields.splice(0, 3, {
