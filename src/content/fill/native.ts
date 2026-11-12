@@ -5,7 +5,7 @@ import { datePart } from "../scan/groups";
 import { labelElementFor } from "../scan/labels";
 import { isVisible } from "../scan/visibility";
 import { isPlaceholderOption, nativeOptions } from "../scan/widgets";
-import { blur, dispatching, focus, realClick, setNativeValue, sleep, typeText } from "./events";
+import { blur, dispatching, focus, key, realClick, setNativeValue, sleep, typeText } from "./events";
 import { realFor, realType } from "../yolo/real";
 import { isOn, readValue, sameValue } from "./verify";
 
@@ -210,7 +210,12 @@ export async function fillText(h: FieldHandle, raw: string): Promise<FillResult>
   const refusedBefore = refused(el); // a page that marks fields only on submit keeps its old mark meanwhile
   focus(el);
   // YOLO on a page a bot check grades may type it for real (content/yolo/real.ts).
-  if (!(realFor("typing") && (await realType(el, value)))) setNativeValue(el, value);
+  if (!(realFor("typing") && (await realType(el, value)))) {
+    setNativeValue(el, value);
+    // The key a person's typing ends on: intl-tel-input and jQuery-era validators read the box on keyup alone
+    // (Amazon's phone stayed "Invalid phone number", its country flag unmoved).
+    key(el, value.slice(-1) || "Backspace", "keyup");
+  }
   blur(el);
   await sleep(0);
   // A date the field shows but refuses (Teck's date picker marked "January 2026" invalid, wanting "Jan 1, 2026"),

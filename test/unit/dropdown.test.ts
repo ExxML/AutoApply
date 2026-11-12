@@ -13,6 +13,7 @@ import { abbreviates, fillTypeahead } from "../../src/content/fill/typeahead";
 import { fill } from "../../src/content/fill/engine";
 import { realClick } from "../../src/content/fill/events";
 import { documentFits, fillFile, findDropzones } from "../../src/content/fill/file";
+import { fillText } from "../../src/content/fill/native";
 import { dropdownText, readValue } from "../../src/content/fill/verify";
 
 beforeAll(() => {
@@ -540,6 +541,16 @@ describe("slow typeahead suggestions", () => {
 });
 
 describe("text fills", () => {
+  it("ends on a key released, for a box that is checked on keyup alone (intl-tel-input)", async () => {
+    setBody(`<label for="p">Phone</label><input id="p" type="tel">`);
+    const el = document.querySelector("input")!;
+    let seen = "";
+    el.addEventListener("keyup", () => (seen = el.value));
+    const h = scan(newScanState()).handles[0];
+    expect(await fillText(h, "+1 236-555-0100")).toMatchObject({ outcome: "ok" });
+    expect(seen).toBe("+1 236-555-0100");
+  });
+
   it("accepts a date the widget reformats (SmartRecruiters)", async () => {
     setBody(`<label>To <input id="to"></label>`);
     const input = document.querySelector("input")!;
