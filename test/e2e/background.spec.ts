@@ -62,6 +62,8 @@ const test = base.extend<{ sw: Worker }>({
         "--remote-debugging-port=0",
         "--no-first-run",
         "--no-default-browser-check",
+        // As Playwright's own launches do: Ubuntu 24.04 (CI) blocks the user-namespace sandbox, so Chromium exits at once.
+        "--no-sandbox",
         "--window-size=1280,900",
         `--disable-extensions-except=${ext}`,
         `--load-extension=${ext}`,
