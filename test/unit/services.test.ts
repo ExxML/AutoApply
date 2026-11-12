@@ -1846,6 +1846,24 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     expect(await ask()).toEqual(["High School Diploma/GED", "flag", "flag", "High School", "flag"]);
     profile.education[0] = { ...profile.education[0], endDate: "2020-05", currentlyEnrolled: "no" };
     expect(await ask()).toEqual(["flag", "flag", "flag", "flag", "flag"]);
+    // A list with "Some College", for a student partway through (GeoSpectrum's BambooHR); not before they start.
+    const bamboo = ["GED or Equivalent", "High School", "Some College", "College - Bachelor of Science"];
+    const some = async () =>
+      (
+        await mapFields(
+          { ai: gemini, settings: defaultSettings(), model: "m", fallback: null },
+          {
+            fields: [field("a", { label: "Highest Education Obtained", kind: "dropdown", options: bamboo })],
+            profile,
+            documents: [],
+            job: null,
+          },
+        )
+      ).decisions.map((d) => d.intendedAnswer ?? d.action);
+    profile.education[0] = { ...profile.education[0], endDate: "2099-05", currentlyEnrolled: "yes" };
+    expect(await some()).toEqual(["Some College"]);
+    profile.education[0] = { ...profile.education[0], startDate: "2099-01", currentlyEnrolled: "no" };
+    expect(await some()).toEqual(["flag"]);
   });
 
   it("answers a job entry's Current Employer from that entry", async () => {

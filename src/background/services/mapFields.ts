@@ -1029,7 +1029,16 @@ function obtainedEducationDecision(f: FieldDescriptor, profile: Profile): Decisi
       confidence: "high",
       sources: ["highSchool", "education"],
     };
-  const hits = f.options.flatMap((o, i) => (/\bhigh school\b|\bsecondary\b|\bGED\b/i.test(o) ? [i] : []));
+  // Part of a degree done: a list's "Some College" says just that, beyond high school (GeoSpectrum's BambooHR lists
+  // "GED or Equivalent", "High School", "Some College", …, and the model took "High School").
+  const attending = profile.education.some(
+    (e) => e.currentlyEnrolled === "yes" || (!!e.startDate && e.startDate <= today),
+  );
+  const some = f.options.flatMap((o, i) => (/\bsome (college|university|post-?secondary)\b/i.test(o) ? [i] : []));
+  const hits =
+    attending && some.length === 1
+      ? some
+      : f.options.flatMap((o, i) => (/\bhigh school\b|\bsecondary\b|\bGED\b/i.test(o) ? [i] : []));
   if (hits.length !== 1) return null;
   return {
     fieldId: f.id,
