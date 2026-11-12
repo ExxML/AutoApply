@@ -425,7 +425,11 @@ export function scan(state: ScanState, root: Element | null = document.body): Sc
     const ph = input.getAttribute?.("placeholder");
     if (ph && !unseenPlaceholder(input)) d.placeholder = clip(ph, 120);
     if (u.sections) d.placeholder = u.sections.map((e) => ({ m: "MM", d: "DD", y: "YYYY" })[datePart(e)!]).join("/");
-    if (el instanceof HTMLInputElement) d.inputType = el.type;
+    if (el instanceof HTMLInputElement) {
+      // A numeric type the browser doesn't know reads as "text": SuccessFactors' type="currency" pay box.
+      const declared = el.getAttribute("type")?.toLowerCase() ?? "";
+      d.inputType = el.type === "text" && /^(currency|numeric|decimal|integer)$/.test(declared) ? declared : el.type;
+    }
     const ac = input.getAttribute?.("autocomplete");
     if (ac && ac !== "on" && ac !== "off") d.autocomplete = ac;
     const nm = el.getAttribute("name") || el.id;

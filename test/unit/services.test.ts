@@ -3007,6 +3007,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
             label: "Salary Requirements",
             hint: 'The form said: "Salary Requirements: Input should be numeric"',
           }),
+          field("g", { label: "Wage Or Salary Required", inputType: "currency" }),
         ],
         profile,
         documents: [],
@@ -3020,6 +3021,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
       "100000",
       "flag",
       "flag",
+      "100000",
       "100000",
     ]);
     // The model sees the pay to answer for this job, not the rule; the cached profile keeps the lowest pay, so it is

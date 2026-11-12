@@ -1823,10 +1823,12 @@ function compensationDecision(f: FieldDescriptor, pay: PayTarget | null): Decisi
   const text = [`${SYMBOLS[pay.currency] ?? ""}${shown}`, pay.currency, `per ${period}`].filter(Boolean).join(" ");
   const digits =
     f.kind === "number" ||
+    // L3Harris's SuccessFactors box (type="currency") answered "$20 CAD per hour" with "Invalid number."
+    /^(currency|numeric|decimal|integer)$/.test(f.inputType ?? "") ||
     /^\D{0,6}\d[\d,.]*$/.test(f.placeholder?.trim() ?? "") ||
     (f.maxLength ?? 1e9) < text.length ||
     // As the form says once it refuses the text (Avature: "Salary Requirements: Input should be numeric").
-    /\b(numeric|numbers? only|digits only)\b/i.test(f.hint ?? "");
+    /\b(numeric|numbers? only|digits only|invalid number)\b/i.test(f.hint ?? "");
   return {
     fieldId: f.id,
     action: "fill",
