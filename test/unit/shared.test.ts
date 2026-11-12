@@ -4,7 +4,7 @@ import { cleanLabel, humanize, normalize } from "../../src/shared/normalize";
 import {
   canonicalCountry,
   canonicalRegion,
-  optInAnswer,
+  profileConsentAnswer,
   RE_CONSENT,
   RE_OPTIONAL_CONSENT,
   regionCode,
@@ -65,7 +65,12 @@ describe("consent patterns", () => {
 });
 
 describe("job-opportunity and marketing opt-ins", () => {
-  const prefs = { consentToJobOpportunities: "yes", consentToMarketing: "no" } as const;
+  const prefs = {
+    consentToInterviewRecording: "",
+    consentToAiReview: "",
+    consentToJobOpportunities: "yes",
+    consentToMarketing: "no",
+  } as const;
   const jobs = [
     "I agree to receive updates about new job opportunities.",
     "I want EA recruiters to contact me in relation to other relevant job opportunities, including related events.",
@@ -104,15 +109,15 @@ describe("job-opportunity and marketing opt-ins", () => {
     "Advertising",
   ];
   it("answers each topic from its own preference", () => {
-    for (const t of jobs) expect(optInAnswer(t, prefs), t).toBe("yes");
-    for (const t of marketing) expect(optInAnswer(t, prefs), t).toBe("no");
-    for (const t of neither) expect(optInAnswer(t, prefs), t).toBe("");
+    for (const t of jobs) expect(profileConsentAnswer(t, prefs), t).toBe("yes");
+    for (const t of marketing) expect(profileConsentAnswer(t, prefs), t).toBe("no");
+    for (const t of neither) expect(profileConsentAnswer(t, prefs), t).toBeNull();
   });
-  it("leaves unset topics to the consent settings", () => {
-    const unset = { consentToJobOpportunities: "", consentToMarketing: "" } as const;
-    for (const t of [...jobs, ...marketing]) expect(optInAnswer(t, unset), t).toBe("");
+  it("distinguishes unset Profile topics from unmatched consents", () => {
+    const unset = { ...prefs, consentToJobOpportunities: "", consentToMarketing: "" } as const;
+    for (const t of [...jobs, ...marketing]) expect(profileConsentAnswer(t, unset), t).toBe("");
     // Both named, one accepted and one unset: not accepted for the unset one.
-    expect(optInAnswer(marketing.at(-1)!, { ...unset, consentToJobOpportunities: "yes" })).toBe("");
+    expect(profileConsentAnswer(marketing.at(-1)!, { ...unset, consentToJobOpportunities: "yes" })).toBe("");
   });
 });
 

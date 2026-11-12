@@ -246,22 +246,20 @@ test("consent: by default required boxes are ticked and badged blue, optional le
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "blue");
 });
 
-test("consent: with optional consents on accept, only the optional box is ticked", async ({ page, sw }) => {
+test("consent: optional accept only applies to questions without a Profile setting", async ({ page, sw }) => {
   await seed(sw, { settings: { autoAcceptAcknowledgements: false, optionalConsents: "accept" } });
   await page.goto(BASE + "consent.html");
   await fillPage(page, sw);
   await waitDone(page);
-  await expect(page.locator("#c3")).toBeChecked();
-  await expect(page.locator("#ja")).toHaveValue("Yes");
+  await expect(page.locator("#sms")).toBeChecked();
+  await expect(page.locator("#c3")).not.toBeChecked();
+  await expect(page.locator("#ja")).toHaveValue("");
   await expect(page.locator("#c1")).not.toBeChecked();
   await expect(page.locator("#c2")).not.toBeChecked();
   await expect(page.locator("#r1")).not.toBeChecked();
 });
 
-test("consent: optional job-opportunity and marketing opt-ins follow the profile, required ones the settings", async ({
-  page,
-  sw,
-}) => {
+test("consent: required and optional communication opt-ins follow Profile", async ({ page, sw }) => {
   const background = { consentToJobOpportunities: "yes", consentToMarketing: "no" };
   await seed(sw, { profile: { ...PROFILE, background }, settings: { optionalConsents: "accept" } });
   await page.goto(BASE + "consent.html");
@@ -271,7 +269,7 @@ test("consent: optional job-opportunity and marketing opt-ins follow the profile
   await expect(page.locator("#c5")).toBeChecked(); // new job opportunities
   await expect(page.locator("#ja")).toHaveValue("Yes"); // job alerts
   await expect(page.locator("#c4")).not.toBeChecked(); // marketing: the profile's "No" over "accept"
-  await expect(page.locator("#tc")).toHaveValue("Yes"); // required: the settings, as before
+  await expect(page.locator("#tc")).toHaveValue("Yes"); // required: Profile
   await expect(page.locator("#c2")).toBeChecked();
 
   await seed(sw, {
@@ -288,7 +286,7 @@ test("consent: optional job-opportunity and marketing opt-ins follow the profile
   await expect(page.locator("#tc")).toHaveValue("No");
 });
 
-test("consent: with optional consents on decline, the optional box is left unticked and not flagged", async ({
+test("consent: optional decline leaves unmatched opt-ins unticked and flags unset Profile consents", async ({
   page,
   sw,
 }) => {
@@ -297,11 +295,12 @@ test("consent: with optional consents on decline, the optional box is left untic
   await fillPage(page, sw);
   await waitDone(page);
   await expect(page.locator("#c3")).not.toBeChecked();
-  await expect(page.locator("#ja")).toHaveValue("No"); // plain Yes/No opt-in (MongoDB)
-  await expect(page.locator("#tc")).toHaveValue("No"); // a required opt-in still takes "No" (Braze)
+  await expect(page.locator("#sms")).not.toBeChecked();
+  await expect(page.locator("#ja")).toHaveValue("");
+  await expect(page.locator("#tc")).toHaveValue("");
   await expect(page.locator('autoapply-root .tag[aria-label^="I want recruiters"]')).toHaveAttribute(
     "data-color",
-    "blue",
+    "yellow",
   );
   await expect(badge(page, "I agree to the Terms of Service")).toHaveAttribute("data-color", "yellow");
   await expect(page.locator("#r2")).not.toBeChecked(); // required consent is never declined

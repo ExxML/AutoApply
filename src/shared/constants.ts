@@ -1,4 +1,5 @@
 import { normalize } from "./normalize";
+import type { Profile } from "./types";
 
 // ---------- Gemini ----------
 export const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
@@ -199,20 +200,24 @@ const RE_MARKETING_TOPIC = new RegExp(
 const RE_NOT_OPT_IN =
   /\b(have|has|had|did|were|was) you\b|\bdo you (have|hold|possess)\b|\b(experience|expertise|proficien\w*|familiar\w*) (in|with)\b/i;
 /**
- * The profile's answer to an opt-in to hear about new job opportunities or marketing: "no" if it declines a topic the
- * question names, "yes" if it accepts every one, else "" (no such topic, or unset: left to the consent settings).
+ * Profile consent ownership is independent of requiredness and whether a preference is set. null means no matching
+ * topic; "" means a matching preference is unset. Combined consents decline if any topic is No, accept only if all
+ * are Yes, and otherwise need the user's answer.
  */
-export function optInAnswer(
-  text: string,
-  prefs: { consentToJobOpportunities: "yes" | "no" | ""; consentToMarketing: "yes" | "no" | "" },
-): "yes" | "no" | "" {
-  if (!prefs.consentToJobOpportunities && !prefs.consentToMarketing) return "";
-  if (RE_NOT_OPT_IN.test(text) || !RE_OPT_IN.test(text)) return "";
+export type ProfileConsents = Pick<
+  Profile["background"],
+  "consentToInterviewRecording" | "consentToAiReview" | "consentToJobOpportunities" | "consentToMarketing"
+>;
+
+export function profileConsentAnswer(text: string, prefs: ProfileConsents): "yes" | "no" | "" | null {
+  const outreach = !RE_NOT_OPT_IN.test(text) && RE_OPT_IN.test(text);
   const answers = [
-    RE_JOBS_TOPIC.test(text) && prefs.consentToJobOpportunities,
-    RE_MARKETING_TOPIC.test(text) && prefs.consentToMarketing,
+    RE_INTERVIEW_RECORDING.test(text) && prefs.consentToInterviewRecording,
+    isAiReview(text) && prefs.consentToAiReview,
+    outreach && RE_JOBS_TOPIC.test(text) && prefs.consentToJobOpportunities,
+    outreach && RE_MARKETING_TOPIC.test(text) && prefs.consentToMarketing,
   ].filter((a) => a !== false);
-  return answers.includes("no") ? "no" : answers.length && answers.every((a) => a === "yes") ? "yes" : "";
+  return !answers.length ? null : answers.includes("no") ? "no" : answers.every((a) => a === "yes") ? "yes" : "";
 }
 /** Answer choices of a consent question ("Consent" / "Do Not Consent"). */
 export const RE_CONSENT_YES = /^(yes[\s,:–—-]+)?(i )?(consent|agree|acknowledge|accept)/i;

@@ -3,8 +3,7 @@
 // (./yolo), which the user turned on: it fills and submits in a page the background loaded for it.
 import {
   canonicalCountry,
-  isAiReview,
-  optInAnswer,
+  profileConsentAnswer,
   RE_APPLIED,
   RE_CONSENT,
   RE_COVER_LETTER,
@@ -12,6 +11,7 @@ import {
   RE_OPTIONAL_CONSENT,
   RE_RESUME_ONLY,
 } from "../shared/constants";
+import { aiUseDecision, consentBoxes, matchesProfileConsent, profileConsentDecision } from "../shared/consents";
 import { parseEssayLimits, wordCount } from "../shared/essay";
 import { isErr, send as sendMessage, type Message, type Responses } from "../shared/messages";
 import { resumeProblem, TAILOR_PLACEHOLDER } from "../shared/resumeMode";
@@ -643,42 +643,64 @@ function defaultCountry(h: FieldHandle): boolean {
   return !!shown && !!home && shown !== home;
 }
 
-/** An AI-review consent the profile answers: mapped (decided without AI in the background), not a settings consent. */
-const aiReviewAnswered = (d: FieldDescriptor) =>
-  !!config.profileSnapshotForDeterministic.aiReviewConsent && isAiReview(`${d.label} ${d.hint ?? ""}`);
-
-/** The profile's answer to an optional job-opportunity or marketing opt-in; "" leaves it to the consent settings. */
-const optInPref = (text: string) => optInAnswer(text, config.profileSnapshotForDeterministic.optInConsents);
+/** Profile-owned consents use the same local mapping rules as review, even when the preference is unset. */
+const profileConsent = (d: FieldDescriptor) =>
+  matchesProfileConsent(d, config.profileSnapshotForDeterministic.consents);
 
 /**
- * An optional opt-in that isn't a consent by its wording ("Would you like job alerts?") but that the profile answers:
- * decided locally like one. Not long answers stating facts (CI&T's "Yes, I live in Campinas …").
- */
-const optInAnswered = (d: FieldDescriptor) =>
-  !d.required &&
-  !d.multiple &&
-  (d.kind === "checkbox" ||
-    (!!d.options &&
-      !!(consentPair(d.options) ?? yesNoPair(d.options)) &&
-      d.options.every((o) => o.split(/\s+/).length <= 3))) &&
-  !!optInPref(`${d.label} ${d.hint ?? ""}`);
-
-/**
- * Required and optional consents follow separate settings; a required field is never optional. Optional job-opportunity
- * and marketing opt-ins follow the profile when it answers them.
+ * Profile owns matching questions and individual boxes in mixed groups. Only other consents use Behaviour settings.
  */
 function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortController, jobs: Promise<void>[]) {
   const text = `${h.desc.label} ${h.desc.hint ?? ""}`;
+  const prefs = config.profileSnapshotForDeterministic.consents;
+  const options = h.desc.options ?? harvested.get(h.id);
+  const descriptor = { ...h.desc, options };
+  if (profileConsent(descriptor)) {
+    const decision = aiUseDecision(descriptor) ?? profileConsentDecision(descriptor, prefs)!;
+    if (decision.action !== "consent") {
+      const op = decision.action === "fill" ? opFromDecision(h, decision) : null;
+      if (op) jobs.push(doFill(h, op, "ai", "Profile consent preference", ctrl));
+      else setStatus(h, "needs", decision.note ?? "Needs your confirmation");
+      return;
+    }
+  }
+  const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
+  if (consentBoxes({ ...h.desc, options }, prefs) && profileConsent({ ...h.desc, options })) {
+    const modes = options!.map((o) => {
+      const p = profileConsentAnswer(o, prefs);
+      return p !== null
+        ? p === "yes"
+          ? "accept"
+          : p === "no"
+            ? "decline"
+            : "ask"
+        : RE_OPTIONAL_CONSENT.test(o)
+          ? optionalConsents
+          : autoAcceptAcknowledgements
+            ? "accept"
+            : "ask";
+    });
+    if (modes.includes("ask")) setStatus(h, "needs", "Needs your confirmation");
+    else
+      jobs.push(
+        doFill(
+          h,
+          { type: "options", texts: options!.filter((_, i) => modes[i] === "accept"), exact: true },
+          "ai",
+          "Consent preferences",
+          ctrl,
+        ),
+      );
+    return;
+  }
   // A required choice can still say "No": Braze requires an answer to "Select 'Yes' to join our Talent Community".
   const choice = h.desc.kind !== "checkbox" && !RE_CONSENT.test(text);
-  const pref = h.desc.required ? "" : optInPref(text);
-  const optional = !!pref || ((!h.desc.required || choice) && (d?.checked === false || RE_OPTIONAL_CONSENT.test(text)));
-  const { optionalConsents, autoAcceptAcknowledgements } = config.settings;
+  const pref = profileConsentAnswer(text, prefs);
+  const optional = (!h.desc.required || choice) && (d?.checked === false || RE_OPTIONAL_CONSENT.test(text));
   const settingsMode = optional ? optionalConsents : autoAcceptAcknowledgements ? "accept" : "ask";
-  const mode = pref ? (pref === "yes" ? "accept" : "decline") : settingsMode;
+  const mode = pref !== null ? (pref === "yes" ? "accept" : pref === "no" ? "decline" : "ask") : settingsMode;
   const accept = mode === "accept";
   // Choice fields: [consenting option, declining option], from the AI or read locally from the options.
-  const options = h.desc.options ?? harvested.get(h.id);
   // The AI may answer "consent" without naming the two options (Ramp's SMS question): read them locally then.
   // A lone option (Reddit's "I agree" dropdown) can only accept; plain "Yes"/"No" (MongoDB's job alerts) pair too.
   const pair =
@@ -687,15 +709,12 @@ function handleConsent(h: FieldHandle, d: Decision | undefined, ctrl: AbortContr
       : ((options && (consentPair(options) ?? yesNoPair(options) ?? onlyPair(options))) ??
         (options?.length === 1 ? [0] : d?.optionIndexes));
   const pick = options?.[pair?.[accept ? 0 : 1] ?? -1];
-  // A box per consent (Gemini: privacy statement + background check): tick each one that isn't an optional extra.
+  // Unmatched groups retain the existing required/optional consent handling.
   const boxes =
     h.desc.kind === "checkbox_group" &&
     accept &&
     options?.every((o) => RE_CONSENT.test(o) || RE_OPTIONAL_CONSENT.test(o))
-      ? options.filter((o) => {
-          const p = optInPref(o);
-          return p ? p === "yes" : optional || optionalConsents === "accept" || !RE_OPTIONAL_CONSENT.test(o);
-        })
+      ? options.filter((o) => optional || optionalConsents === "accept" || !RE_OPTIONAL_CONSENT.test(o))
       : [];
   const op: FillOp | null =
     h.desc.kind === "checkbox"
@@ -834,9 +853,19 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
         setStatus(h, yolo && !h.desc.required ? "skipped" : "needs", "Sensitive – fill manually");
         continue;
       }
-      if (h.consent || optInAnswered(h.desc)) {
-        if (aiReviewAnswered(h.desc)) pending.push(h);
+      if (profileConsent(h.desc)) {
+        // Harvest unknown choices first; Unset can be flagged immediately without opening the dropdown.
+        if (
+          (h.desc.kind === "dropdown" || h.desc.kind === "typeahead") &&
+          !h.desc.optionsKnown &&
+          profileConsentAnswer(`${h.desc.label} ${h.desc.hint ?? ""}`, det.consents)
+        )
+          pending.push(h);
         else handleConsent(h, undefined, ctrl, jobs);
+        continue;
+      }
+      if (h.consent) {
+        handleConsent(h, undefined, ctrl, jobs);
         continue;
       }
       if (isResumeUpload(h) && mode !== "variants") {
@@ -922,10 +951,8 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
             const options = harvested.get(h.id);
             return options ? { ...h.desc, options, optionsKnown: true } : h.desc;
           });
-          // Consents whose options only now show (MongoDB's "Receive alerts for similar jobs?") follow the settings.
-          const consents = new Set(
-            fields.filter((f) => (isConsent(f) || optInAnswered(f)) && !aiReviewAnswered(f)).map((f) => f.id),
-          );
+          // Late-discovered consent choices use Behaviour only when Profile does not own the question.
+          const consents = new Set(fields.filter((f) => isConsent(f) || profileConsent(f)).map((f) => f.id));
           for (const h of chunk) if (consents.has(h.id)) handleConsent(h, undefined, ctrl, jobs);
           maps.push(
             mapAndApply(
@@ -1060,7 +1087,7 @@ function reviewField(h: FieldHandle): ReviewField {
     ["you", "saved", "edited", "draft"].includes(s?.status ?? "") ||
     h.sensitive ||
     h.consent ||
-    optInAnswered(h.desc) ||
+    profileConsent({ ...h.desc, options }) ||
     (!!options && isConsent({ ...h.desc, options })) ||
     RE_POLICY_NOTE.test(s?.note ?? "") ||
     screened.has(h.id) ||

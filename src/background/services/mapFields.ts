@@ -13,17 +13,15 @@ import {
   canonicalCountry,
   HUB_REGIONS,
   HUBS,
-  isAiReview,
-  optInAnswer,
   RE_CONSENT,
   RE_ENTRY_SECTION,
-  RE_INTERVIEW_RECORDING,
   RE_JOB_BOARD,
   RE_OPTIONAL_CONSENT,
   commonHeardIndex,
   regionCode,
   regionCountry,
 } from "../../shared/constants";
+import { aiUseDecision, matchesProfileConsent, profileConsentDecision } from "../../shared/consents";
 import { defang, plainDashes, RE_AI_TELL, trapLabel } from "../../shared/injection";
 import {
   availableMonths,
@@ -1983,34 +1981,6 @@ function genderDecision(f: FieldDescriptor, gender: string): Decision | null {
   };
 }
 
-const RE_AI = String.raw`\b(AI|artificial intelligence|ChatGPT|LLMs?|generative)\b`;
-const RE_AI_USE = new RegExp(
-  String.raw`\bI (have |will |did |do )?(not|never)\b[^?.]*\buse\b[^?.]*${RE_AI}|\b(did|have) you (use|used)\b[^?]*${RE_AI}` +
-    // Clever: "we do not permit candidates to use generative AI ... to draft responses"; Attentive: "If you are an AI
-    // Agent" (not LangChain's "Have you built AI agents?").
-    String.raw`|\bnot (permit|allow)\w*\b[^?.]*\b(use|using)\b[^?.]*${RE_AI}|\b(are|you're) an? AI agent\b` +
-    // Medium: "You confirm that ... no portion of the following responses were generated using the assistance of AI".
-    String.raw`|\bgenerated\b[^?.]*\b(using|with|by)\b[^?.]*${RE_AI}` +
-    // Calendly: "Was this application prepared or submitted in whole or in part by an AI system …?".
-    String.raw`|\b(prepared|submitted|completed|written)\b[^?.]*\bby\b[^?.]*${RE_AI}`,
-  "i",
-);
-
-/**
- * Questions about AI use or automation in the application itself are the user's to answer, never ours: Peloton's
- * "I have not, and I will not, use AI tools during the application" got "Yes"; Grafana asks "I am an AI or automated
- * program" / "I am a human being".
- */
-function aiUseDecision(f: FieldDescriptor): Decision | null {
-  // "I am an AI or automated program" / "I am a human being"; not StackAdapt's "I am an advanced AI user".
-  const bot =
-    f.options?.some((o) => /^(I am|I'm) (an? )?(AI|bot|automated)\b/i.test(o)) &&
-    f.options.some((o) => /^(I am|I'm) (a )?human\b/i.test(o));
-  return bot || RE_AI_USE.test(f.label)
-    ? flag(f.id, "Asks about AI use in this application: answer it yourself")
-    : null;
-}
-
 /**
  * A school email, or "I don't have a school email": the profile holds neither. Jane Street's "Your primary
  * college/university/school email" got the personal address, with "I don't have a school email" ticked too.
@@ -2030,34 +2000,6 @@ const exerciseDecision = (f: FieldDescriptor): Decision | null =>
   /\b(submission|submit|url|link)\b/i.test(f.label)
     ? flag(f.id, "Complete the exercise and add your submission")
     : null;
-
-/** An interview-recording opt-in (AI notetakers, recorded interviews) answered from the profile's preference. */
-const recordingDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null =>
-  consent && RE_INTERVIEW_RECORDING.test(`${f.label} ${f.hint ?? ""}`) ? optInDecision(f, consent) : null;
-
-/** Consent to AI tools assessing the application (ADI's Yes/No), answered from the profile's preference. */
-const aiReviewDecision = (f: FieldDescriptor, consent: "yes" | "no" | ""): Decision | null =>
-  consent && isAiReview(`${f.label} ${f.hint ?? ""}`) ? optInDecision(f, consent) : null;
-
-/**
- * An optional opt-in to hear about new job opportunities or marketing, answered from the profile's preference. Required
- * ones follow the consent settings. Not long answers stating facts (CI&T's "Yes, I live in Campinas …").
- */
-function optInConsentDecision(f: FieldDescriptor, bg: Profile["background"]): Decision | null {
-  if (f.required || f.options?.some((o) => o.split(/\s+/).length > 3)) return null;
-  const consent = optInAnswer(`${f.label} ${f.hint ?? ""}`, bg);
-  return consent ? optInDecision(f, consent) : null;
-}
-
-/** An opt-in box ticked per the preference, or the one choice that agrees (or declines) with it. */
-function optInDecision(f: FieldDescriptor, consent: "yes" | "no"): Decision | null {
-  const base = { fieldId: f.id, action: "fill" as const, confidence: "high" as const, sources: ["background"] };
-  if (f.kind === "checkbox") return { ...base, checked: consent === "yes" };
-  const re =
-    consent === "yes" ? /^(yes\b|i (consent|agree|accept)|opt.?in)/i : /^(no\b|i (do not|don['’]t)|opt.?out|decline)/i;
-  const hits = !f.options || isMulti(f) ? [] : f.options.flatMap((o, i) => (re.test(o) ? [i] : []));
-  return hits.length === 1 ? { ...base, optionIndexes: hits, intendedAnswer: f.options![hits[0]] } : null;
-}
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const SEASONS: [RegExp, number[]][] = [
@@ -2393,6 +2335,7 @@ async function guessFlagged(
   decisions: Decision[],
   base: ReturnType<typeof mappingPayloadBase>,
   sent: (f: FieldDescriptor) => object,
+  consentPrefs: Profile["background"],
 ): Promise<Decision[]> {
   // What blocks submitting, and optional questions whose answer can make the application stronger ("Where did you
   // first hear about this position?", "Which teams interest you?"): see guessesOptional. Uploads, consents and
@@ -2401,6 +2344,7 @@ async function guessFlagged(
     (f, i) =>
       decisions[i].action === "flag" &&
       !aiUseDecision(f) &&
+      !matchesProfileConsent(f, consentPrefs) &&
       !trapLabel(f.label) &&
       !decisions[i].sources?.includes(SCREENING_SOURCE) &&
       (f.required || (guessesOptional(f) && !needsNoSource(f))) &&
@@ -2530,8 +2474,7 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
     const excluding = /\b(excluding|not including|other than|besides)\b[^?]*\b(internships?|co-?ops?)\b/i.test(f.label);
     const d =
       aiUseDecision(f) ??
-      aiReviewDecision(f, input.profile.background.consentToAiReview) ??
-      optInConsentDecision(f, input.profile.background) ??
+      profileConsentDecision(f, input.profile.background) ??
       schoolEmailDecision(f) ??
       exerciseDecision(f) ??
       clearanceDecision(f, job, input.profile) ??
@@ -2548,7 +2491,6 @@ export function localDecisions(input: MapInput): Map<string, Decision> {
       languageYearsDecision(f, input.profile.skills.languages) ??
       entryDateDecision(f, input.profile) ??
       entryLocationDecision(f, input.profile.experience) ??
-      recordingDecision(f, input.profile.background.consentToInterviewRecording) ??
       heardDecision(f, input.profile.referral.howDidYouHearDefault, input.job?.company) ??
       officeDecision(f, input.profile.preferences) ??
       relocationDecision(f, input.profile.preferences, input.profile.personal.address) ??
@@ -2682,7 +2624,7 @@ export async function mapFields(
   const answered = new Map(audited.flat().map((d) => [d.fieldId, d]));
   const entries = input.profile.workAuthorization.entries;
   let all = input.fields.map((f) => local.get(f.id) ?? answered.get(f.id)!);
-  if (input.yolo) all = await guessFlagged(ctx, input.fields, all, base, sent);
+  if (input.yolo) all = await guessFlagged(ctx, input.fields, all, base, sent, input.profile.background);
   return {
     decisions: input.fields.map((f, i) => {
       const d = all[i];

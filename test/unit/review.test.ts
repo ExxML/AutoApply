@@ -209,6 +209,43 @@ describe("reviewForm", () => {
   });
   const reply = (fields: unknown[] = []) => ({ fields, missed: [], reveal: [] });
 
+  it.each([false, true])(
+    "protects all Profile consents from review corrections and relabeling (YOLO %s)",
+    async (yolo) => {
+      const topics = [
+        ["consentToInterviewRecording", "I consent to recording my interview."],
+        ["consentToAiReview", "I consent to AI tools reviewing my application."],
+        ["consentToJobOpportunities", "I agree to receive alerts about new job opportunities."],
+        ["consentToMarketing", "I agree to receive marketing communications."],
+      ] as const;
+      for (const [key, question] of topics)
+        for (const required of [false, true])
+          for (const answer of ["yes", "no", ""] as const)
+            for (const verdict of ["wrong", "relabel"] as const) {
+              const { ctx } = harness({
+                data: reply([
+                  fix({
+                    verdict,
+                    question: "I agree to the Terms of Service",
+                    answer: answer === "yes" ? "No" : "Yes",
+                    sources: ["background"],
+                  }),
+                ]),
+              });
+              const i = input([field({ question, kind: "select", options: ["Yes", "No"], required, shown: "" })]);
+              i.yolo = yolo;
+              i.profile.background[key] = answer;
+              const result = await reviewForm(ctx, i);
+              expect(result.fixes).toHaveLength(1);
+              expect(result.fixes[0]).toMatchObject(
+                answer === ""
+                  ? { verdict: "needs_user", reason: "Consent not set in your Profile" }
+                  : { answer: answer === "yes" ? "Yes" : "No" },
+              );
+            }
+    },
+  );
+
   it("sends the page and fields to the review model and returns checked fixes and missed questions", async () => {
     let spec: { payload: Record<string, unknown>; review?: boolean } | undefined;
     const ctx = {

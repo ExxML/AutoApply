@@ -1198,7 +1198,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
     profile.background.consentToInterviewRecording = "";
     await run();
-    expect(asked).toEqual(["c", "a", "b", "c"]);
+    expect(asked).toEqual(["c", "c"]);
   });
 
   it("answers AI-review consents from the profile", async () => {
@@ -1244,10 +1244,10 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     ]);
     profile.background.consentToAiReview = "";
     await run();
-    expect(asked).toEqual(["a", "b"]);
+    expect(asked).toEqual([]);
   });
 
-  it("answers optional job-opportunity and marketing opt-ins from the profile", async () => {
+  it("answers required and optional communication opt-ins from Profile and flags Unset without AI", async () => {
     const asked: string[] = [];
     const gemini = {
       call: async (s: { payload: { fields?: FieldDescriptor[] } }) => {
@@ -1261,7 +1261,7 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     const fields = [
       field("a", { label: "Receive job alerts for new roles?", kind: "radio_group", options: ["Opt in", "Opt out"] }),
       field("b", { label: "I agree to receive marketing communications.", kind: "checkbox" }),
-      // Required: left to the consent settings.
+      // Required: Profile still wins.
       field("c", { label: "I agree to receive marketing communications.", kind: "checkbox", required: true }),
       field("d", {
         label: "Do you have experience in marketing communications?",
@@ -1277,15 +1277,17 @@ describe("mapFields chunking and splitting (§10.7)", () => {
     profile.background.consentToJobOpportunities = "yes";
     profile.background.consentToMarketing = "no";
     expect((await run()).decisions.slice(0, 2).map((d) => d.intendedAnswer ?? d.checked)).toEqual(["Opt in", false]);
-    expect(asked).toEqual(["c", "d"]);
+    expect(asked).toEqual(["d"]);
+    expect((await run()).decisions[2]).toMatchObject({ action: "fill", checked: false });
     profile.background.consentToJobOpportunities = "no";
     profile.background.consentToMarketing = "yes";
     expect((await run()).decisions.slice(0, 2).map((d) => d.intendedAnswer ?? d.checked)).toEqual(["Opt out", true]);
     asked.length = 0;
     profile.background.consentToJobOpportunities = "";
     profile.background.consentToMarketing = "";
-    await run();
-    expect(asked).toEqual(["a", "b", "c", "d"]);
+    const unset = await run();
+    expect(unset.decisions.slice(0, 3).every((d) => d.action === "flag")).toBe(true);
+    expect(asked).toEqual(["d"]);
   });
 
   it("keeps ordinary experience brackets but meets explicit screening minimums", async () => {

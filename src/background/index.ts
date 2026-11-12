@@ -337,8 +337,9 @@ const handlers: Handlers = {
       settings: y ? { ...settings, ...y.settings } : settings,
       profileSnapshotForDeterministic: {
         personal: y ? { ...s.profile.personal, email: y.email } : s.profile.personal,
-        aiReviewConsent: s.profile.background.consentToAiReview,
-        optInConsents: {
+        consents: {
+          consentToInterviewRecording: s.profile.background.consentToInterviewRecording,
+          consentToAiReview: s.profile.background.consentToAiReview,
           consentToJobOpportunities: s.profile.background.consentToJobOpportunities,
           consentToMarketing: s.profile.background.consentToMarketing,
         },

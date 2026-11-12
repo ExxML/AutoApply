@@ -260,7 +260,9 @@ Payment and government-ID numbers are left for manual entry. Ordinary autofill s
 
 Required application consents and attestations are **accepted by default**. Turn off **Behavior → Auto-accept required consents** to flag them instead.
 
-Optional consents have a separate **Auto-decline** (default), **Auto-accept** or **Flag for me** setting. Explicit profile choices for interview recording, AI assessment, new job opportunities and marketing guide their matching questions. Unset or required communication opt-ins follow the applicable consent settings. AI form review does not override protected consent or sensitive-field decisions.
+Profile settings for interview recording, AI assessment, new job opportunities and marketing always take priority for matching questions, including required questions. **Unset** flags the question for you. A combined consent is declined if any matching preference is No, accepted only if all are Yes, and otherwise flagged. AI review and YOLO guesses cannot override these preferences.
+
+**Optional consents** applies only to questions without a matching Profile consent setting (for example, SMS updates about the current application). Choose **Auto-decline** (default), **Auto-accept** or **Flag for me**. Other required consents follow **Auto-accept required consents**. AI form review does not override protected consent or sensitive-field decisions.
 
 ## Behavior settings
 

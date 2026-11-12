@@ -2,6 +2,7 @@
 // every answer against the candidate's data, names the controls the scan missed, and says what is left. Its answers
 // pass the same profile guards as the mapping's (mapFields.ts) before the page is changed.
 import { RE_SENSITIVE_LABEL } from "../../shared/constants";
+import { matchesProfileConsent } from "../../shared/consents";
 import { plainDashes, RE_AI_TELL, trapLabel } from "../../shared/injection";
 import { normalize } from "../../shared/normalize";
 import type { Decision, DocumentMeta, FieldDescriptor, FieldKind, JobContext, Pay, Profile } from "../../shared/types";
@@ -188,8 +189,8 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
     consents: {
       requiredAcknowledgements: input.consents.required === "accept" ? "accepted" : "the candidate decides: needs_user",
       optionalConsents: input.consents.optional,
-      jobOpportunityOptIns: input.profile.background.consentToJobOpportunities || "follow optionalConsents",
-      marketingOptIns: input.profile.background.consentToMarketing || "follow optionalConsents",
+      profileConsents:
+        "Matching Profile consents override both consent settings, even for required questions. Unset means needs_user. For combined consents, any No declines; all must be Yes to accept.",
     },
   };
   const spec = {
@@ -278,7 +279,13 @@ export async function reviewForm(ctx: ServiceCtx, input: ReviewInput): Promise<R
       let policy = original.get(f.id);
       // A corrected label can change which profile rule applies. A flag or screening constraint on the original
       // question still holds: renaming the question must not evade it.
-      if (fix.verdict === "relabel" && fix.question && policy?.action !== "flag" && !isScreeningQuestion(descOf(f)))
+      if (
+        fix.verdict === "relabel" &&
+        fix.question &&
+        policy?.action !== "flag" &&
+        !isScreeningQuestion(descOf(f)) &&
+        !matchesProfileConsent(descOf(f), input.profile.background)
+      )
         policy = localDecisions({
           ...localInput,
           fields: descriptors.map((d) => (d.id === f.id ? descOf(f, fix!.question) : d)),

@@ -11,7 +11,7 @@ const TOGGLES: [Bool, string, string][] = [
   [
     "autoAcceptAcknowledgements",
     "Auto-accept required consents",
-    "Consents needed to apply (privacy notice, terms, attestations). Off: they are flagged for you instead of accepted.",
+    "Consents needed to apply (privacy notice, terms, attestations). Off: they are flagged for you instead of accepted. Matching Profile consent settings always take priority; Unset flags the question for you.",
   ],
   [
     "draftEssays",
@@ -87,7 +87,7 @@ export function Behavior() {
             {k === "autoAcceptAcknowledgements" && (
               <SelectInput
                 label="Optional consents"
-                help="Consents you can skip (contact about other jobs, talent community, marketing)."
+                help="Only applies to optional consents without a matching Profile consent setting (for example, SMS updates about this application). Matching Profile settings always take priority; Unset flags the question for you."
                 value={s.optionalConsents}
                 options={[
                   ["decline", "Auto-decline"],
