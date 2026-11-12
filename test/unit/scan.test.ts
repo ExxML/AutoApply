@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setBody, stubLayout } from "./dom";
-import { consentPair, newScanState, onlyPair, scan, type FieldHandle } from "../../src/content/scan/fields";
+import { consentPair, newScanState, onlyPair, scan, yesNoPair, type FieldHandle } from "../../src/content/scan/fields";
 import { deepQueryAll } from "../../src/content/scan/traverse";
 import { RE_OPTIONAL_CONSENT } from "../../src/shared/constants";
 import { extractJobContext, ldPosting, payIn, phenomPostingUrl, readPay } from "../../src/content/jobContextExtract";
@@ -24,6 +24,17 @@ describe("label extraction (§11.5)", () => {
     const [h] = fields();
     expect(h.desc.label).toBe("Country");
     expect(h.desc.options).toEqual(["Canada"]);
+  });
+
+  it("keeps the break between a label's blocks: a heading over its description (Amazon's option cards)", () => {
+    setBody(`<form><fieldset role="radiogroup"><legend>Choose your AI preference</legend>
+      <label for="y"><div><h6>Yes</h6><p>Provide personalized job recommendations.</p></div>
+        <input type="radio" id="y" name="c"><label for="y"></label></label>
+      <label for="n"><div><h6>No</h6><p>Continue without them.</p></div>
+        <input type="radio" id="n" name="c"><label for="n"></label></label></fieldset></form>`);
+    const [h] = fields();
+    expect(h.desc.options).toEqual(["Yes Provide personalized job recommendations.", "No Continue without them."]);
+    expect(yesNoPair(h.desc.options!)).toEqual([0, 1]);
   });
 
   it("ignores hidden status text inside a wrapping <label> (Lever)", () => {

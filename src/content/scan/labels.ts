@@ -12,6 +12,20 @@ export function shownText(n: Node): string {
   return n.nodeType === Node.TEXT_NODE ? (n.textContent ?? "") : "";
 }
 
+const BLOCK =
+  /^(ADDRESS|ARTICLE|ASIDE|BLOCKQUOTE|BR|DD|DIV|DL|DT|FIELDSET|FIGCAPTION|FOOTER|FORM|H[1-6]|HEADER|HR|LEGEND|LI|MAIN|NAV|OL|P|PRE|SECTION|TABLE|TD|TH|TR|UL)$/;
+/**
+ * textContent with the breaks block elements show: a "Yes" heading over its description (Amazon's option cards) read
+ * "YesProvide personalized…", which no Yes/No rule matched.
+ * shortcut: by tag, not computed display (a style read per node is slow); a span styled as a block still joins.
+ */
+function blockText(n: Node): string {
+  if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
+  if (!(n instanceof Element)) return "";
+  const t = [...n.childNodes].map(blockText).join("");
+  return BLOCK.test(n.tagName) ? ` ${t} ` : t;
+}
+
 /** Text content without nested controls/options, or descendants hidden in a shown element (Lever's status text). */
 export function textOf(el: Element, exclude = NON_LABEL): string {
   // A label whose text is slotted in from its host's light DOM (SmartRecruiters' <spl-input>'s question).
@@ -19,12 +33,12 @@ export function textOf(el: Element, exclude = NON_LABEL): string {
   const all = el.querySelectorAll("*");
   const shown = typeof el.checkVisibility === "function" && all.length && el.checkVisibility();
   const hidden = shown ? [...all].map((n) => !n.checkVisibility()) : [];
-  if (!el.querySelector(exclude) && !hidden.includes(true)) return collapse(el.textContent ?? "");
+  if (!el.querySelector(exclude) && !hidden.includes(true)) return collapse(blockText(el));
   const clone = el.cloneNode(true) as Element;
   const copies = clone.querySelectorAll("*");
   hidden.forEach((h, i) => h && copies[i].remove());
   clone.querySelectorAll(exclude).forEach((n) => n.remove());
-  return collapse(clone.textContent ?? "");
+  return collapse(blockText(clone));
 }
 
 const rootOf = (el: Element) => el.getRootNode() as Document | ShadowRoot;
