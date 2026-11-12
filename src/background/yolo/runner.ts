@@ -39,6 +39,8 @@ export interface Run {
   linkSites?: string[];
   /** Sent back to the posting once, after an account step left the application (YOLO_STEP): its steps by then. */
   returned?: number;
+  /** Account keys this run made a password for (YOLO_CREDENTIAL): asked again, it gets the same one. */
+  madeAccounts?: string[];
   /** When the computer last woke from sleeping during the run. */
   wokeAt?: number;
   reviewPolicy?: SubmissionReview;

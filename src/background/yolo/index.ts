@@ -1642,6 +1642,12 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
         (await getAccount(key).catch(() => null)) ?? (key === site ? null : await getAccount(site).catch(() => null));
       return a && { ...a, created: false };
     }
+    // The same step read again (a slow page after its Submit) keeps the password it made: a second one, saved while
+    // the first was on its way to the site, left the vault and L3Harris's password reset apart.
+    const made = run.madeAccounts?.includes(key) ? await getAccount(key).catch(() => null) : null;
+    if (made) return { ...made, created: true };
+    run.madeAccounts = [...(run.madeAccounts ?? []), key];
+    await saveRun(run);
     return { ...(await createAccount(key, await accountEmail())), created: true };
   },
 
