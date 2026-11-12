@@ -134,6 +134,8 @@ describe("job keys", () => {
       "sf:career4.successfactors.com:4242",
     );
     expect(namesPosting("https://career4.successfactors.com/careers?company=acuitybrands")).toBe(false);
+    expect(namesPosting("https://career-hcm20.ns2cloud.com/careers?company=L3HHCM20")).toBe(false);
+    expect(namesPosting("https://career17.sapsf.com/careers?company=cmhcschl")).toBe(false);
     expect(namesPosting("https://careers.acuityinc.com/job/Brossard-Intern/1433678100/?ats=successfactors")).toBe(true);
     expect(namesPosting(qc("1"))).toBe(true);
     // A site's root, locale root or sign-in page is shared by every posting there.
@@ -878,6 +880,7 @@ describe("vault", () => {
   it("names a user-added account as the sign-in page will", () => {
     expect(accountSite("https://acme.wd5.myworkdayjobs.com/en-US/careers/login")).toBe("workday:acme");
     expect(accountSite("https://www.careers.example.com/signin")).toBe("careers.example.com");
+    expect(accountSite("https://career17.sapsf.com/careers?company=cmhcschl")).toBe("sf:career17.sapsf.com:cmhcschl");
     expect(accountSite("https://career4.successfactors.com/career?company=Teck&x=1")).toBe(
       "sf:career4.successfactors.com:teck",
     );

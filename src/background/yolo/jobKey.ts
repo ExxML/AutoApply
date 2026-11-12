@@ -1,4 +1,5 @@
 // One key per posting, whichever board or link it was found through, so a job is never applied to twice.
+import { RE_SF_HOST } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 
 const parse = (raw: string) => {
@@ -70,7 +71,9 @@ export function jobKey(raw: string): string {
  */
 export function namesPosting(raw: string): boolean {
   const key = jobKey(raw);
-  if (/^[^/:]*successfactors\.(com|eu)\//.test(key)) return false; // SAP's is career5.successfactors.eu
+  // SAP's is career5.successfactors.eu; L3Harris's, career-hcm20.ns2cloud.com: its first job's failure there skipped
+  // its next two as applied.
+  if (!key.split("/")[0].includes(":") && RE_SF_HOST.test(key.split("/")[0])) return false;
   // A Workday page without a requisition is the site's home, sign-in or candidate home ("…/Altera/userHome").
   if (/^[^/:]*\.myworkday(jobs|site)\.com\//.test(key)) return false;
   const generic = /^[^/:]+\/([^?]*)$/.exec(key); // no ATS id and no id parameter
@@ -134,7 +137,7 @@ export function altKey(company: string, title: string): string {
  */
 export function restartUrl(raw: string): string {
   const u = parse(raw);
-  if (!u || !/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/i.test(u.hostname)) return raw;
+  if (!u || !RE_SF_HOST.test(u.hostname)) return raw;
   const q = (k: string) => [...u.searchParams].find(([p]) => p.toLowerCase() === k)?.[1];
   const [company, id] = [q("company"), q("career_job_req_id")];
   if (!company || !id) return raw;

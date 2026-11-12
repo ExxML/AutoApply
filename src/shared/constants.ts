@@ -234,6 +234,11 @@ export const SLEPT_MS = 60_000;
  */
 export const RE_APPLIED =
   /(?<!\b(until|once(?! again)|after|when|if|before)\b[^.!?\n]*)(thanks?( you)?( so much)? for (applying|your application|submitting)|application (has been |was )?(successfully )?(submitted|received|sent|completed?)\b|we('ve| have) (successfully )?received your application|successfully (applied|submitted)|your application (is|has been) (complete|submitted|received|on its way)|you('ve| have) (successfully )?applied|application submitted)/i;
+/**
+ * SuccessFactors' hosts, each serving many companies: SAP's own, its government cloud (L3Harris's
+ * career-hcm20.ns2cloud.com) and sapsf (CMHC's career17.sapsf.com).
+ */
+export const RE_SF_HOST = /(^|\.)(successfactors\.(com|eu)|ns2cloud\.com|sapsf\.(com|eu|cn))$/i;
 export const RE_FORBIDDEN_CLICK = /submit|next|continue|apply|save|sign ?in|log ?in|sign ?up|register|finish|review/i;
 /** Button texts that are never answer choices (used to reject button-style choice groups). */
 export const RE_NAV_BUTTON =

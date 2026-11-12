@@ -1,6 +1,6 @@
 // Accounts on the employer's site (Workday needs one per company): sign in with stored credentials, else create
 // them, then pass email verification with a link or code from the YOLO inbox.
-import { RE_CONSENT, RE_OPTIONAL_CONSENT } from "../../shared/constants";
+import { RE_CONSENT, RE_OPTIONAL_CONSENT, RE_SF_HOST } from "../../shared/constants";
 import { isErr, send } from "../../shared/messages";
 import { setNativeValue, sleep, typeText, waitFor } from "../fill/events";
 import { deepQueryAll } from "../scan/traverse";
@@ -33,7 +33,7 @@ export function siteKey(href = location.href): string {
   if (/\.myworkday(jobs|site)\.com$/.test(h)) return `workday:${h.split(".")[0]}`;
   // One SuccessFactors host serves many companies, each with its own accounts: Teck's sign-in got another company's
   // password for career4.successfactors.com.
-  if (!/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/.test(h)) return h.replace(/^www\./, "");
+  if (!RE_SF_HOST.test(h)) return h.replace(/^www\./, "");
   // Its later pages can drop ?company= (Teck's and L3Harris's sign-in, "/career?_s.crb=…"): the tab's last one stands,
   // remembered from every page the run saw (driver.ts). Unknown, it is no other company's: never the bare host's.
   let company = [...u.searchParams].find(([k]) => k.toLowerCase() === "company")?.[1]?.toLowerCase();

@@ -1,5 +1,6 @@
 // Site accounts YOLO creates. Passwords are AES-GCM encrypted with a key generated non-extractable and kept in
 // IndexedDB: copied storage or an export can't be decrypted, yet runs need no passphrase after a browser restart.
+import { RE_SF_HOST } from "../../shared/constants";
 import { normalize } from "../../shared/normalize";
 import { createStorage } from "../../shared/storage";
 import { siteOf } from "./gmail";
@@ -91,7 +92,7 @@ export function accountSite(href: string): string | null {
   const u = new URL(href);
   const h = u.hostname.toLowerCase();
   if (/\.myworkday(jobs|site)\.com$/.test(h)) return `workday:${h.split(".")[0]}`;
-  if (!/(^|\.)(successfactors\.(com|eu)|ns2cloud\.com)$/.test(h)) return h.replace(/^www\./, "");
+  if (!RE_SF_HOST.test(h)) return h.replace(/^www\./, "");
   const company = [...u.searchParams].find(([k]) => k.toLowerCase() === "company")?.[1]?.toLowerCase();
   return company ? `sf:${h}:${company}` : null;
 }
