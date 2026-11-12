@@ -45,7 +45,16 @@ export function dropdownText(h: FieldHandle): string {
     if (!isPlaceholderOption(o, h.hiddenSelect.selectedIndex)) return collapse(o.text);
   }
   // A read-only input opening the list (Workable) shows the pick as its own value.
-  return (h.searchInput ?? (h.el instanceof HTMLInputElement ? h.el : undefined))?.value ?? "";
+  const own = (h.searchInput ?? (h.el instanceof HTMLInputElement ? h.el : undefined))?.value ?? "";
+  if (own || collapse(h.el.textContent ?? "")) return own;
+  // A trigger showing its pick as an icon alone (intl-tel-input's flag): the option its own list marks as picked.
+  const root = h.el.getRootNode() as Document | ShadowRoot;
+  const ids = `${h.el.getAttribute("aria-controls") ?? ""} ${h.el.getAttribute("aria-owns") ?? ""}`.split(/\s+/);
+  // Both attributes may name the one list.
+  const picked = [...new Set(ids)]
+    .filter(Boolean)
+    .flatMap((id) => [...(root.getElementById(id)?.querySelectorAll("[role=option][aria-selected=true]") ?? [])]);
+  return picked.length === 1 ? collapse(picked[0].textContent ?? "") : "";
 }
 
 export function readValue(h: FieldHandle): string {

@@ -540,6 +540,43 @@ describe("slow typeahead suggestions", () => {
   }, 10_000);
 });
 
+describe("icon-only triggers (intl-tel-input's country flag)", () => {
+  it("reads the pick from the list's selected option, and presses no keys after a click that took", async () => {
+    setBody(`<div class="iti"><div><div role="combobox" aria-label="Country for phone number" aria-owns="cl" aria-controls="cl"
+        aria-expanded="false" tabindex="0"><div class="flag"></div></div>
+      <ul id="cl" role="listbox" hidden>
+        <li role="option" aria-selected="true">United States<span>+1</span></li>
+        <li role="option" aria-selected="false">Canada<span>+1</span></li>
+        <li role="option" aria-selected="false">Chile<span>+56</span></li>
+        <li role="option" aria-selected="false">China<span>+86</span></li></ul></div></div>`);
+    const t = document.querySelector<HTMLElement>("[role=combobox]")!;
+    const ul = document.getElementById("cl")!;
+    const opts = [...ul.children] as HTMLElement[];
+    const pick = (o: Element) => opts.forEach((x) => x.setAttribute("aria-selected", String(x === o)));
+    const show = (on: boolean) => {
+      ul.hidden = !on;
+      t.setAttribute("aria-expanded", String(on));
+    };
+    t.addEventListener("click", () => show(!!ul.hidden));
+    for (const o of opts)
+      o.addEventListener("click", () => {
+        pick(o);
+        show(false);
+      });
+    // As intl-tel-input: an arrow key on the closed box reopens it and moves on from the pick; Enter takes it.
+    let at = 0;
+    t.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown") at = Math.min(opts.length - 1, at + 1);
+      else if (e.key === "Enter") pick(opts[at]);
+      show(e.key === "ArrowDown");
+    });
+    const h = scan(newScanState()).handles.find((x) => x.el === t)!;
+    expect(dropdownText(h)).toBe("United States+1");
+    expect(await fillDropdown(h, ["Canada+1"])).toMatchObject({ outcome: "ok", shown: "Canada+1" });
+    expect(opts.map((o) => o.getAttribute("aria-selected"))).toEqual(["false", "true", "false", "false"]);
+  });
+});
+
 describe("text fills", () => {
   it("ends on a key released, for a box that is checked on keyup alone (intl-tel-input)", async () => {
     setBody(`<label for="p">Phone</label><input id="p" type="tel">`);
