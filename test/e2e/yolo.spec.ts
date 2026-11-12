@@ -75,10 +75,11 @@ for (const reviewFills of [false, true]) {
     expect(mock.calls_("essay").length).toBeGreaterThan(0);
     expect(mock.calls_("review").length > 0).toBe(reviewFills);
     expect(mock.calls_("navigate")).toHaveLength(0);
-    // An account was made for the site, its password kept encrypted.
+    // Shared hosts keep each employer's account separate, with its password encrypted.
     const vault = await storage<Record<string, { email: string; ct: string }>>(sw, "vault");
-    expect(Object.keys(vault)).toEqual(["localhost"]);
-    expect(vault.localhost.email).toBe("ada@example.com");
+    expect(Object.keys(vault)).toEqual(["localhost|acme"]);
+    expect(vault["localhost|acme"].email).toBe("ada@example.com");
+    expect(vault["localhost|acme"].ct).toMatch(/\S/);
     expect(context.pages().length).toBe(pages);
     void page;
     // Done: the hidden page's renderer is let go.
