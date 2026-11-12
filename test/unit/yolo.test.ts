@@ -140,6 +140,9 @@ describe("job keys", () => {
     expect(namesPosting(qc("1"))).toBe(true);
     // A site's root, locale root or sign-in page is shared by every posting there.
     expect(namesPosting("https://passport.amazon.jobs/")).toBe(false);
+    expect(namesPosting("https://login.icims.com/u/login/password?state=x")).toBe(false);
+    expect(namesPosting("https://careers.example.com/candidate/login")).toBe(false);
+    expect(namesPosting("https://careers.example.com/jobs/login-systems-engineer-intern")).toBe(true);
     expect(namesPosting("https://career5.successfactors.eu/careers?company=SAP")).toBe(false);
     expect(namesPosting("https://careers.zimmerbiomet.com/us/en")).toBe(false);
     expect(namesPosting("https://altera.wd1.myworkdayjobs.com/en-US/Altera/userHome")).toBe(false);

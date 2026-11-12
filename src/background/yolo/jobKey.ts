@@ -78,7 +78,11 @@ export function namesPosting(raw: string): boolean {
   if (/^[^/:]*\.myworkday(jobs|site)\.com\//.test(key)) return false;
   const generic = /^[^/:]+\/([^?]*)$/.exec(key); // no ATS id and no id parameter
   if (!generic) return true;
+  // A sign-in host or page (iCIMS's "login.icims.com/u/login/password"): Kinaxis's wait for a code there was recorded
+  // under it, and its next job skipped as applied.
+  if (/^(login|signin|sso|auth|identity)\./.test(key)) return false;
   const segs = generic[1].split("/").filter((s) => s && !/^[a-z]{2}([-_][a-z]{2})?$/.test(s));
+  if (segs.some((s) => /^(log-?in|sign-?(in|on)|sso)$/.test(s))) return false;
   return segs.length > 0 && !segs.every((s) => /log-?in|sign-?(in|on|up)|auth|sso|identity|account|register/.test(s));
 }
 
