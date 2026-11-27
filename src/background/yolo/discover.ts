@@ -399,7 +399,8 @@ export async function discover(d: DiscoverDeps): Promise<number> {
         const row = t.row("ziprecruiter", label, zipRecruiterSearch(q, loc, days));
         let checked = 0;
         await paged(row, async (page) => {
-          const r = await d.fetch(zipRecruiterSearch(q, loc, days, page), { credentials: "omit" });
+          // The user's cookies: ZipRecruiter answers a cookieless search 403 "cookies_required" (live, 2026-11-27).
+          const r = await d.fetch(zipRecruiterSearch(q, loc, days, page), { credentials: "include" });
           // Cloudflare checks about half of ZipRecruiter's searches at random (live, 2026-11-07).
           if (r.headers.get("cf-mitigated") === "challenge") {
             t.problem(

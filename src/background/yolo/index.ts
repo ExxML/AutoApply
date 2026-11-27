@@ -198,8 +198,23 @@ async function schedule() {
     });
 }
 
-/** Bound: a detached `fetch` called as a method throws "Illegal invocation". */
-const fetcher = (url: string, init?: RequestInit) => fetch(url, init);
+/**
+ * Bound: a detached `fetch` called as a method throws "Illegal invocation". Timed out: a site that never answers would
+ * hold discovery (kept alive below) forever.
+ */
+const fetcher = (url: string, init?: RequestInit) =>
+  fetch(url, {
+    ...init,
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)])
+      : AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+const FETCH_TIMEOUT_MS = 30_000;
+/**
+ * Chrome stops the service worker after 30 s without an extension API call, fetching or not (measured 2026-11-27), and
+ * discovery pages boards for minutes without one: a cheap call this often keeps it alive meanwhile.
+ */
+const KEEPALIVE_MS = 20_000;
 /** How long discovery waits on the user to clear Indeed's bot check before going on without Indeed. */
 const INDEED_WAIT_MS = 10 * 60e3;
 const INDEED_NOTE = "yolo-indeed";
@@ -254,6 +269,11 @@ async function indeedTab(url: string): Promise<string | null> {
 }
 
 let cycling: Promise<void> | null = null;
+/**
+ * A check unfinished when the worker starts was cut off (the browser closed, or the extension restarted): marked so at
+ * once instead of reading "Reading…" until it's stale. Awaited before a new check, which it'd otherwise overwrite.
+ */
+let orphanChecked: Promise<unknown> = Promise.resolve();
 let toppingUp = false;
 /** The batch (its `batchAt`) whose last discovery found nothing new: no top-up until the next batch. */
 let dryBatch = 0;
@@ -284,6 +304,7 @@ function cycle(topUp = false): Promise<void> {
     await checking;
     let batchAt = 0;
     let added = 0;
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
     try {
       if (!yolo.enabled || !yolo.queries.length) return;
       if (!topUp) {
@@ -296,6 +317,8 @@ function cycle(topUp = false): Promise<void> {
       }
       const [busy, state] = await Promise.all([getRun(), store.get("yoloState")]);
       batchAt = state.batchAt;
+      await orphanChecked;
+      keepAlive = setInterval(() => void chrome.runtime.getPlatformInfo(), KEEPALIVE_MS);
       added = await discover({
         yolo,
         fetch: fetcher,
@@ -327,6 +350,7 @@ function cycle(topUp = false): Promise<void> {
       }
       await failSourceCheck(plainError(e)).catch(() => undefined);
     } finally {
+      clearInterval(keepAlive);
       cycling = null;
     }
     // Failed or found nothing: topping up again would repeat it.
@@ -1926,6 +1950,9 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
 
 export function initYolo(d: YoloDeps) {
   deps = d;
+  orphanChecked = failSourceCheck("Stopped partway (the browser closed or the extension restarted)").catch(
+    () => undefined,
+  );
   let loaded = false;
   const ready = store.get("yolo").then(async (y) => {
     yolo = y;

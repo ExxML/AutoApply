@@ -32,6 +32,7 @@ export function plainError(e: unknown): string {
   const m = (e as Error)?.message ?? String(e);
   if (/failed to fetch|network ?error|load failed/i.test(m)) return "Couldn't connect (offline, or the site refused)";
   if (/invalid url/i.test(m)) return "Not a valid URL";
+  if ((e as Error)?.name === "TimeoutError") return "The site didn't answer within 30 s";
   if (/json|unexpected token/i.test(m)) return "Couldn't read the site's answer";
   return m || "Failed";
 }
