@@ -32,6 +32,24 @@ export const FIELD_KINDS = [
   "file",
 ] as const;
 
+/** Preset choices for "Which language will you use for the interview / online assessment?". */
+export const PROGRAMMING_LANGUAGES = [
+  "Python",
+  "Java",
+  "C++",
+  "C",
+  "C#",
+  "JavaScript",
+  "TypeScript",
+  "Go",
+  "Rust",
+  "Kotlin",
+  "Swift",
+  "Ruby",
+  "PHP",
+  "Scala",
+] as const;
+
 export const LearnedAnswerSchema = z.object({
   id: z.string(),
   question: z.string(),
@@ -141,6 +159,7 @@ export const ProfileSchema = o({
   skills: o({
     technical: strs(),
     soft: strs(),
+    preferredProgrammingLanguage: z.enum(["", ...PROGRAMMING_LANGUAGES]).catch(""),
     languages: arr(o({ language: s(), proficiency: s() })),
     certifications: arr(o({ name: s(), issuer: s(), date: s() })),
   }),

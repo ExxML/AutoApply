@@ -3,6 +3,7 @@ import {
   EducationSchema,
   ExperienceSchema,
   ExtracurricularSchema,
+  PROGRAMMING_LANGUAGES,
   ProjectSchema,
   WorkAuthEntrySchema,
 } from "../shared/profileSchema";
@@ -289,6 +290,13 @@ export const PROFILE_GROUPS: GroupSpec[] = [
     items: [
       t("skills.technical", "Technical skills", "e.g. Python, React. Press Enter after each.", "tags"),
       t("skills.soft", "Soft skills", "e.g. Communication, Leadership.", "tags"),
+      {
+        k: "select",
+        path: "skills.preferredProgrammingLanguage",
+        label: "Preferred programming language",
+        help: "Answers “Which language will you use for the interview / online assessment?”.",
+        options: [["", "Unset"], ...PROGRAMMING_LANGUAGES.map((l): [string, string] => [l, l])],
+      },
       {
         card: true,
         path: "skills.languages",
