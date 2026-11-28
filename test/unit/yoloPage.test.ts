@@ -9,7 +9,7 @@ import { confirmation, confirmFirst, kindOf, refused, verifyFailed } from "../..
 const classify = (fields: number, hidden = false, requiredFields = 0) =>
   kindOf(pageFacts({ fields, requiredFields }), hidden);
 import { findApply, findNext, findSubmit, validationErrors } from "../../src/content/yolo/nav";
-import { awaitReset, handleAuth, handleVerify, siteKey } from "../../src/content/yolo/auth";
+import { awaitReset, handleAuth, handleVerify, refusedAccount, siteKey } from "../../src/content/yolo/auth";
 import { realFor, setGraded, setRealMode } from "../../src/content/yolo/real";
 
 beforeAll(stubLayout);
@@ -419,6 +419,50 @@ describe("YOLO buttons", () => {
     expect(await handleAuth("signin", async () => undefined)).toEqual({ ok: true });
     expect(forgot).toBe(true);
     vi.unstubAllGlobals();
+  });
+
+  it("signs up again once when SuccessFactors refuses the password held, then resets it", async () => {
+    // Bombardier: an account saved before its emailed passcode was entered never existed; the reset sent nothing.
+    sessionStorage.clear();
+    const sent: { type: string; create?: boolean }[] = [];
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage: async (m: (typeof sent)[number]) => (
+          sent.push(m),
+          { email: "me@x.com", password: "Aa1!aaaaaaaaaaaaaa", created: !!m.create }
+        ),
+      },
+    });
+    vi.stubGlobal("location", { href: "https://career5.successfactors.eu/career?company=Bombardier" });
+    const signin = () => {
+      setBody(`<h2>Career Opportunities: Sign In</h2><input type="email"><input type="password"><button>Sign In</button>
+        <a href="#">Forgot your password?</a><p>Not a registered user yet?</p><a href="#">Create an account</a>`);
+      const pressed: string[] = [];
+      for (const a of document.querySelectorAll("a")) a.addEventListener("click", () => pressed.push(a.textContent!));
+      return pressed;
+    };
+    let pressed = signin();
+    expect(await refusedAccount("signin")).toEqual({ ok: true });
+    expect(pressed).toEqual(["Create an account"]);
+    // Its sign-up makes a new password rather than going back to the sign-in for the stored one.
+    setBody(`<h2>Career Opportunities: Create an Account</h2><p>Already a registered user? <a href="#">Please sign in</a></p>
+      <input type="email"><input type="password"><input type="password"><button>Create Account</button>`);
+    let back = false;
+    document.querySelector("a")!.addEventListener("click", () => (back = true));
+    expect(await handleAuth("signup", async () => undefined)).toEqual({ ok: true });
+    expect([back, sent.at(-1)?.create]).toEqual([false, true]);
+    // Refused again soon after: the password reset, as everywhere else.
+    pressed = signin();
+    expect(await refusedAccount("signin")).toEqual({ ok: true });
+    expect(pressed).toEqual(["Forgot your password?"]);
+    // Other sites: the reset straight away.
+    sessionStorage.clear();
+    vi.stubGlobal("location", { href: "https://jobs.example.com/login" });
+    pressed = signin();
+    expect(await refusedAccount("signin")).toEqual({ ok: true });
+    expect(pressed).toEqual(["Forgot your password?"]);
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
   });
 
   it("sends a reset email, never the Sign In beside it, and follows its link from the sign-in after", async () => {

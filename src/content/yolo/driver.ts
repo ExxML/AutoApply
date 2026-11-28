@@ -15,9 +15,9 @@ import {
   awaitReset,
   emailSignIn,
   findSignup,
-  forgotPassword,
   handleAuth,
   handleVerify,
+  refusedAccount,
   setLogin,
   siteKey,
 } from "./auth";
@@ -388,7 +388,7 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
           // sign-in after asking for that email: its link.
           const r =
             (kind === "signin" && (await awaitReset())) ||
-            (step.refused ? await forgotPassword() : await handleAuth(kind, fill));
+            (step.refused ? await refusedAccount(kind) : await handleAuth(kind, fill));
           if ("fail" in r) {
             // A button its wording rules miss ("Create a new account"): the navigator's press, then the step again.
             const n = await navigateOn(`Account step: ${r.fail}`, facts, before);

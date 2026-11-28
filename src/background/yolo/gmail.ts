@@ -165,7 +165,9 @@ export function extract(body: string, want: "link" | "code", sites?: string[]): 
     .replace(/&nbsp;/g, " ");
   // Letters and digits with a digit somewhere: a code, not the word after "code".
   return (
-    /\b(?:code|passcode|pin|otp)\b[\s\S]{0,80}?\b(\d{4,8}|(?=[A-Za-z]*\d)[A-Za-z0-9]{6,10})\b/i.exec(t)?.[1] ??
+    /\b(?:code|passcode|pin|otp|one[- ]time password)\b[\s\S]{0,80}?\b(\d{4,8}|(?=[A-Za-z]*\d)[A-Za-z0-9]{6,10})\b/i.exec(
+      t,
+    )?.[1] ??
     /\b(\d{6})\b/.exec(t)?.[1] ??
     null
   );

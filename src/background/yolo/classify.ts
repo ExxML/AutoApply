@@ -10,7 +10,7 @@ const RE_HARD_BLOCKED = /access denied|request unsuccessful|you have been blocke
 const RE_CLOSED =
   /no longer (accepting|available|open|active)|(job|position|posting|role|requisition|opening) (has been |is )?(closed|filled|expired|removed|unavailable)|(page|job) (you('re| are) looking for )?(can'?t|cannot|could not) be found|(page|job) you('re| are) looking for (doesn'?t|does not|no longer) exists?|\b(page|job) not found\b|this job has expired/i;
 const RE_VERIFY =
-  /verify your (email|account|identity)|(verification|confirmation|security) (code|email|link)|check your (email|inbox)|we('ve| have)? (just )?sent (you )?(an? )?(email|code|link)|enter the (\d+[- ]digit )?code|one[- ]time (pass)?code/i;
+  /verify your (email|account|identity)|(verification|confirmation|security) (code|email|link)|check your (email|inbox)|we(['’]ve| have)? (just )?sent (you )?(an? )?(email|code|link|one[- ]time password)|enter the (\d+[- ]digit )?code|one[- ]time (pass)?code/i;
 const RE_FORGOT = /forgot (your )?password|reset (your )?password/i;
 /** A submission held until the emailed link opens ("Verify your email to complete your application"), not a mere notice. */
 const RE_CONFIRM_FIRST =

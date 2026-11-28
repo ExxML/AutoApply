@@ -140,8 +140,8 @@ export async function handleAuth(
     press(b);
     return { ok: true };
   }
-  // An account we made before: sign in rather than sign up again.
-  if (kind === "signup" && stored) {
+  // An account we made before: sign in rather than sign up again, unless that sign-in was refused (refusedAccount).
+  if (kind === "signup" && stored && !resigning()) {
     const toSignin = findButton(RE_TO_SIGNIN, ['[data-automation-id="signInLink"]']);
     if (toSignin) {
       press(toSignin);
@@ -176,6 +176,34 @@ export async function setLogin(): Promise<AuthOutcome> {
   if (!creds) return { fail: "Couldn't store a password" };
   await fillCredentials(creds.email, creds.password);
   return { ok: true };
+}
+
+/** When this tab's sign-in sent the run to sign up again (refusedAccount), so the sign-up makes a new password. */
+const RESIGNUP = "autoapply-resignup";
+const resigning = () => {
+  try {
+    return Date.now() - Number(sessionStorage.getItem(RESIGNUP) ?? 0) < 20 * 60_000;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The site turned down the password held, or the sign-up. SuccessFactors keeps no account whose emailed passcode was
+ * never entered: its sign-in refuses the password saved for it and its reset sends nothing (Bombardier, Lincoln
+ * Electric), so it signs up again first, once. Elsewhere, and a refused sign-up, reset the password by email.
+ */
+export async function refusedAccount(kind: "signin" | "signup" | "reset"): Promise<AuthOutcome> {
+  if (kind === "signin" && siteKey().startsWith("sf:") && !resigning()) {
+    const toSignup = findButton(RE_TO_SIGNUP);
+    remember(RESIGNUP, String(Date.now()));
+    // Not when the frame's storage is refused: a sign-up it can't remember would come back here.
+    if (toSignup && resigning()) {
+      press(toSignup);
+      return { ok: true };
+    }
+  }
+  return forgotPassword();
 }
 
 /** "This email is already registered" with no password stored: reset it through the inbox. */

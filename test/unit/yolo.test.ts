@@ -833,6 +833,7 @@ describe("verification emails", () => {
     expect(extract("<p>Your verification code is: <b>482913</b></p><p>Ref 2026</p>", "code")).toBe("482913");
     expect(extract("Use passcode X7K2QP to sign in", "code")).toBe("X7K2QP");
     expect(extract("Hello there", "code")).toBeNull();
+    expect(extract("Req 15658. Your one-time password is: Q7ZK2M41", "code")).toBe("Q7ZK2M41");
   });
 });
 
@@ -1915,5 +1916,15 @@ describe("embedded steps", () => {
     const reset = { ...page, path: "/career", passwords: 2, fields: 2 };
     expect(kindOf({ ...reset, headings: "Career Opportunities: Password Reset" }, false)).toBe("reset");
     expect(kindOf({ ...reset, headings: "Career Opportunities: Create an Account" }, false)).toBe("signup");
+    // SuccessFactors' sign-up then asks for an emailed passcode in a password box, under the same heading (Bombardier):
+    // typing the account password there was refused, and the run went to "Forgot password".
+    const passcode = {
+      ...page,
+      path: "/career",
+      headings: "Career Opportunities: Create an Account",
+      text: "Email Address: a@b.com We’ve sent a one-time password to your email address. *Passcode: Show Continue",
+      codeInput: true,
+    };
+    expect(kindOf(passcode, false)).toBe("verify");
   });
 });
