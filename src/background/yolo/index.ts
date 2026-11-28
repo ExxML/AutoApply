@@ -1942,6 +1942,23 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   },
 };
 
+/**
+ * Before jobKey read SmartRecruiters' form pages by publication id, every one was keyed "sr:company": give that
+ * application (each SR submission replaced the last) its own key, and its kept answers with it.
+ */
+async function rekeySmartRecruiters() {
+  const OLD = "sr:company";
+  const a = (await store.get("applications")).find((x) => x.key === OLD);
+  const key = a && jobKey(a.url);
+  if (!key || key === OLD) return;
+  await updateApplications((apps) => apps.map((x) => (x.key === OLD ? { ...x, key } : x)));
+  const [saved, index] = [await store.getSaved(OLD), await store.get("savedIndex")];
+  if (!saved || key in index) return;
+  const { [OLD]: size, ...rest } = index;
+  await chrome.storage.local.set({ [`saved:${key}`]: saved, savedIndex: { ...rest, [key]: size } });
+  await chrome.storage.local.remove(`saved:${OLD}`);
+}
+
 export function initYolo(d: YoloDeps) {
   deps = d;
   orphanChecked = failSourceCheck("Stopped partway (the browser closed or the extension restarted)").catch(
@@ -1951,6 +1968,7 @@ export function initYolo(d: YoloDeps) {
   const ready = store.get("yolo").then(async (y) => {
     yolo = y;
     loaded = true;
+    await rekeySmartRecruiters();
     await initReviewTabs(() => {
       void setState({ reviewUpdatedAt: Date.now() }).then(() => pump());
     });

@@ -206,6 +206,12 @@ describe("job keys", () => {
       jobKey(`https://jobs.lever.co/upscale-ai/${u}`),
     );
     expect(jobKey(`https://jobs.ashbyhq.com/1password/${u}/application?embed=true`)).toBe(`ashby:${u}`);
+    // Each SmartRecruiters form is its own job, not one "company" key for all of them.
+    const form = (id: string) =>
+      jobKey(`https://jobs.smartrecruiters.com/oneclick-ui/company/SAPITBusinessSysteme/publication/${id}?dcr_ci=x`);
+    expect(form("92f5be8c-8fa3-40b7-9034-f2a70c5d102a")).toBe("sr:92f5be8c-8fa3-40b7-9034-f2a70c5d102a");
+    expect(form("92f5be8c-8fa3-40b7-9034-f2a70c5d102a")).not.toBe(form("84a6b101-f480-412f-88ba-6a73ba1787bd"));
+    expect(jobKey("https://jobs.smartrecruiters.com/SAP/744000163521549-sap-ixp-intern")).toBe("sr:744000163521549");
     expect(jobKey("https://ca.linkedin.com/jobs/view/software-engineer-intern-at-lyft-4466425159?position=1")).toBe(
       "linkedin:4466425159",
     );

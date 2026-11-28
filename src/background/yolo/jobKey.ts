@@ -37,6 +37,10 @@ export function jobKey(raw: string): string {
   if (gh && /^\d+$/.test(gh)) return `greenhouse:${gh}`;
   if (host === "jobs.lever.co" || host === "jobs.eu.lever.co") return `lever:${seg[1] ?? ""}`;
   if (host === "jobs.ashbyhq.com") return `ashby:${seg[1] ?? ""}`;
+  // The application form ("/oneclick-ui/company/<Co>/publication/<uuid>") names its posting by publication id only:
+  // keyed on "company", every SmartRecruiters form read as one job, so one submission flagged them all as applied.
+  if (host.endsWith("smartrecruiters.com") && seg[0] === "oneclick-ui" && after("publication"))
+    return `sr:${after("publication")!.toLowerCase()}`;
   if (host.endsWith("smartrecruiters.com") && seg[1]) return `sr:${seg[1].split("-")[0]}`;
   if (host === "apply.workable.com" && seg[1] === "j") return `workable:${seg[2] ?? ""}`;
   if (host.endsWith("linkedin.com") && seg[0] === "jobs" && seg[1] === "view")
