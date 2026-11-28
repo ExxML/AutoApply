@@ -394,6 +394,9 @@ export function Applications() {
         >
           {deletingSaved ? "Deleting…" : `Delete saved data (${chosen.length} selected)`}
         </button>
+        {savedCount > 0 && chosen.length === 0 && (
+          <span>Tick applications in the table's first column to choose them.</span>
+        )}
       </div>
       {rows.length === 0 ? (
         <p class="muted">{apps.length ? "No matches." : "Nothing yet."}</p>
@@ -403,20 +406,30 @@ export function Applications() {
             <thead>
               <tr>
                 <th scope="col" class="select-cell">
-                  <input
-                    type="checkbox"
-                    aria-label="Select every application shown that has saved data"
-                    disabled={!selectable.length}
-                    checked={allChosen}
-                    onChange={(e) => {
-                      const on = e.currentTarget.checked;
-                      const next = new Set(selected);
-                      for (const k of selectable)
-                        if (on) next.add(k);
-                        else next.delete(k);
-                      setSelected(next);
-                    }}
-                  />
+                  <label
+                    class="select-hit"
+                    title={
+                      selectable.length
+                        ? "Select all shown applications that have saved data, to delete it"
+                        : "No shown application has saved data"
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label="Select all shown applications that have saved data"
+                      disabled={!selectable.length}
+                      checked={allChosen}
+                      onChange={(e) => {
+                        const on = e.currentTarget.checked;
+                        const next = new Set(selected);
+                        for (const k of selectable)
+                          if (on) next.add(k);
+                          else next.delete(k);
+                        setSelected(next);
+                      }}
+                    />
+                    <span aria-hidden="true">All</span>
+                  </label>
                 </th>
                 <th>When</th>
                 <th>Job</th>
@@ -432,12 +445,14 @@ export function Applications() {
                 <tr>
                   <td class="select-cell">
                     {a.key in savedIndex && (
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${a.company} – ${a.title || "(untitled)"}`}
-                        checked={selected.has(a.key)}
-                        onChange={(e) => toggle(a.key, e.currentTarget.checked)}
-                      />
+                      <label class="select-hit" title="Select to delete this application's saved data">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${a.company} – ${a.title || "(untitled)"}`}
+                          checked={selected.has(a.key)}
+                          onChange={(e) => toggle(a.key, e.currentTarget.checked)}
+                        />
+                      </label>
                     )}
                   </td>
                   <td class="muted">{formatDateTime(a.at)}</td>

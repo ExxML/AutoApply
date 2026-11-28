@@ -666,6 +666,6 @@ test("shows each application's saved responses and deletes the selected ones' in
   expect(await storage(sw, "saved:history-1")).toBeTruthy();
   expect(await storage<unknown[]>(sw, "applications")).toHaveLength(3);
   // The header box selects every shown application with saved data.
-  await page.getByRole("checkbox", { name: "Select every application shown that has saved data" }).check();
+  await page.getByRole("checkbox", { name: "Select all shown applications that have saved data" }).check();
   await expect(remove).toHaveText("Delete saved data (1 selected)");
 });
