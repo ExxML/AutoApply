@@ -628,3 +628,44 @@ test("a failed queue update keeps the jobs and allows retrying", async ({ sw, pa
   await expect(panel.getByRole("button", { name: "Clear queue", exact: true })).toBeEnabled();
   expect(await storage<QueueItem[]>(sw, "yoloQueue")).toHaveLength(1);
 });
+
+test("shows each application's saved responses and deletes the selected ones' in bulk, keeping the applications", async ({
+  sw,
+  page,
+}) => {
+  await applicationsPage(sw, page, 3, 0);
+  const record = (a: string) => ({
+    at: 1,
+    answers: [{ q: "Why us?", a: `${a} [ai]` }],
+    resume: ["Tailored (Ada_Resume.pdf)"],
+    letter: ["None"],
+    files: [{ name: "Ada_Resume.pdf", base64: "JVBERi0xLjQK" }],
+  });
+  await sw.evaluate(async (values) => chrome.storage.local.set(values), {
+    "saved:history-0": record("Zero"),
+    "saved:history-1": record("One"),
+    savedIndex: { "history-0": 2048, "history-1": 1024 },
+  });
+  await expect(page.getByText("Saved responses and documents: 3.0 KB for 2 applications")).toBeVisible();
+  await page.getByText("Saved responses and documents (2.0 KB)").click();
+  await expect(page.getByText("Why us?: Zero [ai]")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Ada_Resume.pdf" }).click();
+  expect((await download).suggestedFilename()).toBe("Ada_Resume.pdf");
+
+  const remove = page.getByRole("button", { name: /^Delete saved data/ });
+  await expect(remove).toBeDisabled();
+  await page.getByRole("checkbox", { name: "Select History company 0 – Engineer" }).check();
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("Delete the saved answers, résumés and cover letters of 1 application?");
+    await dialog.accept();
+  });
+  await remove.click();
+  await expect(page.getByText("Saved responses and documents: 1.0 KB for 1 application")).toBeVisible();
+  expect(await storage(sw, "saved:history-0")).toBeUndefined();
+  expect(await storage(sw, "saved:history-1")).toBeTruthy();
+  expect(await storage<unknown[]>(sw, "applications")).toHaveLength(3);
+  // The header box selects every shown application with saved data.
+  await page.getByRole("checkbox", { name: "Select every application shown that has saved data" }).check();
+  await expect(remove).toHaveText("Delete saved data (1 selected)");
+});

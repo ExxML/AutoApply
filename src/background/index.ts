@@ -76,12 +76,10 @@ const gemini = createGemini({
     persistCaps();
   },
   concurrency: () => settings.maxConcurrentRequests,
-  debug: () => settings.debugLogging,
 });
 
 const claude = createClaude({
   concurrency: () => settings.maxConcurrentRequests,
-  debug: () => settings.debugLogging,
   onSetupError: () => void store.set({ claudeReady: false }),
 });
 const claudeLabel = (t: ClaudeTask) => `Claude (${t.model || "default"})`;
@@ -120,7 +118,6 @@ const ready = (async () => {
   caps = { ...s.modelCapabilities, ...caps };
   await initYolo({
     serviceCtx: (task) => serviceCtx(undefined, task),
-    logLimit: () => (settings.debugLogging ? settings.debugLogLimit : 0),
   });
 })();
 

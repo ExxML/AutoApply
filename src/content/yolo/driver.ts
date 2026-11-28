@@ -64,8 +64,6 @@ export interface DriverDeps {
   email(): string;
   /** Every field shown on the page and its answer, blank or not, keyed by document and field. */
   answers(): Record<string, Guess>;
-  /** Debug logging is on: each page's answers go to the background's log of the run. */
-  debug: boolean;
   /** Shares the posting's description and pay before the run leaves its page, for later pages' answers. */
   posting(): Promise<void>;
   /** The same for a posting the run went past, read from its address. */
@@ -455,7 +453,7 @@ export async function drive(deps: DriverDeps): Promise<void | "parked"> {
           // Now: a Submit that loads the confirmation page would take this page's guesses with it.
           await send({
             type: "YOLO_ANSWERS",
-            answers: deps.debug ? deps.answers() : {},
+            answers: deps.answers(),
             guesses: deps.guesses(),
             hasGuessedAnswers: deps.hasGuessedAnswers?.() ?? false,
           }).catch(() => undefined);

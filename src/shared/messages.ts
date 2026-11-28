@@ -107,15 +107,24 @@ export type Message =
       instruction?: string;
     }
   /** The user submitted a form we filled; `doneUrl` once its confirmation shows. */
-  | { type: "APPLY_ATTEMPT"; job: { url: string; company: string; title: string }; doneUrl?: string }
+  | {
+      type: "APPLY_ATTEMPT";
+      job: { url: string; company: string; title: string };
+      doneUrl?: string;
+      /** The submitting frame's answers and uploaded document ids, kept with the application (savedStore.ts). */
+      answers?: Record<string, Guess>;
+      uploads?: string[];
+    }
+  /** After a manual fill: the frame's answers and uploaded document ids, until the user submits (APPLY_ATTEMPT). */
+  | { type: "FILL_ANSWERS"; answers: Record<string, Guess>; uploads: string[] }
   // YOLO driver C → B
   | { type: "YOLO_HELLO"; url: string }
   /** `guesses`: this page's made-up answers so far; the run keeps every page's. */
   | { type: "YOLO_STEP"; facts: PageFacts; url: string; guesses: Guess[] }
   | { type: "YOLO_RESULT"; result: YoloResult; runId?: string }
   /**
-   * After a fill, before the page moves on: its made-up answers, and with debug logging each field on the page and
-   * its answer, keyed by document and field.
+   * After a fill, before the page moves on: its made-up answers, and each field on the page and its answer, keyed by
+   * document and field.
    */
   | { type: "YOLO_ANSWERS"; answers: Record<string, Guess>; guesses: Guess[]; hasGuessedAnswers?: boolean }
   | { type: "YOLO_BEFORE_SUBMIT"; runId: string; ambiguous?: boolean; hasGuessedAnswers: boolean; guesses: Guess[] }
@@ -171,6 +180,8 @@ export type Message =
   | { type: "YOLO_FORGET"; key: string }
   /** Every application with this outcome, including those the page's filters hide. */
   | { type: "YOLO_FORGET_ALL"; status: (typeof FORGETTABLE)[number] }
+  /** Deletes these applications' saved answers and files (savedStore.ts); the applications stay. */
+  | { type: "SAVED_DELETE"; keys: string[] }
   | { type: "YOLO_GMAIL_CONNECT" }
   | { type: "YOLO_GMAIL_CHECK" }
   | { type: "YOLO_ACCOUNTS" }
@@ -274,6 +285,8 @@ export interface Responses {
   CLAUDE_TEST: { model: string; ms: number } | Err;
   CLAUDE_MODELS: Ok | Err;
   APPLY_ATTEMPT: Ok;
+  FILL_ANSWERS: Ok;
+  SAVED_DELETE: Ok;
   YOLO_HELLO: {
     runId: string;
     submissionReview: boolean;

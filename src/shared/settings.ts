@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { MAX_BATCH_APPLICATIONS } from "./yolo";
 
 const b = (d: boolean) => z.boolean().catch(d);
 const n = (d: number, min: number, max: number) => z.number().int().min(min).max(max).catch(d);
@@ -99,7 +98,6 @@ const base = z.object({
   maxFieldsPerRequest: n(40, 1, 200),
   requestTimeoutMs: n(25000, 1000, 120000),
   maxConcurrentRequests: n(4, 1, 16),
-  debugLogging: b(false),
   /**
    * After each fill, an AI reads the page as shown and checks every answer against the profile: it corrects wrong
    * ones, fills what the scan missed, and flags the rest (content/review). Manual fills only; YOLO sets its own.
@@ -107,8 +105,6 @@ const base = z.object({
   reviewFills: b(true),
   /** How long one review (or YOLO navigator) call may take: these think longer than a fill's calls. */
   reviewTimeoutMs: n(180000, 10000, 600000),
-  /** How many YOLO applications' debug logs are kept. */
-  debugLogLimit: n(100, 1, MAX_BATCH_APPLICATIONS),
 });
 
 export const SettingsSchema = base.catch(() => base.parse({}));

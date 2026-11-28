@@ -1,7 +1,6 @@
 import { NumberInput, SelectInput, TagInput, Toggle } from "../components/controls";
 import { save, useStored } from "../store";
 import type { Settings } from "../../shared/types";
-import { MAX_BATCH_APPLICATIONS } from "../../shared/yolo";
 
 type Bool = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
 type Num = { [K in keyof Settings]: Settings[K] extends number ? K : never }[keyof Settings];
@@ -34,22 +33,9 @@ const TOGGLES: [Bool, string, string][] = [
     "Offer to save my answers",
     "After you answer a field the extension couldn't, offer to remember it.",
   ],
-  [
-    "debugLogging",
-    "Debug logging",
-    "Logs prompts and responses to the service-worker console (never API keys), shows stage timings, and keeps each YOLO application's answers (Applications → Debug logs).",
-  ],
 ];
 
 const NUMBERS: [Num, string, string, number, number][] = [
-  // First: it sits right under the Debug logging toggle it belongs to.
-  [
-    "debugLogLimit",
-    "Debug logs kept",
-    "How many recent YOLO applications' debug logs are kept.",
-    1,
-    MAX_BATCH_APPLICATIONS,
-  ],
   [
     "maxFieldsPerRequest",
     "Fields per AI request",

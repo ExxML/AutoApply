@@ -66,7 +66,6 @@ beforeEach(async () => {
   runner = await import("../../src/background/yolo/runner");
   reviews = await import("../../src/background/yolo/reviewTabs");
   await coordinator.initYolo({
-    logLimit: () => 0,
     serviceCtx: async () => ({ error: { kind: "other", message: "Not needed for explicit resumes" } }),
   });
 });

@@ -2,7 +2,20 @@
 import type { Worker } from "@playwright/test";
 import type { Application } from "../../src/shared/yolo";
 import { EXPERIENCE } from "../mockGemini";
+import type { SavedApplication } from "../../src/shared/storage";
 import { BASE, expect, fillPage, PROFILE, seed, storage, test, waitDone } from "./extension";
+
+/** The application's saved record (background savedStore), and as text: documents, then each answer as "q = a". */
+async function saved(sw: Worker) {
+  const [a] = await storage<Application[]>(sw, "applications");
+  const s = await storage<SavedApplication>(sw, `saved:${a.key}`);
+  const text = [
+    `Résumé: ${s.resume.join(", ") || "None"}`,
+    `Cover letter: ${s.letter.join(", ") || "None"}`,
+    ...s.answers.map((g) => `  ${g.q} = ${g.a}`),
+  ].join("\n");
+  return { ...s, text };
+}
 
 const queue = (sw: Worker, url: string, yolo: Record<string, unknown> = {}) =>
   sw.evaluate(
@@ -120,7 +133,7 @@ test("waits out a rate limit on a drafted cover letter instead of handing the jo
   mock,
 }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  await seed(sw, { caps: true });
   void page;
   // Drafts turned down on every key for the next 6 s, as a per-minute quota does.
   let until = 0;
@@ -140,34 +153,32 @@ test("waits out a rate limit on a drafted cover letter instead of handing the jo
       : null;
   await queue(sw, `${BASE}yolo-cover-letter.html`);
   await outcome(sw).toBe("submitted");
-  // The debug log names what was uploaded and keeps the letter's PDF.
-  const log = (await storage<{ text: string; files?: { name: string; base64: string }[] }[]>(sw, "yoloLogs")).at(-1)!;
+  // The saved application names what was uploaded and keeps the letter's PDF.
+  const log = await saved(sw);
   expect(log.text).toContain("Résumé: None");
   expect(log.text).toMatch(/Cover letter: Generated \(\w+_Cover_Letter\.pdf\)/);
   expect(log.files).toEqual([{ name: expect.stringMatching(/_Cover_Letter\.pdf$/), base64: expect.any(String) }]);
-  expect(atob(log.files![0].base64)).toMatch(/^%PDF/);
+  expect(atob(log.files[0].base64)).toMatch(/^%PDF/);
 });
 
 test("asks for pay from the posting's range after Apply leads to another page", async ({ sw, page }) => {
   test.setTimeout(120_000);
   const desiredCompensation = { amount: "20", currency: "CAD", period: "hour", strategy: "q1" };
   const profile = { ...PROFILE, preferences: { ...PROFILE.preferences, desiredCompensation } };
-  await seed(sw, { caps: true, profile, settings: { debugLogging: true } });
+  await seed(sw, { caps: true, profile });
   void page;
   await queue(sw, `${BASE}yolo-job-pay.html`);
   await outcome(sw).toBe("submitted");
-  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
-  expect(logs.at(-1)?.text).toContain("Desired hourly pay = $42.50");
+  expect((await saved(sw)).text).toContain("Desired hourly pay = $42.50");
 });
 
 test("corrects a site's preselected country to the profile's", async ({ sw, page }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  await seed(sw, { caps: true });
   void page;
   await queue(sw, `${BASE}yolo-default-country.html`);
   await outcome(sw).toBe("submitted");
-  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
-  expect(logs.at(-1)?.text).toContain("Province = British Columbia");
+  expect((await saved(sw)).text).toContain("Province = British Columbia");
 });
 
 test("queues a job again when short rate limits keep coming", async ({ sw, page, mock }) => {
@@ -199,14 +210,12 @@ test("queues a job again when short rate limits keep coming", async ({ sw, page,
 
 test("opens a posting whose application is collapsed in the page", async ({ sw, page }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  await seed(sw, { caps: true });
   void page;
   await queue(sw, `${BASE}yolo-collapsed.html`);
   await outcome(sw).toBe("submitted");
-  const logs = await storage<{ text: string }[]>(sw, "yoloLogs");
-  expect(logs.at(-1)?.text).toContain("Steps: job → form → success");
   // A résumé uploaded untailored is named by its document's label.
-  expect(logs.at(-1)?.text).toContain("Résumé: Résumé\nCover letter: None");
+  expect((await saved(sw)).text).toContain("Résumé: Résumé\nCover letter: None");
 });
 
 test("fills again a field the page rejected, though it holds what we typed", async ({ sw, page }) => {
@@ -219,11 +228,11 @@ test("fills again a field the page rejected, though it holds what we typed", asy
 
 test("replaces the work entries a site's résumé parser wrote with the profile's", async ({ sw, page }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true }, profile: { ...PROFILE, experience: EXPERIENCE } });
+  await seed(sw, { caps: true, profile: { ...PROFILE, experience: EXPERIENCE } });
   void page;
   await queue(sw, `${BASE}yolo-parsed-entries.html`);
   await outcome(sw).toBe("submitted");
-  const text = (await storage<{ text: string }[]>(sw, "yoloLogs")).at(-1)!.text;
+  const { text } = await saved(sw);
   for (const want of ["Analytical Engines Ltd", "Software Engineer Intern", "Built analytics tooling.", "2026-01-01"])
     expect(text).toContain(`= ${want} [`);
   for (const want of ["Babbage & Co", "IT Technician Intern", "Kept the lab running.", "2023-06-01", "2023-08-01"])
@@ -243,11 +252,11 @@ test("replaces the work entries a site's résumé parser wrote with the profile'
 
 test("refills a site's fixed work slots from the profile and empties the one past it", async ({ sw, page }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true }, profile: { ...PROFILE, experience: EXPERIENCE } });
+  await seed(sw, { caps: true, profile: { ...PROFILE, experience: EXPERIENCE } });
   void page;
   await queue(sw, `${BASE}yolo-parsed-slots.html`);
   await outcome(sw).toBe("submitted");
-  const text = (await storage<{ text: string }[]>(sw, "yoloLogs")).at(-1)!.text;
+  const { text } = await saved(sw);
   const rows = text
     .split("\n")
     .map((l) => l.trim().replace(/ \[\w+\]$/, ""))
@@ -628,6 +637,9 @@ test("logs the user's own submission after a fill, and warns on jobs YOLO applie
   await expect
     .poll(async () => (await storage<Application[] | undefined>(sw, "applications"))?.[0]?.mode, { timeout: 15_000 })
     .toBe("manual");
+  // Every page's answers are saved with it, the first page's too (another document), the password masked.
+  await expect.poll(async () => (await saved(sw)).text, { timeout: 15_000 }).toContain("= Ada [");
+  expect((await saved(sw)).text).not.toMatch(/= pw\b/);
 
   await sw.evaluate(async (url) => {
     await chrome.storage.local.set({
@@ -648,7 +660,7 @@ test("AI tailor: uploads the résumé tailored for the job, notes it on the appl
   mock,
 }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true } });
+  await seed(sw, { caps: true });
   const id = new URL(sw.url()).host;
   await page.goto(`chrome-extension://${id}/src/options/index.html#/documents`);
   await page.getByLabel("Résumé for AI tailoring (.tex)").setInputFiles("test/fixtures/latex/jake.tex");
@@ -658,12 +670,12 @@ test("AI tailor: uploads the résumé tailored for the job, notes it on the appl
   const [a] = await storage<Application[]>(sw, "applications");
   expect(a.notes).toEqual([expect.stringMatching(/^Résumé tailored: \d+ changes? for this job$/)]);
   expect(mock.calls_("tailor")).toHaveLength(1);
-  // The debug log keeps the tailored PDF that was uploaded.
-  const log = (await storage<{ text: string; files?: { name: string; base64: string }[] }[]>(sw, "yoloLogs")).at(-1)!;
+  // The saved application keeps the tailored PDF that was uploaded.
+  const log = await saved(sw);
   expect(log.text).toMatch(/Résumé: Tailored \(\w+_Resume\.pdf\)/);
   expect(log.text).toContain("Cover letter: None");
   expect(log.files).toHaveLength(1);
-  expect(atob(log.files![0].base64)).toMatch(/^%PDF/);
+  expect(atob(log.files[0].base64)).toMatch(/^%PDF/);
   await expect.poll(() => sw.evaluate(() => chrome.offscreen.hasDocument())).toBe(false);
 });
 

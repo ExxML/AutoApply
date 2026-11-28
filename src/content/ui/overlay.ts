@@ -13,7 +13,8 @@ export interface OverlayView {
   uploads: UploadedDoc[];
   error: ApiError | null;
   model: string | null;
-  debug: string;
+  /** Stage timings of the last fill: never shown, read by the e2e perf tests. */
+  timings: string;
   /** A warning about the page itself ("YOLO already applied here"). */
   notice?: string;
   /** A resumed YOLO run stuck here waits for the user: what for, or how it goes on. */
@@ -226,8 +227,7 @@ export function createOverlay(h: OverlayHandlers) {
         jobBody.replaceChildren();
         if (jobInfo.open && ai.length) void loadJob();
       }
-      timings.textContent = v.debug;
-      timings.style.display = v.debug ? "" : "none";
+      timings.textContent = v.timings;
       // Auto-expand while filling and for DONE_PIN_MS after it ends.
       if (v.running || v.error) {
         panel.classList.remove("done");

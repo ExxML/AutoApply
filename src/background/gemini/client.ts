@@ -125,8 +125,6 @@ export interface GeminiDeps {
   concurrency: () => number;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
-  /** When true, prompts/responses are logged to the SW console (never keys). */
-  debug?: () => boolean;
 }
 
 type RunResult =
@@ -204,9 +202,6 @@ export function createGemini(deps: GeminiDeps) {
   const { pool } = deps;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const sem = new Semaphore(deps.concurrency);
-  const log = (...a: unknown[]) => {
-    if (deps.debug?.()) console.log(...a);
-  };
 
   async function runOnModel(model: string, body: unknown, ctx: Ctx, preferKey?: string): Promise<RunResult> {
     let serverRetries = 0;
@@ -220,7 +215,6 @@ export function createGemini(deps: GeminiDeps) {
       const res = await httpJson(url, key.key, { method: "POST", body }, ctx.timeoutMs, ctx.signal, deps.fetchImpl);
       const c = classify(res.status, res.body);
       pool.record(key.id, model, c, res.status);
-      log(`[gemini] ${model} key=${key.label} → ${res.status} ${c.kind}`);
       switch (c.kind) {
         case "success":
           return { kind: "ok", body: res.body, key };
@@ -312,7 +306,6 @@ export function createGemini(deps: GeminiDeps) {
         for (;;) {
           const thinking = spec.essay ? essayThinking(caps) : spec.review ? reviewThinking(caps) : caps.thinking;
           const body = buildBody(spec.system, payload, spec.schema, caps, thinking, spec.maxOutputTokens);
-          if (deps.debug?.()) log("[gemini] request", model, JSON.stringify(body).slice(0, 4000));
           const r = await runOnModel(model, body, ctx, preferKey);
           preferKey = undefined;
           if (r.kind === "ok") {
@@ -326,10 +319,6 @@ export function createGemini(deps: GeminiDeps) {
             }
             try {
               const data = parseOutput(r.body, spec.validate);
-              if (deps.debug?.()) {
-                log("[gemini] response", model, JSON.stringify(data).slice(0, 4000));
-                log("[gemini] usage", model, JSON.stringify((r.body as { usageMetadata?: unknown }).usageMetadata));
-              }
               return { data, usedModel: model, keyLabel: r.key.label };
             } catch (e) {
               if (!(e instanceof BadOutputError) || e.truncated) throw e;

@@ -123,7 +123,7 @@ beforeEach(async () => {
   });
   coordinator = await import("../../src/background/yolo");
   runner = await import("../../src/background/yolo/runner");
-  await coordinator.initYolo({ logLimit: () => 0, serviceCtx: async () => ({}) as ServiceCtx });
+  await coordinator.initYolo({ serviceCtx: async () => ({}) as ServiceCtx });
 });
 
 describe("YOLO apply to job tabs", () => {

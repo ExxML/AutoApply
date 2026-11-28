@@ -47,7 +47,7 @@ async function setup(config: Partial<Yolo> = {}, state = {}, ctx = {} as Service
   vi.spyOn(discovery, "discover").mockResolvedValue(0);
   coordinator = await import("../../src/background/yolo");
   runner = await import("../../src/background/yolo/runner");
-  await coordinator.initYolo({ logLimit: () => 0, serviceCtx: async () => ctx });
+  await coordinator.initYolo({ serviceCtx: async () => ctx });
 }
 
 async function running(key: string) {
@@ -177,7 +177,7 @@ describe("apply queued jobs", () => {
     vi.spyOn(discovery, "discover").mockResolvedValue(0);
     coordinator = await import("../../src/background/yolo");
     runner = await import("../../src/background/yolo/runner");
-    await coordinator.initYolo({ logLimit: () => 0, serviceCtx: async () => ({}) as ServiceCtx });
+    await coordinator.initYolo({ serviceCtx: async () => ({}) as ServiceCtx });
     await submitted(first);
     await vi.waitFor(() =>
       expect(chrome.declarativeNetRequest.updateSessionRules).toHaveBeenCalledWith({ removeRuleIds: [9001] }),

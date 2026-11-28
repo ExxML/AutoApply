@@ -9,6 +9,7 @@ import { useStored } from "../store";
 import { QueuedJobs } from "../components/QueuedJobs";
 import { SourceCheck } from "../components/SourceCheck";
 import { ApplicationSummary } from "../components/ApplicationSummary";
+import { formatBytes, SavedResponses } from "../components/SavedResponses";
 
 const STATUS: Record<Application["status"], string> = {
   submitted: "Submitted",
@@ -18,23 +19,15 @@ const STATUS: Record<Application["status"], string> = {
   review: "Ready for your review",
 };
 
-/** Saves a file a debug log kept: the PDF uploaded, or text in older logs. */
-function download(f: { name: string; base64?: string; text?: string }) {
-  const data = f.base64 ? Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0)) : (f.text ?? "");
-  const url = URL.createObjectURL(new Blob([data], { type: f.base64 ? "application/pdf" : "text/plain" }));
-  Object.assign(document.createElement("a"), { href: url, download: f.name }).click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 export function Applications() {
   const apps = useStored("applications");
   const queue = useStored("yoloQueue");
-  const settings = useStored("settings");
-  const logs = useStored("yoloLogs");
+  const savedIndex = useStored("savedIndex");
   const yoloState = useStored("yoloState");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
-  const [showLogs, setShowLogs] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deletingSaved, setDeletingSaved] = useState(false);
   const [reviewTabs, setReviewTabs] = useState<Responses["YOLO_REVIEW_LIST"]>({
     live: [],
     refilling: [],
@@ -163,7 +156,22 @@ export function Applications() {
       .catch(() => undefined)
       .finally(() => setBusy(""));
   };
-  if (!apps || !queue || !settings || !logs) return <p>Loading…</p>;
+  const deleteSaved = async (keys: string[]) => {
+    if (
+      deletingSaved ||
+      !keys.length ||
+      !window.confirm(
+        `Delete the saved answers, résumés and cover letters of ${keys.length} application${keys.length === 1 ? "" : "s"}? The applications stay in your history. This cannot be undone.`,
+      )
+    )
+      return;
+    setDeletingSaved(true);
+    await send({ type: "SAVED_DELETE", keys })
+      .then(() => setSelected(new Set()))
+      .catch(() => undefined)
+      .finally(() => setDeletingSaved(false));
+  };
+  if (!apps || !queue || !savedIndex) return <p>Loading…</p>;
   const nq = normalize(q);
   const rows = [...apps]
     .reverse()
@@ -172,6 +180,18 @@ export function Applications() {
         (!status || a.status === status) &&
         (!nq || normalize(`${a.company} ${a.title} ${a.reason} ${a.source}`).includes(nq)),
     );
+  // Only what's still saved counts as selected (a Forget or another tab may have deleted it).
+  const chosen = [...selected].filter((k) => k in savedIndex);
+  const selectable = rows.filter((a) => a.key in savedIndex).map((a) => a.key);
+  const allChosen = selectable.length > 0 && selectable.every((k) => selected.has(k));
+  const savedBytes = Object.values(savedIndex).reduce((n, b) => n + b, 0);
+  const savedCount = Object.keys(savedIndex).length;
+  const toggle = (key: string, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(key);
+    else next.delete(key);
+    setSelected(next);
+  };
   const pending = apps.filter((a) => a.review && ["review", "needs", "failed"].includes(a.status)).length;
   return (
     <section>
@@ -219,20 +239,6 @@ export function Applications() {
           onClick={() => openAdd(!addOpen)}
         >
           Add application
-        </button>
-        <button
-          type="button"
-          class="btn small"
-          disabled={!settings.debugLogging}
-          title={
-            settings.debugLogging
-              ? `What YOLO filled in and saw on its last ${settings.debugLogLimit} applications`
-              : "Turn on Debug logging in Behavior first"
-          }
-          aria-expanded={showLogs && settings.debugLogging}
-          onClick={() => setShowLogs(!showLogs)}
-        >
-          Debug logs
         </button>
         <div class="resume-all" role="group" aria-labelledby="resume-all-label">
           <span id="resume-all-label">Resume all</span>
@@ -374,39 +380,21 @@ export function Applications() {
           </p>
         )
       )}
-      {showLogs &&
-        settings.debugLogging &&
-        (logs.length ? (
-          <div class="logs">
-            {[...logs].reverse().map((l) => (
-              <>
-                <pre class="mono">
-                  {formatDateTime(l.at)} {l.text}
-                </pre>
-                {l.files?.map((f) => (
-                  <details class="log-file">
-                    <summary>
-                      {f.name}{" "}
-                      <button
-                        type="button"
-                        class="btn small"
-                        onClick={(e) => {
-                          e.preventDefault(); // not the details' toggle
-                          download(f);
-                        }}
-                      >
-                        Download
-                      </button>
-                    </summary>
-                    {f.text && <pre class="mono">{f.text}</pre>}
-                  </details>
-                ))}
-              </>
-            ))}
-          </div>
-        ) : (
-          <p class="muted">No logs yet: they're kept for YOLO applications made while Debug logging is on.</p>
-        ))}
+      <div class="saved-data" role="group" aria-labelledby="saved-data-label">
+        <span id="saved-data-label">
+          Saved responses and documents: {formatBytes(savedBytes)} for {savedCount} application
+          {savedCount === 1 ? "" : "s"}
+        </span>
+        <button
+          type="button"
+          class="btn small danger"
+          disabled={deletingSaved || chosen.length === 0}
+          title="Delete the saved answers, résumés and cover letters of the selected applications. The applications stay, so YOLO still won't apply to them again."
+          onClick={() => void deleteSaved(chosen)}
+        >
+          {deletingSaved ? "Deleting…" : `Delete saved data (${chosen.length} selected)`}
+        </button>
+      </div>
       {rows.length === 0 ? (
         <p class="muted">{apps.length ? "No matches." : "Nothing yet."}</p>
       ) : (
@@ -414,6 +402,22 @@ export function Applications() {
           <table class="table applications-table">
             <thead>
               <tr>
+                <th scope="col" class="select-cell">
+                  <input
+                    type="checkbox"
+                    aria-label="Select every application shown that has saved data"
+                    disabled={!selectable.length}
+                    checked={allChosen}
+                    onChange={(e) => {
+                      const on = e.currentTarget.checked;
+                      const next = new Set(selected);
+                      for (const k of selectable)
+                        if (on) next.add(k);
+                        else next.delete(k);
+                      setSelected(next);
+                    }}
+                  />
+                </th>
                 <th>When</th>
                 <th>Job</th>
                 <th>Status</th>
@@ -426,6 +430,16 @@ export function Applications() {
             <tbody>
               {rows.map((a) => (
                 <tr>
+                  <td class="select-cell">
+                    {a.key in savedIndex && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${a.company} – ${a.title || "(untitled)"}`}
+                        checked={selected.has(a.key)}
+                        onChange={(e) => toggle(a.key, e.currentTarget.checked)}
+                      />
+                    )}
+                  </td>
                   <td class="muted">{formatDateTime(a.at)}</td>
                   <td>
                     <a
@@ -457,6 +471,7 @@ export function Applications() {
                       <div class="muted">{n}</div>
                     ))}
                     {a.review && <div class="muted">Review rules: {a.review.reasons.join("; ")}</div>}
+                    {a.key in savedIndex && <SavedResponses appKey={a.key} size={savedIndex[a.key]} />}
                   </td>
                   <td>
                     {STATUS[a.status]}

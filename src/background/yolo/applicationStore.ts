@@ -3,7 +3,7 @@ import { isResumable, type Application, type QueueItem } from "../../shared/yolo
 const store = createStorage("background");
 
 /** Runs each change after the one before it, so every read-modify-write sees the last one's write. */
-function serial() {
+export function serial() {
   let last: Promise<unknown> = Promise.resolve();
   return (fn: () => Promise<void>) => {
     const next = last.then(fn);

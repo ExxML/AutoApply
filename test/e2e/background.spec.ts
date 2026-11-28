@@ -267,7 +267,7 @@ extensionTest(
   async ({ sw, page }) => {
     extensionTest.setTimeout(120_000);
     void page; // Use the usual fixture's install-tab cleanup and rendering setup for the correctness assertions.
-    await seed(sw, { caps: true, settings: { debugLogging: true, reviewFills: false } });
+    await seed(sw, { caps: true, settings: { reviewFills: false } });
     await sw.evaluate(() => {
       const g = globalThis as unknown as { sleeps: number };
       g.sleeps = 0;
@@ -292,7 +292,7 @@ extensionTest(
 
 test("a genuinely hidden tab fills at foreground speed", async ({ sw }) => {
   test.setTimeout(120_000);
-  await seed(sw, { caps: true, settings: { debugLogging: true, reviewFills: false } });
+  await seed(sw, { caps: true, settings: { reviewFills: false } });
   const probe = await sw.evaluate(async (url) => {
     const tab = await chrome.tabs.create({ url, active: true });
     return tab.id!;

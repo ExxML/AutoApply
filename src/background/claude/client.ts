@@ -14,8 +14,6 @@ import { LIST_MODELS, runBridge, type BridgeReply } from "./bridge";
 
 export interface ClaudeDeps {
   concurrency: () => number;
-  /** When true, prompts/responses are logged to the SW console. */
-  debug?: () => boolean;
   /** Claude Code became unusable (bridge missing, signed out): setup is needed again. */
   onSetupError?: () => void;
   send?: typeof runBridge;
@@ -114,9 +112,6 @@ export function readModels(r: BridgeReply): ClaudeModel[] {
 export function createClaude(deps: ClaudeDeps) {
   const sem = new Semaphore(deps.concurrency);
   const send = deps.send ?? runBridge;
-  const log = (...a: unknown[]) => {
-    if (deps.debug?.()) console.log(...a);
-  };
 
   /** One reply, validated; a bad one is asked for once more. */
   async function call<T>(spec: CallSpec<T>, task: ClaudeTask): Promise<CallResult<T>> {
@@ -132,14 +127,11 @@ export function createClaude(deps: ClaudeDeps) {
     };
     return sem.run(async () => {
       for (let retried = false; ; retried = true) {
-        log("[claude] request", task.model || "default", req.prompt.slice(0, 4000));
         try {
           // Twice the timeout: each call starts Claude Code afresh.
           const r = readReply(await send(req, spec.timeoutMs * 2, spec.signal), task.model);
           // Every reply is one JSON object; drop any prose or fence around it.
           const data = parseJsonReply(r.text.slice(r.text.indexOf("{"), r.text.lastIndexOf("}") + 1), spec.validate);
-          log("[claude] response", r.model, JSON.stringify(data).slice(0, 4000));
-          log("[claude] usage", r.model, JSON.stringify(r.usage));
           return { data, usedModel: r.model || task.model || "claude", keyLabel: "Claude" };
         } catch (e) {
           if (e instanceof ClaudeSetupError) deps.onSetupError?.();

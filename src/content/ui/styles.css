@@ -309,11 +309,7 @@
   }
 }
 pre.timings {
-  margin: 8px 0 0;
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  white-space: pre-wrap;
+  display: none;
 }
 
 /* learning prompt */

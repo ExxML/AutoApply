@@ -276,23 +276,21 @@ Profile settings for interview recording, AI assessment, new job opportunities a
 
 ## Behavior settings
 
-| Setting                       | Default / effect                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------------------- |
-| Overwrite pre-filled fields   | Off; leave existing values alone                                                          |
-| Auto-accept required consents | On                                                                                        |
-| Optional consents             | Auto-decline                                                                              |
-| Draft essays with AI          | On                                                                                        |
-| Write cover letters           | Off for manual PDF generation                                                             |
-| Upload résumés                | Variant select; separate YOLO choice                                                      |
-| Review manual fills with AI   | On; YOLO review is configured separately                                                  |
-| Show field badges             | On                                                                                        |
-| Offer to save my answers      | Off; enable prompts to remember answers you enter for flagged questions                   |
-| Fields per AI request         | 40; adjustable from 1–200, with larger pages split into parallel batches                  |
-| Request timeout               | 25,000 ms; essays receive twice the timeout and Claude has an additional multiplier       |
-| Parallel AI requests          | 4; adjustable from 1–16                                                                   |
-| Debug logging                 | Off; adds stage timings, service-worker prompt/response logs and retained YOLO debug logs |
-| Debug logs kept               | 100 recent applications; adjustable from 1–500                                            |
-| Excluded sites                | Hostnames on which AutoApply is disabled                                                  |
+| Setting                       | Default / effect                                                                    |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| Overwrite pre-filled fields   | Off; leave existing values alone                                                    |
+| Auto-accept required consents | On                                                                                  |
+| Optional consents             | Auto-decline                                                                        |
+| Draft essays with AI          | On                                                                                  |
+| Write cover letters           | Off for manual PDF generation                                                       |
+| Upload résumés                | Variant select; separate YOLO choice                                                |
+| Review manual fills with AI   | On; YOLO review is configured separately                                            |
+| Show field badges             | On                                                                                  |
+| Offer to save my answers      | Off; enable prompts to remember answers you enter for flagged questions             |
+| Fields per AI request         | 40; adjustable from 1–200, with larger pages split into parallel batches            |
+| Request timeout               | 25,000 ms; essays receive twice the timeout and Claude has an additional multiplier |
+| Parallel AI requests          | 4; adjustable from 1–16                                                             |
+| Excluded sites                | Hostnames on which AutoApply is disabled                                            |
 
 Higher batch sizes/concurrency can increase provider pressure. Review and AI navigation add requests; saved answers, local matching and résumé Variant select avoid AI calls for those decisions.
 
@@ -404,7 +402,7 @@ Preparing a review consumes one batch slot; submitting it yourself does not cons
 | **Forget**                                 | Remove a history entry so the job may become eligible again                                                                                    |
 | **Forget all**                             | After confirmation, remove all Failed, Needs you or Skipped entries of the selected status, including filtered-out rows                        |
 
-When **Behavior → Debug logging** is enabled, **Applications → Debug logs** shows retained application details, answers and captured files available to download. The retention limit is configurable. Service-worker prompts/responses and debug files can contain personal/application information.
+Every application AutoApply fills, in YOLO or by hand (once you submit it), keeps its answers and the résumé and cover letter it went with: open **Saved responses and documents** under its row to read the answers or download the tailored résumé and generated cover letter. They are kept until you delete them: the page shows how much storage they use, and **Delete saved data** removes the selected applications' saved data while keeping the applications themselves. Forgetting an application deletes its saved data too. Saved data stays on this device and is not part of JSON exports.
 
 ## Saved answers and backups
 
@@ -420,7 +418,7 @@ Under **Saved Answers**, search by question, answer or host, edit an answer, vie
 
 **Import** validates an AutoApply JSON export and shows a searchable before/after preview grouped by page and section. Select individual values/list entries or groups of changes, inspect downloadable documents, and leave unchecked values untouched. Identical values are omitted and secrets stay masked until revealed. Importing YOLO preferences turns scheduled YOLO off until you enable it again.
 
-Browser-specific connection state, active review tabs and debug logs are not transferable backups; reconnect Claude/Gmail and rebuild lost review forms when needed. Site-account passwords and their encryption key are not exported.
+Browser-specific connection state, active review tabs and saved application responses are not transferable backups; reconnect Claude/Gmail and rebuild lost review forms when needed. Site-account passwords and their encryption key are not exported.
 
 **Reset everything** clears extension data and the local password-vault key after repeated confirmation. Uninstalling or clearing extension storage also loses local data, so keep an export and copies of important documents.
 
@@ -436,7 +434,7 @@ To answer questions, AutoApply sends relevant profile information, résumé text
 
 Local matching, PDF text extraction, résumé-variant selection and LaTeX compilation happen locally. Job sites receive the values and documents you enter/upload; YOLO contacts enabled discovery sources and, when needed, verification-email services.
 
-API keys are kept out of content scripts and page code, masked in settings after entry and never written to debug logs. JSON exports **include them by default** unless you clear the checkbox; YOLO OAuth client settings may also be included, so treat backups as private.
+API keys are kept out of content scripts and page code, masked in settings after entry and never logged. JSON exports **include them by default** unless you clear the checkbox; YOLO OAuth client settings may also be included, so treat backups as private.
 
 The extension requests broad site access because applications can be hosted anywhere. Storage, tabs, alarms, offscreen pages, notifications, tab groups and request-rule permissions support autofill/YOLO; identity supports Gmail. The debugger permission supports optional real input and is declared at installation even when that setting is off. **Native messaging** is requested when connecting Claude.
 
@@ -471,8 +469,6 @@ The extension requests broad site access because applications can be hosted anyw
 | Review form is unavailable                          | Use Refill for review explicitly; previous edits/uploads may be lost.                                                                                              |
 | Résumé tailoring falls back or flags the upload     | Check its notice, supported LaTeX packages, job context, fallback PDF and one-page settings. Usage exhaustion pauses rather than falling back.                     |
 | Verification waits for you                          | Check the YOLO email, Gmail sign-in/API connection and enabled code/link settings.                                                                                 |
-
-For more detail, enable **Debug logging** in Behavior. The in-page panel gains stage timings; `chrome://extensions` → AutoApply → service-worker **Inspect** opens the background console. API keys are omitted from logs, but prompts/responses can contain your data.
 
 ## How it works
 

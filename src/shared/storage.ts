@@ -12,7 +12,7 @@ import {
   YoloStateSchema,
 } from "./yolo";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const ThinkingSchema = z.union([
   z.object({ kind: z.literal("level"), value: z.enum(["minimal", "low", "high"]) }),
@@ -127,18 +127,9 @@ export const LOCAL_SCHEMAS = {
   yoloQueue: list(QueueItemSchema),
   /** The job a hidden YOLO run is applying to, until it ends: put back in the queue if a browser restart lost the run. */
   yoloInFlight: QueueItemSchema.nullable().catch(null),
-  /** Debug logging: the latest YOLO applications' steps, answers and confirmations, oldest first. */
-  yoloLogs: list(
-    z.object({
-      at: z.number(),
-      text: z.string(),
-      /** The tailored résumé and generated cover letter the run uploaded; `text` in logs from before PDFs were kept. */
-      files: z
-        .array(z.object({ name: z.string(), base64: z.string().optional(), text: z.string().optional() }))
-        .optional(),
-    }),
-  ),
-  /** The latest discovery's per-source report (yolo/sourceCheck.ts), shown whatever Debug logging is set to. */
+  /** Application key → about how many bytes its saved:<key> record (yolo/savedStore.ts) takes. */
+  savedIndex: rec(z.number()),
+  /** The latest discovery's per-source report (yolo/sourceCheck.ts). */
   yoloSourceCheck: SourceCheckSchema.nullable().catch(null),
   /** Job keys the AI fit check judged not a fit → when (yolo/discover.ts). */
   yoloRejected: rec(z.number()),
@@ -179,6 +170,18 @@ export const LOCAL_SCHEMAS = {
   /** Résumé document id → its extracted text, for matching résumé variants to jobs (options keeps it in sync). */
   resumeTexts: rec(z.string()),
 };
+
+/** An application's answers and the résumé and cover letter it went with, kept under saved:<application key>. */
+export const SavedApplicationSchema = z.object({
+  at: z.number().catch(0),
+  answers: z.array(z.object({ q: z.string(), a: z.string() })).catch([]),
+  /** The résumés and cover letters uploaded, by name: the user's own documents stay in Documents. */
+  resume: z.array(z.string()).catch([]),
+  letter: z.array(z.string()).catch([]),
+  /** The PDFs AutoApply made for this job (tailored résumé, generated cover letter), as uploaded. */
+  files: z.array(z.object({ name: z.string(), base64: z.string() })).catch([]),
+});
+export type SavedApplication = z.infer<typeof SavedApplicationSchema>;
 
 export type LocalKey = keyof typeof LOCAL_SCHEMAS;
 export type LocalValues = { [K in LocalKey]: z.output<(typeof LOCAL_SCHEMAS)[K]> };
@@ -251,7 +254,13 @@ export function createStorage(ctx: StorageContext) {
     await chrome.storage.local.remove(`doc:${id}`);
   }
 
-  return { get, getMany, set, onChange, getDoc, setDoc, removeDoc };
+  async function getSaved(key: string): Promise<SavedApplication | null> {
+    check(`saved:${key}`);
+    const r = SavedApplicationSchema.safeParse((await chrome.storage.local.get(`saved:${key}`))[`saved:${key}`]);
+    return r.success ? r.data : null;
+  }
+
+  return { get, getMany, set, onChange, getDoc, setDoc, removeDoc, getSaved };
 }
 
 /** Runs once at service-worker start: stamps schemaVersion and rewrites values into validated shape. */
@@ -269,6 +278,8 @@ export async function migrate(): Promise<void> {
   await chrome.storage.local.remove("yoloSeen");
   // v5: the overlay no longer moves, so the per-host positions it saved are dead.
   await chrome.storage.local.remove("overlayPos");
+  // v6: Debug logging is gone; every application's answers and files are kept per application (yolo/savedStore.ts).
+  await chrome.storage.local.remove("yoloLogs");
 }
 
 // ---------- chrome.storage.session (background only) ----------
@@ -301,7 +312,7 @@ export const session = {
   /** Removes the per-tab keys of tabs not in `open`. */
   async pruneTabs(open: Set<number | undefined>) {
     const closed = Object.keys(await chrome.storage.session.get(null)).filter((k) => {
-      const id = /^(jobContext|jobPay|tabStatus):(\d+)$/.exec(k)?.[2];
+      const id = /^(jobContext|jobPay|tabStatus|fillAnswers):(\d+)$/.exec(k)?.[2];
       return id !== undefined && !open.has(Number(id));
     });
     if (closed.length) await chrome.storage.session.remove(closed);

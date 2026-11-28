@@ -107,7 +107,7 @@ describe("selective import planning", () => {
     const profile = emptyProfile();
     profile.personal.firstName = "Current";
     profile.personal.email = "keep@example.com";
-    const settings = { ...defaultSettings(), debugLogging: true };
+    const settings = { ...defaultSettings(), showBadges: false };
     await store.set({ profile, settings, selectedModel: "keep", yolo: { ...defaultYolo(), enabled: true } });
     const incoming = structuredClone(profile);
     incoming.personal.firstName = "Incoming";

@@ -2,7 +2,7 @@
 // alarm exists, so none of this runs.
 import { ensureContentScript, type Message, type Responses, type YoloResult } from "../../shared/messages";
 import { RE_APPLIED, SLEPT_MS } from "../../shared/constants";
-import { isTailoredDoc, resumeProblem } from "../../shared/resumeMode";
+import { resumeProblem } from "../../shared/resumeMode";
 import { collapse } from "../../shared/normalize";
 import { createStorage, session } from "../../shared/storage";
 import type { AiTask } from "../../shared/settings";
@@ -25,7 +25,6 @@ import { AllKeysExhaustedError } from "../gemini/errors";
 import { nextMidnightPacific } from "../../shared/time";
 import { RELEVANCE_SCHEMA, RelevanceZ } from "../gemini/schemas";
 import { draftEssays } from "../services/draftEssays";
-import { FALLBACK, tailoredDoc } from "../services/tailorResume";
 import { jobBrief } from "../services/jobBrief";
 import { compactProfile, type ServiceCtx } from "../services/mapFields";
 import { getJobContext, setJobContext } from "../jobContext";
@@ -34,6 +33,7 @@ import {
   markApplicationSkipped,
   markApplicationSubmitted,
   recordApplication,
+  serial,
   updateApplications,
   updateQueue,
 } from "./applicationStore";
@@ -107,6 +107,7 @@ import {
   woke,
   type Run,
 } from "./runner";
+import { deleteSaved, isYoloDoc, saveResponses, yoloDoc } from "./savedStore";
 import { accountKey, accountSite, addAccount, createAccount, deleteAccount, getAccount } from "./vault";
 
 const store = createStorage("background");
@@ -123,8 +124,6 @@ type Handler<T extends Message["type"]> = (
 
 export interface YoloDeps {
   serviceCtx: (task?: AiTask) => Promise<ServiceCtx | { error: ApiError }>;
-  /** How many applications' debug logs to keep: 0 with debug logging off. */
-  logLimit: () => number;
 }
 
 let yolo: Yolo = defaultYolo();
@@ -698,16 +697,12 @@ async function finish(run: Run, r: YoloResult, fromPage = false) {
   }
   if (await sleptThrough(run, r)) {
     if (!(await end(run.id))) return;
-    const limit = deps.logLimit();
-    if (limit) await logRun(run, r, limit);
     await requeue({ ...run.item, retries: (run.item.retries ?? 0) + 1 }, run.resumeKey);
     return whenOnline("pump");
   }
   if (fromPage && (await waitForUser(run, r))) return;
   if (!(await end(run.id))) return;
   if (run.mode === "scrape") return resolveScrape(run, r);
-  const limit = deps.logLimit();
-  if (limit) await logRun(run, r, limit);
   if (r.status === "blocked" && run.host === "frame" && yolo.tabFallback) {
     // From the embedded form itself: Lyft's CareerPuck page, which framed its Greenhouse form, renders nothing in a
     // background tab.
@@ -734,6 +729,7 @@ async function finish(run: Run, r: YoloResult, fromPage = false) {
   }
   const a = await outcome(run, r);
   await record(a);
+  await keepResponses(a.key, run);
   // A parked tab the user opened: they solved its CAPTCHA and left it to finish.
   if (run.adopted && a.status === "submitted" && !ownTab(run)) await closeTab(run.tabId!);
   if (a.status === "needs" && (run.host !== "visible" || run.adopted))
@@ -757,8 +753,7 @@ async function waitForUser(run: Run, r: YoloResult): Promise<boolean> {
   await record(a);
   if (!(await end(run.id, true))) return true;
   await releaseRealInput(run.tabId);
-  const limit = deps.logLimit();
-  if (limit) await logRun(run, r, limit);
+  await keepResponses(a.key, run);
   notify(`yolo:${a.key}`, "AutoApply needs you", text);
   await chrome.tabs
     .sendMessage(
@@ -824,54 +819,40 @@ async function holdForReview(run: Run, status: "review" | "needs", reason = "") 
   if (!(await end(run.id, true))) return;
   await releaseRealInput(run.tabId);
   await retainReview(key, run.tabId, run.documentId);
-  const limit = deps.logLimit();
-  if (limit) await logRun(run, { status: "needs", reason: reason || "Ready for your review" }, limit);
+  await keepResponses(key, run);
   await setState({ reviewUpdatedAt: Date.now() });
   void pump();
 }
 
-/** Debug logging: one entry per application with its steps, every field's answer, and what the page said at the end. */
-async function logRun(run: Run, r: YoloResult, limit: number) {
-  const answers = Object.values(run.answers ?? {});
-  const up = await uploaded(run);
-  const text = [
-    `${r.status}: ${run.item.company} – ${run.item.title} (${run.host})`,
-    run.atsUrl ?? run.item.url,
-    `Steps: ${run.steps.map((s) => s.split("|")[0]).join(" → ") || "none"}`,
-    "reason" in r && r.reason && `Reason: ${r.reason}`,
-    run.confirmation && `Confirmation: ${run.confirmation}`,
-    `Résumé: ${up.resume.join(", ") || "None"}`,
-    `Cover letter: ${up.letter.join(", ") || "None"}`,
-    `Answers (${answers.length}):`,
-    ...answers.map((g) => `  ${g.q} = ${g.a}`),
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const entry = { at: Date.now(), text, ...(up.files.length ? { files: up.files } : {}) };
-  await store.set({ yoloLogs: [...(await store.get("yoloLogs")), entry].slice(-limit) });
+type Filled = { job: string; answers: Record<string, Guess>; uploads: string[] };
+const filledLock = serial();
+
+/**
+ * Adds a manual fill's answers and uploads (from any of the tab's frames) to the tab's, and returns them all. Another
+ * job in the tab starts afresh. shortcut: a multi-page form's earlier pages keep their values as filled, not as the
+ * user edited them later; snapshot on its Next if that matters.
+ */
+async function keepFilled(
+  sender: chrome.runtime.MessageSender,
+  answers: Record<string, Guess> = {},
+  uploads: string[] = [],
+): Promise<Filled | null> {
+  const tabId = sender.tab?.id;
+  if (tabId === undefined) return null;
+  let out: Filled | null = null;
+  await filledLock(async () => {
+    const job = jobKey(sender.tab?.url ?? "");
+    const old = await session.get<Filled>(`fillAnswers:${tabId}`);
+    const base = old?.job === job ? old : { job, answers: {}, uploads: [] };
+    out = { job, answers: { ...base.answers, ...answers }, uploads: [...new Set([...base.uploads, ...uploads])] };
+    await session.set(`fillAnswers:${tabId}`, out);
+  });
+  return out;
 }
 
-type LogFile = { name: string; base64: string };
-
-/** The résumés and cover letters the run uploaded, by name, and the files YOLO made for the job as uploaded. */
-async function uploaded(run: Run) {
-  const docs = await store.get("documentsIndex");
-  const up = { resume: [] as string[], letter: [] as string[], files: [] as LogFile[] };
-  for (const id of run.uploads ?? []) {
-    if (isTailoredDoc(id) || isYoloDoc(id)) {
-      const d = await (isYoloDoc(id) ? yoloDoc(id) : tailoredDoc(store, id));
-      if (d) up.files.push({ name: d.meta.fileName, base64: d.base64 });
-      if (isYoloDoc(id)) up.letter.push(`Generated (${d?.meta.fileName ?? "file no longer kept"})`);
-      // The untailored PDF made when the .tex was uploaded, or a tailoring a browser restart lost.
-      else up.resume.push(d && id !== FALLBACK ? `Tailored (${d.meta.fileName})` : "Untailored LaTeX résumé");
-      continue;
-    }
-    const d = docs.find((x) => x.id === id);
-    if (d?.kind === "resume") up.resume.push(d.label);
-    else if (d?.kind === "cover_letter") up.letter.push(d.label);
-  }
-  return up;
-}
+/** Keeps the run's answers and uploads with application `key` (savedStore.ts). */
+const keepResponses = (key: string, run: Run) =>
+  saveResponses(key, Object.values(run.answers ?? {}), run.uploads ?? []);
 
 async function watchdog(due: number) {
   const run = await getRun();
@@ -1068,16 +1049,14 @@ export async function yoloNote(sender: chrome.runtime.MessageSender, note: strin
   await saveRun({ ...run, notes: [...(run.notes ?? []), note] });
 }
 
-/** Debug logging: a document the run's page fetched to upload, for the run's log. */
+/** A document the run's page fetched to upload, kept with the application (savedStore.ts). */
 export async function yoloUpload(sender: chrome.runtime.MessageSender, id: string) {
-  if (!deps.logLimit()) return;
   const run = await getRun();
   if (!fromRun(run, sender) || run.mode !== "apply" || run.uploads?.includes(id)) return;
   await saveRun({ ...run, uploads: [...(run.uploads ?? []), id] });
 }
 
-export const isYoloDoc = (id: string) => id.startsWith("yolo-");
-export const yoloDoc = (id: string) => session.get<{ meta: DocumentMeta; base64: string }>(`yolodoc:${id}`);
+export { isYoloDoc, yoloDoc };
 
 type NamedJob = { url: string; company: string; title: string; postedAt?: number };
 
@@ -1528,6 +1507,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
   async YOLO_FORGET({ key }) {
     await releaseReview(key);
     await updateApplications((apps) => apps.filter((a) => a.key !== key));
+    await deleteSaved([key]);
     void pump();
     return { ok: true };
   },
@@ -1543,6 +1523,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
       return apps.filter((a) => a.status !== status);
     });
     for (const a of failed) if (a.review) await releaseReview(a.key);
+    await deleteSaved(failed.map((a) => a.key));
     // Unchanged feeds must be read again so forgotten jobs can be rediscovered.
     if (failed.length) await store.set({ feedCache: {} });
     void pump();
@@ -1811,8 +1792,7 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     await record(a);
     if (!(await end(run.id, true))) return { parked: true };
     await releaseRealInput(run.tabId);
-    const limit = deps.logLimit();
-    if (limit) await logRun(run, { status: "needs", reason }, limit);
+    await keepResponses(a.key, run);
     notify(`yolo:${a.key}`, "AutoApply needs you", `${a.company} – ${a.title}: solve the CAPTCHA (click to open it)`);
     void pump();
     return { parked: true };
@@ -1911,10 +1891,22 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
     return { meta };
   },
 
-  async APPLY_ATTEMPT({ job, doneUrl }, sender) {
+  /** A manual fill's answers and uploads, kept for the tab until the user submits (APPLY_ATTEMPT). */
+  async FILL_ANSWERS({ answers, uploads }, sender) {
+    await keepFilled(sender, answers, uploads);
+    return { ok: true };
+  },
+
+  async SAVED_DELETE({ keys }) {
+    await deleteSaved(keys);
+    return { ok: true };
+  },
+
+  async APPLY_ATTEMPT({ job, doneUrl, answers, uploads }, sender) {
     if (await reviewAttempt(sender, doneUrl)) return { ok: true };
-    const save = (done: string) =>
-      record({
+    const filled = await keepFilled(sender, answers, uploads);
+    const save = async (done: string) => {
+      await record({
         key: jobKey(job.url),
         alt: altKey(job.company, job.title),
         url: job.url,
@@ -1930,6 +1922,8 @@ export const yoloHandlers: { [T in Message["type"]]?: Handler<T> } = {
         notes: [],
         at: Date.now(),
       });
+      if (filled) await saveResponses(jobKey(job.url), Object.values(filled.answers), filled.uploads);
+    };
     if (doneUrl) {
       await save(doneUrl);
       return { ok: true };

@@ -310,7 +310,7 @@ function renderOverlay() {
     waiting,
     canContinue,
     model: usedModel ?? config?.selectedModel ?? null,
-    debug: config?.settings.debugLogging ? timings.map(([k, v]) => `${k.padEnd(10)} ${v} ms`).join("\n") : "",
+    timings: timings.map(([k, v]) => `${k.padEnd(10)} ${v} ms`).join("\n"),
     notice:
       [
         reviewContext &&
@@ -1126,6 +1126,9 @@ async function runPipeline(opts: { rerun?: boolean; depth?: number; round?: numb
     document.dispatchEvent(new Event("autoapply-fill-end"));
     current = null;
     report();
+    // A manual fill's answers, kept with the application once the user submits it (YOLO's go with its run).
+    if (!yolo && !reviewContext && states.size)
+      void send({ type: "FILL_ANSWERS", ...filledNow() }).catch(() => undefined);
     // Child frames report their fields ~250 ms after the trigger; give them time before calling the page empty.
     if (TOP && !IN_HOST && !states.size)
       setTimeout(() => {
@@ -1232,7 +1235,6 @@ async function reviewPage(groupId: string, ctrl: AbortController): Promise<"none
     if (!isErr(r)) lastReview = { key, r };
     if (ctrl.signal.aborted) return "none";
     if (isErr(r)) {
-      if (config.settings.debugLogging) console.warn("[AutoApply] review failed:", r.error.message);
       return "none";
     }
     let changed = false;
@@ -1744,21 +1746,26 @@ function refill(errors: HTMLElement[]) {
   }
 }
 
-/** Every field shown on the page and its answer, blank or not, for the run's log. Keys are per document: a field's id
- * repeats on the next page. */
+/** Every field shown on the page and its answer, blank or not, kept with the application. Keys are per document: a
+ * field's id repeats on the next page. */
 function answers(): Record<string, Guess> {
   const out: Record<string, Guess> = {};
   for (const h of handles.values()) {
     if (!h.el.isConnected || !isVisible(h.container ?? h.el)) continue;
     const v = (h.el as HTMLInputElement).type === "password" ? "••••" : readValue(h);
-    const a = v.length > 300 ? `${v.slice(0, 300)}…` : v || "(blank)";
     out[`${performance.timeOrigin}|${h.id}`] = {
       q: h.desc.label || "(unlabeled field)",
-      a: `${a} [${states.get(h.id)?.status ?? "unscanned"}]`,
+      a: `${v || "(blank)"} [${states.get(h.id)?.status ?? "unscanned"}]`,
     };
   }
   return out;
 }
+
+/** This frame's answers and the documents it uploaded, for the application's saved record (background savedStore). */
+const filledNow = () => ({
+  answers: answers(),
+  uploads: [...uploads].filter(([id]) => !states.get(id)?.userOwned).map(([, d]) => d.id),
+});
 
 /** A posting's place and description from its HTML: one request, nothing rendered. */
 const fetchPosting = (url: string) =>
@@ -1810,7 +1817,6 @@ async function startYolo() {
     handoff: () => releaseYolo(),
     email: () => config.profileSnapshotForDeterministic.personal.email,
     answers,
-    debug: config.settings.debugLogging,
     posting: () => sharePosting(document, location),
     readPosting: async (url) => {
       // One request, nothing rendered: the description and pay are in its HTML or JSON-LD.
@@ -1871,11 +1877,11 @@ function onSubmitAttempt(e: Event) {
   attempted = true;
   const ctx = extractJobContext();
   const job = { url: location.href, company: ctx.company, title: ctx.jobTitle || ctx.title };
-  void send({ type: "APPLY_ATTEMPT", job }).catch(() => undefined);
+  void send({ type: "APPLY_ATTEMPT", job, ...filledNow() }).catch(() => undefined);
   if (RE_APPLIED.test(document.body?.innerText ?? "")) return; // said so already: no proof either way
   void waitFor(() => RE_APPLIED.test(document.body?.innerText ?? "") && location.href, 20_000, false).then(
     (doneUrl) => {
-      if (doneUrl) send({ type: "APPLY_ATTEMPT", job, doneUrl }).catch(() => undefined);
+      if (doneUrl) send({ type: "APPLY_ATTEMPT", job, doneUrl, ...filledNow() }).catch(() => undefined);
       else if (reviewContext) attempted = false;
     },
   );
